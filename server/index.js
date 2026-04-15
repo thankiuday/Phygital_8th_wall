@@ -37,7 +37,8 @@ connectDB();
    errors thrown by later middleware.
    ───────────────────────────────────────── */
 // Default production client URL — used when Origin header is absent
-const PRODUCTION_CLIENT = 'https://phygital8thwall-client.onrender.com';
+// Render auto-converts service names — check your Render dashboard for exact URLs
+const PRODUCTION_CLIENT = process.env.CLIENT_URL || 'https://phygital-8th-wall-client.onrender.com';
 
 app.use((req, res, next) => {
   // Reflect the exact incoming Origin; fall back to the production client URL.
