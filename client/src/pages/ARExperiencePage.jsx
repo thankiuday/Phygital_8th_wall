@@ -86,9 +86,11 @@ const ARExperiencePage = () => {
   /* ── Launch AR engine ──────────────────────────────────────── */
   const handleLaunchAR = () => {
     setLaunching(true);
-    // In Module 6 this will load the ar-engine inline or in an iframe.
-    // For now, redirect to the ar-engine app with the campaignId.
-    const arEngineUrl = import.meta.env.VITE_AR_ENGINE_URL || 'http://localhost:5174';
+    const arEngineUrl =
+      import.meta.env.VITE_AR_ENGINE_URL ||
+      (window.location.hostname.includes('onrender.com')
+        ? 'https://phygital8thwall-ar.onrender.com'
+        : 'http://localhost:5174');
     window.location.href = `${arEngineUrl}/ar/${campaignId}`;
   };
 

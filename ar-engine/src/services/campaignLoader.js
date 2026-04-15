@@ -4,7 +4,11 @@
  * No auth token required — uses the public endpoint.
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+const API_BASE =
+  import.meta.env.VITE_API_URL ||
+  (window.location.hostname.includes('onrender.com')
+    ? 'https://phygital-8th-wall-api.onrender.com/api'
+    : 'http://localhost:5000/api');
 
 /**
  * loadCampaign — fetches campaign details needed for the AR experience.
