@@ -45,6 +45,7 @@ const useAuthStore = create((set, get) => {
           accessToken:     data.accessToken,
           isAuthenticated: true,
           isLoading:       false,
+          isHydrating:     false,
         });
         return { success: true };
       } catch (err) {
@@ -64,6 +65,7 @@ const useAuthStore = create((set, get) => {
           accessToken:     data.accessToken,
           isAuthenticated: true,
           isLoading:       false,
+          isHydrating:     false,
         });
         return { success: true };
       } catch (err) {
@@ -91,8 +93,12 @@ const useAuthStore = create((set, get) => {
         const { user }        = await authService.getMe(accessToken);
         set({ user, accessToken, isAuthenticated: true, isHydrating: false });
       } catch {
-        // No valid session — normal for unauthenticated visitors
-        set({ user: null, accessToken: null, isAuthenticated: false, isHydrating: false });
+        // Only clear auth state if the user didn't log in while hydrate was in-flight
+        if (!get().isAuthenticated) {
+          set({ user: null, accessToken: null, isAuthenticated: false, isHydrating: false });
+        } else {
+          set({ isHydrating: false });
+        }
       }
     },
 

@@ -48,12 +48,13 @@ const verifyRefreshToken = (token) => {
  */
 const setRefreshCookie = (res, token) => {
   const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
+  const isProd = process.env.NODE_ENV === 'production';
   res.cookie('p8w_refresh', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    secure:   isProd,
+    sameSite: isProd ? 'none' : 'lax',
     maxAge,
-    path: '/api/auth', // restrict cookie to auth routes only
+    path: '/api/auth',
   });
 };
 
@@ -61,10 +62,11 @@ const setRefreshCookie = (res, token) => {
  * Clears the refresh token cookie.
  */
 const clearRefreshCookie = (res) => {
+  const isProd = process.env.NODE_ENV === 'production';
   res.clearCookie('p8w_refresh', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    secure:   isProd,
+    sameSite: isProd ? 'none' : 'lax',
     path: '/api/auth',
   });
 };
