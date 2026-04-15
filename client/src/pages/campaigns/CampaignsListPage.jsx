@@ -89,7 +89,27 @@ const CardMenu = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete }) =
 // ---------------------------------------------------------------------------
 // Individual campaign card
 // ---------------------------------------------------------------------------
-const CampaignCard = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete }) => (
+const CampaignCard = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete }) => {
+  const arPreview = campaign.status === 'active' ? (
+    <a
+      href={`/ar/${campaign._id}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center justify-center rounded-lg border border-[var(--border-color)] px-2 py-1.5 text-xs text-[var(--text-muted)] transition-colors hover:border-brand-500/50 hover:text-brand-400"
+      title="Preview AR"
+    >
+      <ExternalLink size={12} />
+    </a>
+  ) : (
+    <span
+      className="flex cursor-not-allowed items-center justify-center rounded-lg border border-[var(--border-color)] px-2 py-1.5 text-xs text-[var(--text-muted)] opacity-40"
+      title="Activate the campaign to preview AR"
+    >
+      <ExternalLink size={12} />
+    </span>
+  );
+
+  return (
   <motion.div
     layout
     initial={{ opacity: 0, y: 12 }}
@@ -162,19 +182,12 @@ const CampaignCard = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete 
         >
           <BarChart3 size={12} /> Analytics
         </Link>
-        <a
-          href={`/ar/${campaign._id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-center rounded-lg border border-[var(--border-color)] px-2 py-1.5 text-xs text-[var(--text-muted)] transition-colors hover:border-brand-500/50 hover:text-brand-400"
-          title="Preview AR"
-        >
-          <ExternalLink size={12} />
-        </a>
+        {arPreview}
       </div>
     </div>
   </motion.div>
-);
+  );
+};
 
 // ---------------------------------------------------------------------------
 // Skeleton card

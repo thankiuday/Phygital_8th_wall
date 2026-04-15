@@ -205,15 +205,24 @@ const AdminCampaignsPage = () => {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
                         <ModerationBtn campaign={c} onUpdate={handleUpdate} />
-                        <a
-                          href={`/ar/${c._id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:text-brand-400"
-                          title="Preview AR"
-                        >
-                          <ExternalLink size={13} />
-                        </a>
+                        {c.status === 'active' ? (
+                          <a
+                            href={`/ar/${c._id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:text-brand-400"
+                            title="Preview AR"
+                          >
+                            <ExternalLink size={13} />
+                          </a>
+                        ) : (
+                          <span
+                            className="cursor-not-allowed rounded-lg p-1.5 text-[var(--text-muted)] opacity-40"
+                            title="Campaign must be active to preview AR"
+                          >
+                            <ExternalLink size={13} />
+                          </span>
+                        )}
                       </div>
                     </td>
                   </tr>

@@ -9,6 +9,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: CLIENT_URL
+        value: https://phygital8thwall-client.onrender.com
     healthCheckPath: /health
 
   # ── Frontend Static Site ───────────────────────────────────────
@@ -18,6 +20,11 @@ services:
     rootDir: client
     buildCommand: npm install && npm run build
     staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://phygital8thwall-api.onrender.com/api
+      - key: VITE_APP_URL
+        value: https://phygital8thwall-client.onrender.com
     routes:
       - type: rewrite
         source: /*
@@ -30,6 +37,9 @@ services:
     rootDir: ar-engine
     buildCommand: npm install && npm run build
     staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://phygital8thwall-api.onrender.com/api
     routes:
       - type: rewrite
         source: /*

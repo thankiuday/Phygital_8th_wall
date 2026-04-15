@@ -7,7 +7,7 @@
 const API_BASE =
   import.meta.env.VITE_API_URL ||
   (window.location.hostname.includes('onrender.com')
-    ? 'https://phygital-8th-wall-api.onrender.com/api'
+    ? 'https://phygital8thwall-api.onrender.com/api'
     : 'http://localhost:5000/api');
 
 /**

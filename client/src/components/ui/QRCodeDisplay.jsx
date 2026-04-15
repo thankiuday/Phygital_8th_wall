@@ -8,7 +8,7 @@ import api from '../../services/api';
  *
  * Polls GET /api/campaigns/:id/qr until the QR is ready (async generation may take ~2s).
  */
-const QRCodeDisplay = ({ campaignId, campaignName, initialQrUrl = null }) => {
+const QRCodeDisplay = ({ campaignId, campaignName, initialQrUrl = null, campaignActive = true }) => {
   const [qrUrl, setQrUrl] = useState(initialQrUrl);
   const [polling, setPolling] = useState(!initialQrUrl);
   const [copied, setCopied] = useState(false);
@@ -145,6 +145,12 @@ const QRCodeDisplay = ({ campaignId, campaignName, initialQrUrl = null }) => {
           )}
         </button>
       </div>
+
+      {!campaignActive && (
+        <p className="text-center text-xs text-amber-500/90">
+          Activate this campaign so the QR and link open the AR experience for everyone.
+        </p>
+      )}
 
       <p className="text-center text-xs text-[var(--text-muted)]">
         Print this QR on your business card or share the link. When scanned, it opens your AR experience instantly — no app download needed.

@@ -184,10 +184,17 @@ const AdminDashboardPage = () => {
                     }`}>
                       {c.status}
                     </span>
-                    <a href={`/ar/${c._id}`} target="_blank" rel="noopener noreferrer"
-                      className="text-[var(--text-muted)] hover:text-brand-400">
-                      <ExternalLink size={12} />
-                    </a>
+                    {c.status === 'active' ? (
+                      <a href={`/ar/${c._id}`} target="_blank" rel="noopener noreferrer"
+                        className="text-[var(--text-muted)] hover:text-brand-400"
+                        title="Preview AR">
+                        <ExternalLink size={12} />
+                      </a>
+                    ) : (
+                      <span className="cursor-not-allowed text-[var(--text-muted)] opacity-40" title="Activate campaign to preview AR">
+                        <ExternalLink size={12} />
+                      </span>
+                    )}
                   </div>
                 </li>
               ))}

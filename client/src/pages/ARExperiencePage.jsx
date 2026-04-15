@@ -71,7 +71,9 @@ const ARExperiencePage = () => {
         }).catch(() => {}); // non-blocking
       } catch (err) {
         if (err.response?.status === 404) {
-          setError('This AR campaign is not active or does not exist.');
+          setError(
+            'This link is only available for published campaigns. Open your dashboard, open this campaign, and click Activate — then try again.'
+          );
         } else {
           setError('Something went wrong loading this experience. Please try again.');
         }

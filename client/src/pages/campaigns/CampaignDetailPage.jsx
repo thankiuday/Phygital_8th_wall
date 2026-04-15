@@ -139,14 +139,23 @@ const CampaignDetailPage = () => {
           >
             <BarChart3 size={14} /> Analytics
           </Link>
-          <a
-            href={`/ar/${campaign._id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 rounded-xl border border-[var(--border-color)] px-3 py-2 text-sm text-[var(--text-secondary)] hover:border-brand-500/50 hover:text-brand-400"
-          >
-            <ExternalLink size={14} /> Preview AR
-          </a>
+          {campaign.status === 'active' ? (
+            <a
+              href={`/ar/${campaign._id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-xl border border-[var(--border-color)] px-3 py-2 text-sm text-[var(--text-secondary)] hover:border-brand-500/50 hover:text-brand-400"
+            >
+              <ExternalLink size={14} /> Preview AR
+            </a>
+          ) : (
+            <span
+              title="Activate this campaign to open the public AR page."
+              className="flex cursor-not-allowed items-center gap-1.5 rounded-xl border border-[var(--border-color)] px-3 py-2 text-sm text-[var(--text-muted)] opacity-50"
+            >
+              <ExternalLink size={14} /> Preview AR
+            </span>
+          )}
           <button
             onClick={() => setShowEdit(true)}
             disabled={actionLoading}
@@ -195,6 +204,7 @@ const CampaignDetailPage = () => {
             campaignId={campaign._id}
             campaignName={campaign.campaignName}
             initialQrUrl={campaign.qrCodeUrl}
+            campaignActive={campaign.status === 'active'}
           />
         </motion.div>
 
