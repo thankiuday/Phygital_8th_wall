@@ -43,6 +43,7 @@ export class ARExperience {
     this._glow         = null;
     this._started      = false;
     this._sessionStart = null; // records when AR tracking begins
+    this._renderLoop   = null;
   }
 
   // --------------------------------------------------------------------------
@@ -87,6 +88,12 @@ export class ARExperience {
 
     const { renderer, scene, camera } = this._mindarThree;
 
+    // MindAR puts the camera <video> under the canvas (z-index -2) and uses a WebGLRenderer
+    // with alpha: true. Three.js still defaults to an opaque clear buffer, which paints black
+    // over the entire video — users only see the scanning UI. Force a transparent clear.
+    renderer.setClearColor(0x000000, 0);
+    scene.background = null;
+
     // 3 — Build the Three.js scene objects
     this._buildVideoPlane(THREE, scene);
 
@@ -119,11 +126,12 @@ export class ARExperience {
     updateLoadingProgress(100, 'Ready!');
     hideLoading();
 
-    // Render loop
-    renderer.setAnimationLoop(() => {
+    // Render loop (MindAR does not register one — see official three.js example)
+    this._renderLoop = () => {
       this._videoTexture?.update();
       renderer.render(scene, camera);
-    });
+    };
+    renderer.setAnimationLoop(this._renderLoop);
   }
 
   // --------------------------------------------------------------------------
@@ -204,6 +212,9 @@ export class ARExperience {
       updateSession(this._campaign._id, durationMs, watchPct);
     }
 
+    if (this._mindarThree?.renderer) {
+      this._mindarThree.renderer.setAnimationLoop(null);
+    }
     if (this._started && this._mindarThree) {
       await this._mindarThree.stop();
     }
