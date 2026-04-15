@@ -21,11 +21,24 @@ import { updateSession } from '../services/campaignLoader.js';
 
 // ---------------------------------------------------------------------------
 // Video plane geometry constants
+//
+// Coordinate system: MindAR places the tracked card centre at origin.
+// 1 world-unit ≈ card width.  Positive Y goes UP from the card surface.
+//
+// Goal: a portrait 9:16 video that looks like it is RISING from the card.
+//   • Bottom edge sits right at the card centre (y ≈ 0).
+//   • Top edge extends well above the card.
+//   • Width: ~80 % of card width so it does not overflow left/right.
 // ---------------------------------------------------------------------------
-const VIDEO_ASPECT = 9 / 16;         // vertical 9:16 video
-const PLANE_HEIGHT = 1.0;            // world-units tall (1 unit ≈ card width)
-const PLANE_WIDTH  = PLANE_HEIGHT * VIDEO_ASPECT; // ≈ 0.5625
-const PLANE_Y      = 0.6;            // center above card
+const PLANE_WIDTH  = 0.82;                     // 82 % of card width
+const PLANE_HEIGHT = PLANE_WIDTH * (16 / 9);   // ≈ 1.46  (portrait 9:16)
+const PLANE_Y      = PLANE_HEIGHT / 2;         // centre at half-height → bottom at y≈0
+
+// Thin horizontal glow ellipse that sits at the base of the video
+// giving the "emitting from card surface" look.
+const GLOW_W = PLANE_WIDTH  * 1.3;
+const GLOW_H = PLANE_HEIGHT * 0.14;  // flat ellipse, not a full-size quad
+const GLOW_Y = 0.02;                 // just above card surface
 
 // ---------------------------------------------------------------------------
 // Main class
@@ -135,15 +148,15 @@ export class ARExperience {
   }
 
   // --------------------------------------------------------------------------
-  // _buildVideoPlane — creates the 9:16 video mesh + glow quad
+  // _buildVideoPlane — 9:16 portrait video rising from card + base glow
   // --------------------------------------------------------------------------
   _buildVideoPlane(THREE, scene) {
     // --- Video element ---
     this._videoEl = document.createElement('video');
     Object.assign(this._videoEl, {
-      src:      this._campaign.videoUrl,
-      loop:     true,
-      muted:    true,         // required for autoplay on iOS
+      src:         this._campaign.videoUrl,
+      loop:        true,
+      muted:       true,        // required for autoplay on iOS / Android
       playsInline: true,
       crossOrigin: 'anonymous',
     });
@@ -155,35 +168,38 @@ export class ARExperience {
     this._videoTexture.minFilter = THREE.LinearFilter;
     this._videoTexture.magFilter = THREE.LinearFilter;
 
-    // --- Video plane ---
+    // --- Portrait video plane (9:16) ---
+    // Bottom edge anchored at card surface (y ≈ 0), top extends upward.
+    // Start hidden at scale 0 so the entrance animation can pop it up.
     const planeGeo = new THREE.PlaneGeometry(PLANE_WIDTH, PLANE_HEIGHT);
     const planeMat = new THREE.MeshBasicMaterial({
       map:         this._videoTexture,
       transparent: true,
       opacity:     0,
       side:        THREE.DoubleSide,
+      depthWrite:  false,
     });
     this._plane = new THREE.Mesh(planeGeo, planeMat);
-    this._plane.position.set(0, PLANE_Y, 0.001); // tiny z-offset avoids z-fighting
+    this._plane.position.set(0, PLANE_Y, 0.002);
     this._plane.scale.set(0, 0, 0);
     this._plane.visible = false;
 
-    // --- Glow quad (additive blend, slightly larger) ---
-    const glowGeo = new THREE.PlaneGeometry(PLANE_WIDTH * 1.4, PLANE_HEIGHT * 1.2);
+    // --- Base glow — flat ellipse sitting on the card surface ---
+    // Gives the "hologram emitting from card" look without covering the video.
+    const glowGeo = new THREE.PlaneGeometry(GLOW_W, GLOW_H);
     const glowMat = new THREE.MeshBasicMaterial({
-      color:       0x7c3aed, // brand purple
+      color:      0x7c3aed,
       transparent: true,
       opacity:     0,
       depthWrite:  false,
       blending:    THREE.AdditiveBlending,
     });
     this._glow = new THREE.Mesh(glowGeo, glowMat);
-    this._glow.position.set(0, PLANE_Y, 0);
+    this._glow.position.set(0, GLOW_Y, 0.001);
     this._glow.scale.set(0, 0, 0);
     this._glow.visible = false;
 
-    // Avoid glow showing through the plane
-    void scene; // scene is used by the caller
+    void scene;
   }
 
   // --------------------------------------------------------------------------
