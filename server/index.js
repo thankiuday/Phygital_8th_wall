@@ -36,41 +36,22 @@ connectDB();
    are present on every response, including
    errors thrown by later middleware.
    ───────────────────────────────────────── */
-const ALLOWED_ORIGINS = [
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://localhost:4173',
-  'https://phygital8thwall-client.onrender.com',
-  'https://phygital8thwall-ar.onrender.com',
-  process.env.CLIENT_URL,
-  process.env.AR_ENGINE_URL,
-].filter(Boolean);
-
-const isOriginAllowed = (origin) => {
-  if (!origin) return true;                        // curl / Postman / server-to-server
-  if (ALLOWED_ORIGINS.includes(origin)) return true; // exact match
-  if (origin.endsWith('.onrender.com')) return true;  // any *.onrender.com subdomain
-  if (/^http:\/\/localhost:\d+$/.test(origin)) return true; // any localhost port
-  return false;
-};
+// Default production client URL — used when Origin header is absent
+const PRODUCTION_CLIENT = 'https://phygital8thwall-client.onrender.com';
 
 app.use((req, res, next) => {
-  const origin = req.headers.origin;
+  // Reflect the exact incoming Origin; fall back to the production client URL.
+  // NEVER use '*' with credentials:true — browsers reject it silently.
+  const origin = req.headers.origin || PRODUCTION_CLIENT;
 
-  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Origin',      origin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods',     'GET,POST,PATCH,PUT,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers',     'Content-Type,Authorization');
+  res.setHeader('Access-Control-Max-Age',           '86400');
+  res.setHeader('Vary',                             'Origin');
 
-  if (isOriginAllowed(origin)) {
-    // Reflect the exact origin back — required when credentials: true
-    res.setHeader('Access-Control-Allow-Origin', origin || '*');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,PUT,DELETE,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
-    res.setHeader('Access-Control-Max-Age', '86400');
-  } else {
-    logger.warn('CORS: blocked origin', { origin });
-  }
-
-  // Return immediately for preflight — before helmet, rate-limit, body parser, etc.
+  // Answer preflight immediately — before Helmet, rate-limiter, body-parser, etc.
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
@@ -149,24 +130,25 @@ app.use(
 /* ─────────────────────────────────────────
    Health Check
    ───────────────────────────────────────── */
-app.get('/health', (_req, res) => {
+app.get('/health', (req, res) => {
   res.json({
     status:    'ok',
     service:   'Phygital8ThWall API',
     timestamp: new Date().toISOString(),
     env:       process.env.NODE_ENV || 'development',
     uptime:    Math.round(process.uptime()),
-    cors:      ALLOWED_ORIGINS,
+    corsMode:  'reflect-all-origins',
+    origin:    req.headers.origin || '(none)',
   });
 });
 
-/* Debug — shows exact headers Render forwards (remove after CORS is confirmed) */
+/* Debug — echo headers so you can verify CORS is working from the client */
 app.get('/cors-debug', (req, res) => {
   res.json({
-    origin:           req.headers.origin,
-    host:             req.headers.host,
-    isAllowed:        isOriginAllowed(req.headers.origin),
-    allowedOrigins:   ALLOWED_ORIGINS,
+    receivedOrigin:          req.headers.origin,
+    acao:                    res.getHeader('Access-Control-Allow-Origin'),
+    acac:                    res.getHeader('Access-Control-Allow-Credentials'),
+    allRequestHeaders:       req.headers,
   });
 });
 
