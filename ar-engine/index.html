@@ -11,26 +11,21 @@
     <!--
       CDN LOADING ORDER (important — do not reorder):
 
-      1. Three.js      — 3D renderer; MindAR uses the same global copy
-      2. GSAP          — animation engine
-      3. MindAR Image  — target compiler (WASM, exposes window.MINDAR.IMAGE.Compiler)
-      4. MindAR Three  — camera + tracker pipeline (exposes window.MINDAR.IMAGE.MindARThree)
+      1. Three.js — global THREE for MindAR (see version note below)
+      2. MindAR Image — compiler (window.MINDAR.IMAGE.Compiler)
+      3. MindAR Three — tracker (window.MINDAR.IMAGE.MindARThree)
 
-      We load MindAR from CDN instead of bundling to avoid Vite WASM/worker issues.
-      NOTE: Three.js version must match what MindAR was built against (0.160.x).
+      mind-ar 1.2.2+ ships ESM-only prod builds; classic <script> tags then throw
+      "Cannot use import statement outside a module". Pin to 1.1.5 (webpack UMD).
+      GSAP is bundled via Vite from npm (main.js sets window.gsap).
     -->
 
-    <!-- Three.js -->
-    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <!-- Three r149 — avoids three.min.js deprecation warnings from r150+; pairs with mind-ar 1.1.x -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
 
-    <!-- GSAP -->
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-
-    <!-- MindAR — image target compiler (required for runtime compilation) -->
-    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js"></script>
-
-    <!-- MindAR — Three.js integration (camera + tracker) -->
-    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"></script>
+    <!-- MindAR 1.1.5 — last release line with browser-safe single-file prod bundles -->
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.5/dist/mindar-image.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.5/dist/mindar-image-three.prod.js"></script>
 
     <style>
       /* ------------------------------------------------------------------ */

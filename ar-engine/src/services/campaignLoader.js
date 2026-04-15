@@ -18,17 +18,21 @@ const API_BASE =
  * @throws  AppError if campaign not found / inactive
  */
 export const loadCampaign = async (campaignId) => {
-  const res = await fetch(`${API_BASE}/public/campaigns/${campaignId}`, {
-    method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
-  });
+  // No custom headers — keeps the request “simple” so browsers skip a CORS preflight.
+  const res = await fetch(`${API_BASE}/public/campaigns/${campaignId}`, { method: 'GET' });
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.message || `Campaign load failed (${res.status})`);
+    const msg = body.message || `Campaign load failed (${res.status})`;
+    const err = new Error(msg);
+    err.status = res.status;
+    throw err;
   }
 
   const body = await res.json();
+  if (!body?.data?.campaign) {
+    throw new Error('Invalid response from server.');
+  }
   return body.data.campaign;
 };
 

@@ -14,8 +14,7 @@ export default defineConfig({
     host: true, // expose on LAN so mobile devices can connect
     https: false, // in production HTTPS is required for camera access
   },
-  // MindAR is loaded via CDN script tag — exclude from bundler
   optimizeDeps: {
-    exclude: [],
+    include: ['gsap'],
   },
 });

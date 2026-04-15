@@ -16,9 +16,8 @@
  *   and store the .mind file URL on the Campaign model.
  *
  * GLOBAL DEPENDENCY
- * - window.MINDAR.IMAGE.Compiler is loaded via CDN script tag in index.html
- *   (mind-ar@latest/dist/mindar-image.prod.js)
- *   This avoids Vite WASM/worker bundler complexity.
+ * - window.MINDAR.IMAGE.Compiler — loaded in index.html (mind-ar@1.1.5 UMD build;
+ *   newer mind-ar prod bundles are ESM-only and break classic script tags).
  */
 
 /**

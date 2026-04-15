@@ -181,7 +181,8 @@ const duplicateCampaign = async (req, res) => {
     videoUrl:             original.videoUrl,
     videoPublicId:        original.videoPublicId,
     thumbnailUrl:         original.thumbnailUrl,
-    status: 'paused', // start paused so the user can review before activating
+    // Match createCampaign — go live immediately; user can Pause from the dashboard.
+    status: 'active',
   });
 
   // Generate a new QR code for the duplicate asynchronously

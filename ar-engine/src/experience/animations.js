@@ -8,7 +8,7 @@
  * push values to Three.js each frame.
  *
  * GLOBAL DEPENDENCY
- * - window.gsap is loaded via CDN in index.html
+ * - window.gsap — set in main.js from the gsap npm package
  */
 
 const gsap = () => window.gsap;

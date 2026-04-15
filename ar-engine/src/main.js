@@ -8,9 +8,12 @@
  *  4. Boot the full AR experience
  */
 
+import gsap from 'gsap';
 import { loadCampaign, recordScan } from './services/campaignLoader.js';
 import { ARExperience } from './experience/ARExperience.js';
 import { updateLoadingProgress, showError } from './utils/loadingScreen.js';
+
+window.gsap = gsap;
 
 const init = async () => {
   // Parse campaign ID from the last path segment: /ar/CAMPAIGN_ID
@@ -29,10 +32,14 @@ const init = async () => {
   try {
     campaign = await loadCampaign(campaignId);
   } catch (err) {
-    showError(
-      err.message.includes('404') ? 'Campaign not found.' : 'Could not load campaign.',
-      err.message
-    );
+    const msg = String(err.message || '');
+    const inactive =
+      /inactive|not published|paused|not active/i.test(msg) || err.status === 404;
+    const title = inactive ? 'Experience unavailable' : 'Could not load campaign.';
+    const detail = inactive
+      ? 'Public AR only works for Active campaigns. In your dashboard, open this campaign and click Activate, then try again.'
+      : msg;
+    showError(title, detail);
     return;
   }
 
