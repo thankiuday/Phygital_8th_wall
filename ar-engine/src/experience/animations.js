@@ -1,176 +1,176 @@
 /**
- * animations.js
+ * animations.js — GSAP animations for the AR hologram
  *
- * GSAP-powered animations for the AR hologram.
+ * HOW THE RISE-FROM-CARD MATH WORKS
+ * ──────────────────────────────────
+ * After rotation.x = Math.PI/2 in ARExperience.js, the plane stands upright.
+ * In Three.js, TRS order is: translate → rotate → scale. So scale.y compresses
+ * the plane in its local Y BEFORE the rotation is applied, which means scale.y
+ * controls the plane's EFFECTIVE HEIGHT along the +Z (camera) axis in world
+ * space.
  *
- * Visual goal: the video looks like it POPS UP from the business card,
- * as if a hologram is rising from the card surface.
+ * For the "grow from card surface" effect, the bottom edge must stay at z = 0
+ * while scale.y grows from 0 → 1. Geometry spans y: [-H/2, +H/2] in model
+ * space. After rotation, z spans [-k*H/2, +k*H/2] relative to position.z.
+ * Setting position.z = k * restZ (where restZ = H/2) keeps the bottom at 0:
  *
- * Entrance  — video scales from the bottom (card surface) upward,
- *             combined with a Y-rise so it appears to shoot out of the card.
- * Float     — gentle Y levitation + base-glow pulse while tracking.
- * Exit      — quick shrink back down to card surface.
+ *   bottom_z = position.z − k*(H/2) = k*(H/2) − k*(H/2) = 0  ✓
+ *   top_z    = position.z + k*(H/2) = k*H                      ✓
+ *
+ * Animation: animate the proxy scalar k from 0 → 1 and apply both transforms
+ * in every onUpdate tick.
  *
  * GLOBAL DEPENDENCY: window.gsap — set in main.js from the gsap npm package.
  */
 
-const gsap = () => window.gsap;
+const g = () => window.gsap;
 
-// The plane's resting Y position must match PLANE_Y in ARExperience.js.
-// Import is avoided to keep this file dependency-free; update both together.
-const PLANE_Y_REST = 0.82 * (16 / 9) / 2; // ≈ 0.731  (PLANE_WIDTH * 16/9 / 2)
-const GLOW_Y_REST  = 0.02;
-
-// ---------------------------------------------------------------------------
+// ─────────────────────────────────────────────────────────────────────────────
 // Entrance — target found
-// ---------------------------------------------------------------------------
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * animateTargetFound
  *
- * 1. Video rises from y = 0 (card surface) to final resting position.
- * 2. Scales from a squashed sliver at the bottom to full size.
- * 3. Base glow pulses in to reinforce the "emanating from card" look.
- * 4. Starts a gentle float loop once settled.
+ * @param {THREE.Mesh} plane     The upright video plane (rotation.x = π/2)
+ * @param {THREE.Mesh} glow      Flat ellipse glow at the card base
+ * @param {number}     restZ     plane.position.z when fully risen (= PLANE_HEIGHT/2)
  */
-export const animateTargetFound = (plane, glow) => {
-  const g = gsap();
-  if (!g) return;
+export const animateTargetFound = (plane, glow, restZ) => {
+  const gsap = g();
+  if (!gsap) return;
 
-  g.killTweensOf([plane.scale, plane.position, plane.material,
-                  glow.scale,  glow.position,  glow.material]);
+  // Kill any in-flight tweens to prevent conflicts
+  gsap.killTweensOf([plane.scale, plane.position, plane.material,
+                     glow.scale,  glow.material]);
 
-  // Reset to "card surface" start state
+  // Reset to "at card surface" start state
   plane.visible = true;
   glow.visible  = true;
   plane.material.opacity = 0;
   glow.material.opacity  = 0;
+  plane.scale.set(1, 0, 1);        // collapsed (zero height)
+  plane.position.set(0, 0, 0);     // bottom at card surface
+  glow.scale.set(0, 1, 1);         // collapsed width-wise
 
-  // Start squashed at the bottom — scale Y = 0 makes it invisible at first
-  plane.scale.set(1, 0, 1);
-  plane.position.set(0, 0, 0.002);   // start at card surface
+  const tl = gsap.timeline();
 
-  glow.scale.set(0.2, 1, 1);
-  glow.position.set(0, GLOW_Y_REST, 0.001);
-
-  const tl = g.timeline();
-
-  // ── Phase 1: quick flash of the base glow (0–0.25 s) ──────────────────
+  // ── Phase 1 (0 – 0.3 s): glow expands at the base ───────────────────────
   tl.to(glow.scale, {
-    x: 1.4, y: 1, z: 1,
-    duration: 0.25,
+    x: 1,
+    duration: 0.3,
     ease: 'power2.out',
   }, 0);
-  tl.to(glow.material, { opacity: 0.7, duration: 0.2 }, 0);
+  tl.to(glow.material, { opacity: 0.7, duration: 0.25 }, 0);
 
-  // ── Phase 2: video rises up from the card surface (0.05–0.65 s) ───────
-  // Y-position rises from 0 to PLANE_Y_REST (bottom → resting centre)
-  tl.to(plane.position, {
-    y: PLANE_Y_REST,
-    duration: 0.55,
+  // ── Phase 2 (0.05 – 0.7 s): video rises from card surface ───────────────
+  // We animate a single proxy scalar k: 0 → 1 and derive both scale.y and
+  // position.z from it every frame, keeping the bottom edge glued to z = 0.
+  const proxy = { k: 0 };
+  tl.to(proxy, {
+    k: 1,
+    duration: 0.65,
     ease: 'back.out(1.4)',
+    onUpdate() {
+      const k = proxy.k;
+      plane.scale.y      = k;
+      plane.position.z   = k * restZ;
+    },
   }, 0.05);
 
-  // Scale Y from 0 → 1 (unroll upward)
-  tl.to(plane.scale, {
-    x: 1, y: 1, z: 1,
-    duration: 0.55,
-    ease: 'back.out(1.4)',
-  }, 0.05);
+  // Fade video in slightly behind the scale to avoid a flash of first-frame
+  tl.to(plane.material, { opacity: 1, duration: 0.45 }, 0.15);
 
-  // Fade in the video
-  tl.to(plane.material, { opacity: 1, duration: 0.4 }, 0.1);
+  // ── Phase 3 (0.5 – 0.8 s): glow settles to soft pulse ──────────────────
+  tl.to(glow.material, { opacity: 0.3, duration: 0.35 }, 0.5);
+  tl.to(glow.scale,    { x: 1.1, duration: 0.3, ease: 'power1.inOut' }, 0.5);
 
-  // ── Phase 3: glow settles to a softer pulse level ─────────────────────
-  tl.to(glow.material, { opacity: 0.45, duration: 0.35 }, 0.35);
-  tl.to(glow.scale, { x: 1, y: 1, z: 1, duration: 0.3, ease: 'power1.inOut' }, 0.35);
-
-  // ── Phase 4: start floating once entrance is complete ─────────────────
-  tl.call(() => _startFloat(plane, glow), null, 0.7);
+  // ── Phase 4: start persistent float loop once fully risen ────────────────
+  tl.call(() => _startFloat(plane, glow, restZ), null, 0.75);
 };
 
-// ---------------------------------------------------------------------------
+// ─────────────────────────────────────────────────────────────────────────────
 // Exit — target lost
-// ---------------------------------------------------------------------------
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * animateTargetLost
- * Shrinks the video back down to the card surface (reverse of pop-up).
+ * animateTargetLost — collapses the plane back down to the card surface.
  */
-export const animateTargetLost = (plane, glow) => {
-  const g = gsap();
-  if (!g) return;
+export const animateTargetLost = (plane, glow, restZ) => {
+  const gsap = g();
+  if (!gsap) return;
 
-  g.killTweensOf([plane.scale, plane.position, plane.material,
-                  glow.scale,  glow.position,  glow.material]);
-  _stopFloat(plane, glow);
+  gsap.killTweensOf([plane.scale, plane.position, plane.material,
+                     glow.scale,  glow.material]);
+  _stopFloat(plane, glow, restZ);
 
-  const tl = g.timeline({
+  const proxy = { k: 1 };
+  const tl = gsap.timeline({
     onComplete: () => {
       plane.visible = false;
       glow.visible  = false;
-      // Reset to neutral so next entrance starts cleanly
-      plane.scale.set(0, 0, 0);
-      plane.position.set(0, PLANE_Y_REST, 0.002);
+      // Reset for next clean entrance
+      plane.scale.set(1, 0, 1);
+      plane.position.set(0, 0, 0);
+      glow.scale.set(0, 1, 1);
     },
   });
 
-  // Collapse video downward (reverse pop-up)
-  tl.to(plane.position, {
-    y: 0,
+  // Reverse the rise: scale.y collapses back toward card surface
+  tl.to(proxy, {
+    k: 0,
     duration: 0.3,
     ease: 'power2.in',
-  }, 0);
-  tl.to(plane.scale, {
-    x: 1, y: 0, z: 1,
-    duration: 0.3,
-    ease: 'power2.in',
+    onUpdate() {
+      plane.scale.y    = proxy.k;
+      plane.position.z = proxy.k * restZ;
+    },
   }, 0);
   tl.to(plane.material, { opacity: 0, duration: 0.2 }, 0);
-
-  // Glow dissipates
-  tl.to(glow.material, { opacity: 0, duration: 0.25 }, 0);
-  tl.to(glow.scale, { x: 0.1, y: 1, z: 1, duration: 0.3, ease: 'power2.in' }, 0);
+  tl.to(glow.material,  { opacity: 0, duration: 0.2 }, 0);
+  tl.to(glow.scale,     { x: 0,      duration: 0.25, ease: 'power2.in' }, 0);
 };
 
-// ---------------------------------------------------------------------------
-// Float loop — runs while target is visible
-// ---------------------------------------------------------------------------
+// ─────────────────────────────────────────────────────────────────────────────
+// Float loop — runs while target is tracked
+// ─────────────────────────────────────────────────────────────────────────────
 
-const _floatTweens = { plane: null, glow: null };
+const _active = { plane: null, glow: null };
 
-const _startFloat = (plane, glow) => {
-  const g = gsap();
-  if (!g) return;
+/**
+ * _startFloat — gentle Z-axis levitation (≈ 3 cm) + glow pulse.
+ * Proxy-based so GSAP doesn't fight Three.js's own position object.
+ */
+const _startFloat = (plane, glow, restZ) => {
+  const gsap = g();
+  if (!gsap) return;
 
-  // Tiny Y levitation around the resting position
-  const planeProxy = { y: plane.position.y };
+  const planeProxy = { z: plane.position.z };
+  const glowProxy  = { x: glow.scale.x };
 
-  _floatTweens.plane = g.to(planeProxy, {
-    y: planeProxy.y + 0.03,
-    duration: 2.0,
-    ease: 'sine.inOut',
-    yoyo: true,
-    repeat: -1,
-    onUpdate: () => { plane.position.y = planeProxy.y; },
-  });
-
-  // Glow pulse — subtle scale breathing
-  const glowProxy = { s: 1 };
-  _floatTweens.glow = g.to(glowProxy, {
-    s: 1.25,
+  _active.plane = gsap.to(planeProxy, {
+    z: restZ + 0.025,
     duration: 1.8,
     ease: 'sine.inOut',
     yoyo: true,
     repeat: -1,
-    onUpdate: () => { glow.scale.set(glowProxy.s, 1, 1); },
+    onUpdate: () => { plane.position.z = planeProxy.z; },
+  });
+
+  _active.glow = gsap.to(glowProxy, {
+    x: 1.25,
+    duration: 2.0,
+    ease: 'sine.inOut',
+    yoyo: true,
+    repeat: -1,
+    onUpdate: () => { glow.scale.x = glowProxy.x; },
   });
 };
 
-const _stopFloat = (plane, glow) => {
-  if (_floatTweens.plane) { _floatTweens.plane.kill(); _floatTweens.plane = null; }
-  if (_floatTweens.glow)  { _floatTweens.glow.kill();  _floatTweens.glow  = null; }
-  // Snap back to rest so the next entrance is clean
-  plane.position.set(0, PLANE_Y_REST, 0.002);
-  glow.position.set(0, GLOW_Y_REST,  0.001);
+const _stopFloat = (plane, glow, restZ) => {
+  if (_active.plane) { _active.plane.kill(); _active.plane = null; }
+  if (_active.glow)  { _active.glow.kill();  _active.glow  = null; }
+  // Snap back to rest so the next entrance starts from a known state
+  plane.position.z = restZ;
+  glow.scale.x     = 1;
 };
