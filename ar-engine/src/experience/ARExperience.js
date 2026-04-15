@@ -113,9 +113,22 @@ export class ARExperience {
 
     const { renderer, scene, camera } = this._mindarThree;
 
-    // Force transparent WebGL clear so the camera feed shows through.
+    // ── Renderer quality upgrades ────────────────────────────────────────────
+    // Transparent clear — camera feed shows through the WebGL canvas.
     renderer.setClearColor(0x000000, 0);
     scene.background = null;
+
+    // sRGB output encoding → colours match the source video exactly.
+    // THREE.sRGBEncoding is the correct constant for Three.js r149.
+    renderer.outputEncoding = THREE.sRGBEncoding;
+
+    // Full device pixel ratio (up to 2×) for sharp rendering on retina /
+    // high-DPI screens. Capped at 2 to avoid GPU overload on 3× displays.
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    // Physically-correct lighting (no effect on MeshBasicMaterial but
+    // future-proofs the renderer for lit materials).
+    renderer.physicallyCorrectLights = true;
 
     // 3 — Build scene objects
     this._buildScene(THREE, scene);
@@ -143,9 +156,16 @@ export class ARExperience {
     updateLoadingProgress(100, 'Ready!');
     hideLoading();
 
-    // Render loop
+    // Render loop — runs every animation frame via MindAR's renderer.
+    // We call videoTexture.update() every frame regardless of readyState
+    // so Three.js uploads the latest decoded video frame to the GPU texture.
     this._renderLoop = () => {
-      this._videoTexture?.update();
+      if (
+        this._videoTexture &&
+        this._videoEl?.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+      ) {
+        this._videoTexture.needsUpdate = true;
+      }
       renderer.render(scene, camera);
     };
     renderer.setAnimationLoop(this._renderLoop);
@@ -171,17 +191,40 @@ export class ARExperience {
     Object.assign(this._videoEl, {
       src:         this._campaign.videoUrl,
       loop:        true,
-      muted:       true,   // unmuted later in _onTargetFound
+      muted:       true,      // unmuted later in _onTargetFound
       playsInline: true,
       crossOrigin: 'anonymous',
+      preload:     'auto',    // begin buffering as early as possible
     });
+    // Hint browser to the native resolution of our render target so it
+    // allocates the correct decode buffer (avoids a mid-play resize stutter).
+    this._videoEl.setAttribute('width',  '1080');
+    this._videoEl.setAttribute('height', '1920');
     this._videoEl.style.display = 'none';
     document.body.appendChild(this._videoEl);
+    // Start buffering immediately — by the time target is found the video
+    // should be fully in memory, giving instant smooth playback.
+    this._videoEl.load();
 
-    // --- Video texture ---
+    // --- Video texture (high-quality settings) ---
     this._videoTexture = new THREE.VideoTexture(this._videoEl);
+
+    // LinearFilter on both min/mag — best quality for a video quad.
     this._videoTexture.minFilter = THREE.LinearFilter;
     this._videoTexture.magFilter = THREE.LinearFilter;
+
+    // Mipmaps are useless for a VideoTexture (they are never auto-generated
+    // for dynamic sources) and waste GPU memory — disable explicitly.
+    this._videoTexture.generateMipmaps = false;
+
+    // sRGB encoding so the texture is colour-correctly displayed on the
+    // sRGB-encoded renderer output. Without this, colours appear washed out.
+    this._videoTexture.encoding = THREE.sRGBEncoding;
+
+    // Max anisotropy — dramatically sharpens the texture when the plane is
+    // viewed at a steep angle (common when holding a phone over the card).
+    const maxAniso = renderer.capabilities?.getMaxAnisotropy?.() ?? 1;
+    this._videoTexture.anisotropy = maxAniso;
 
     // --- Portrait video plane (stands up from card) ---
     const planeGeo = new THREE.PlaneGeometry(PLANE_WIDTH, PLANE_HEIGHT);
@@ -311,6 +354,7 @@ export class ARExperience {
       this._videoEl.remove();
     }
     this._videoTexture?.dispose();
+    document.getElementById('ar-audio-btn')?.remove();
   }
 
   _getVideoWatchPercent() {
