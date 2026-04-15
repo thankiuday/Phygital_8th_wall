@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
   QrCode,
@@ -15,6 +15,8 @@ import {
   Trash2,
   BarChart3,
   Copy,
+  Pencil,
+  MoreVertical,
 } from 'lucide-react';
 import QRCodeDisplay from '../../components/ui/QRCodeDisplay';
 import { campaignService } from '../../services/campaignService';
@@ -30,6 +32,79 @@ const StatusBadge = ({ status }) => {
     <span className={`rounded-full border px-3 py-1 text-xs font-semibold capitalize ${map[status] || map.draft}`}>
       {status}
     </span>
+  );
+};
+
+/* ── Mobile action sheet (collapsed into three-dot menu on small screens) ── */
+const ActionMenu = ({ campaign, actionLoading, onEdit, onDuplicate, onToggleStatus, onDelete, onPreviewAR }) => {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border-color)] text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 hover:text-brand-400 sm:hidden"
+        aria-label="More actions"
+      >
+        <MoreVertical size={16} />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <>
+            <div className="fixed inset-0 z-20 sm:hidden" onClick={() => setOpen(false)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: -4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -4 }}
+              transition={{ duration: 0.12 }}
+              className="absolute right-0 top-full z-30 mt-1 w-48 overflow-hidden rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] py-1 shadow-xl sm:hidden"
+            >
+              <button
+                onClick={() => { setOpen(false); onEdit(); }}
+                className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-3)]"
+              >
+                <Pencil size={14} /> Edit
+              </button>
+              <button
+                onClick={() => { setOpen(false); onDuplicate(); }}
+                disabled={actionLoading}
+                className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-3)] disabled:opacity-50"
+              >
+                <Copy size={14} /> Duplicate
+              </button>
+              <button
+                onClick={() => { setOpen(false); onToggleStatus(); }}
+                disabled={actionLoading}
+                className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-3)] disabled:opacity-50"
+              >
+                {campaign.status === 'active' ? <Pause size={14} /> : <Play size={14} />}
+                {campaign.status === 'active' ? 'Pause' : 'Activate'}
+              </button>
+              {campaign.status === 'active' && (
+                <a
+                  href={`/ar/${campaign._id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setOpen(false)}
+                  className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-3)]"
+                >
+                  <ExternalLink size={14} /> Preview AR
+                </a>
+              )}
+              <div className="mx-2 my-1 border-t border-[var(--border-color)]" />
+              <button
+                onClick={() => { setOpen(false); onDelete(); }}
+                disabled={actionLoading}
+                className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+              >
+                <Trash2 size={14} /> Delete
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
   );
 };
 
@@ -117,22 +192,42 @@ const CampaignDetailPage = () => {
     );
   }
 
+  /* ── Icon button helper ─────────────────────────────────────────── */
+  const ActionBtn = ({ onClick, disabled, icon: Icon, label, danger }) => (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-2 text-xs font-medium transition-colors disabled:opacity-50 sm:px-3 ${
+        danger
+          ? 'border-red-500/30 text-red-400 hover:bg-red-500/10'
+          : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:border-brand-500/50 hover:text-brand-400'
+      }`}
+    >
+      <Icon size={14} />
+      <span className="hidden sm:inline">{label}</span>
+    </button>
+  );
+
   return (
-    <div className="mx-auto max-w-4xl">
-      {/* Header */}
-      <div className="mb-6 flex flex-wrap items-center gap-3">
+    <div className="mx-auto max-w-4xl space-y-4 p-4 sm:space-y-5 sm:p-6">
+      {/* ── Header ──────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        {/* Breadcrumb */}
         <Link
           to="/dashboard/campaigns"
           className="flex items-center gap-1.5 text-sm text-[var(--text-muted)] hover:text-brand-400"
         >
-          <ArrowLeft size={15} /> Campaigns
+          <ArrowLeft size={15} /> <span className="hidden xs:inline">Campaigns</span>
         </Link>
         <span className="text-[var(--text-muted)]">/</span>
-        <span className="text-sm font-medium text-[var(--text-primary)]">{campaign.campaignName}</span>
+        <span className="max-w-[120px] truncate text-sm font-medium text-[var(--text-primary)] sm:max-w-none">
+          {campaign.campaignName}
+        </span>
         <StatusBadge status={campaign.status} />
 
-        {/* Actions */}
-        <div className="ml-auto flex items-center gap-2">
+        {/* ── Desktop action bar ─────────────────────────────────── */}
+        <div className="ml-auto hidden items-center gap-2 sm:flex">
           <Link
             to={`/dashboard/campaigns/${campaign._id}/analytics`}
             className="flex items-center gap-1.5 rounded-xl border border-[var(--border-color)] px-3 py-2 text-sm text-[var(--text-secondary)] hover:border-brand-500/50 hover:text-brand-400"
@@ -161,8 +256,7 @@ const CampaignDetailPage = () => {
             disabled={actionLoading}
             className="flex items-center gap-1.5 rounded-xl border border-[var(--border-color)] px-3 py-2 text-sm text-[var(--text-secondary)] hover:border-brand-500/50 disabled:opacity-50"
           >
-            <Copy size={14} className="opacity-0 w-0" />
-            ✏ Edit
+            <Pencil size={14} /> Edit
           </button>
           <button
             onClick={handleDuplicate}
@@ -187,14 +281,42 @@ const CampaignDetailPage = () => {
             <Trash2 size={14} /> Delete
           </button>
         </div>
+
+        {/* ── Mobile: condensed icon actions + three-dot overflow ── */}
+        <div className="ml-auto flex items-center gap-1.5 sm:hidden">
+          <Link
+            to={`/dashboard/campaigns/${campaign._id}/analytics`}
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-brand-500/50 hover:text-brand-400"
+            title="Analytics"
+          >
+            <BarChart3 size={15} />
+          </Link>
+          <button
+            onClick={toggleStatus}
+            disabled={actionLoading}
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-brand-500/50 disabled:opacity-50"
+            title={campaign.status === 'active' ? 'Pause' : 'Activate'}
+          >
+            {campaign.status === 'active' ? <Pause size={15} /> : <Play size={15} />}
+          </button>
+          <ActionMenu
+            campaign={campaign}
+            actionLoading={actionLoading}
+            onEdit={() => setShowEdit(true)}
+            onDuplicate={handleDuplicate}
+            onToggleStatus={toggleStatus}
+            onDelete={handleDelete}
+          />
+        </div>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-5">
-        {/* QR Code — 2/5 */}
+      {/* ── Content grid ────────────────────────────────────────────── */}
+      <div className="grid gap-4 sm:gap-5 lg:grid-cols-5">
+        {/* QR Code — full width on mobile, 2/5 on desktop */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          className="glass-card p-6 lg:col-span-2"
+          className="glass-card p-5 sm:p-6 lg:col-span-2"
         >
           <div className="mb-4 flex items-center gap-2">
             <QrCode size={18} className="text-brand-400" />
@@ -208,7 +330,7 @@ const CampaignDetailPage = () => {
           />
         </motion.div>
 
-        {/* Details — 3/5 */}
+        {/* Details — full width on mobile, 3/5 on desktop */}
         <div className="flex flex-col gap-4 lg:col-span-3">
           {/* Stats */}
           <motion.div
@@ -226,7 +348,7 @@ const CampaignDetailPage = () => {
                   <Icon size={16} />
                 </div>
                 <p className="text-xs text-[var(--text-muted)]">{label}</p>
-                <p className="mt-0.5 text-xl font-bold text-[var(--text-primary)]">{value}</p>
+                <p className="mt-0.5 text-lg font-bold text-[var(--text-primary)] sm:text-xl">{value}</p>
               </div>
             ))}
           </motion.div>
@@ -237,7 +359,7 @@ const CampaignDetailPage = () => {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="glass-card p-5"
+              className="glass-card p-4 sm:p-5"
             >
               <div className="mb-3 flex items-center gap-2">
                 <ImageIcon size={16} className="text-brand-400" />
@@ -247,7 +369,7 @@ const CampaignDetailPage = () => {
               <img
                 src={campaign.targetImageUrl}
                 alt="Business card"
-                className="w-full max-h-48 rounded-xl object-contain border border-[var(--border-color)]"
+                className="max-h-48 w-full rounded-xl border border-[var(--border-color)] object-contain"
               />
             </motion.div>
           )}
@@ -258,7 +380,7 @@ const CampaignDetailPage = () => {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 }}
-              className="glass-card p-5"
+              className="glass-card p-4 sm:p-5"
             >
               <div className="mb-3 flex items-center gap-2">
                 <VideoIcon size={16} className="text-brand-400" />
@@ -268,7 +390,8 @@ const CampaignDetailPage = () => {
               <video
                 src={campaign.videoUrl}
                 controls
-                className="w-full max-h-64 rounded-xl object-contain border border-[var(--border-color)]"
+                playsInline
+                className="max-h-64 w-full rounded-xl border border-[var(--border-color)] object-contain"
               />
             </motion.div>
           )}

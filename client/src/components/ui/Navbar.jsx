@@ -13,11 +13,10 @@ const NAV_LINKS = [
 
 /**
  * Navbar — responsive top navigation with:
- * - Logo + brand name
+ * - Glass morphism background on scroll
  * - Desktop nav links
  * - Dark/light toggle
- * - CTA buttons
- * - Mobile hamburger menu
+ * - Mobile hamburger with slide-down glass menu
  */
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
@@ -29,22 +28,28 @@ const Navbar = () => {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  // Lock body scroll when mobile menu is open
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [mobileOpen]);
+
   return (
     <header
       className={`fixed top-0 z-50 w-full transition-all duration-300 ${
-        scrolled
-          ? 'glass-card rounded-none border-b border-[var(--border-color)] shadow-[var(--shadow-sm)]'
+        scrolled || mobileOpen
+          ? 'border-b border-[var(--border-color)] bg-[var(--glass-bg)] shadow-[var(--shadow-sm)] backdrop-blur-[var(--glass-blur)] [-webkit-backdrop-filter:blur(var(--glass-blur))]'
           : 'border-b border-transparent bg-transparent'
       }`}
       style={{ height: 'var(--navbar-height)' }}
     >
-      <div className="content-width flex h-full items-center justify-between px-4 md:px-8">
+      <div className="content-width flex h-full items-center justify-between px-4 sm:px-6 md:px-8">
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2 font-bold">
+        <Link to="/" className="flex items-center gap-2 font-bold" onClick={() => setMobileOpen(false)}>
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-brand shadow-glow">
             <Zap size={16} className="text-white" />
           </span>
-          <span className="gradient-text text-lg tracking-tight">Phygital8ThWall</span>
+          <span className="gradient-text text-base sm:text-lg tracking-tight">Phygital8ThWall</span>
         </Link>
 
         {/* Desktop nav */}
@@ -61,7 +66,7 @@ const Navbar = () => {
         </nav>
 
         {/* Right actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <ThemeToggle />
           <Link
             to="/login"
@@ -76,50 +81,69 @@ const Navbar = () => {
             Get Started Free
           </Link>
 
-          {/* Mobile hamburger */}
+          {/* Mobile hamburger — min 44×44 tap target */}
           <button
             onClick={() => setMobileOpen((p) => !p)}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] md:hidden"
-            aria-label="Toggle menu"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border-color)] bg-[var(--glass-bg)] backdrop-blur-sm [-webkit-backdrop-filter:blur(8px)] text-[var(--text-primary)] transition-colors hover:border-brand-500/50 hover:text-brand-400 md:hidden"
+            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileOpen}
           >
-            {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span
+                key={mobileOpen ? 'close' : 'open'}
+                initial={{ rotate: -90, opacity: 0 }}
+                animate={{ rotate: 0, opacity: 1 }}
+                exit={{ rotate: 90, opacity: 0 }}
+                transition={{ duration: 0.15 }}
+              >
+                {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+              </motion.span>
+            </AnimatePresence>
           </button>
         </div>
       </div>
 
-      {/* Mobile menu */}
+      {/* Mobile menu — full-width slide down */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-            className="glass-card rounded-none border-t border-[var(--border-color)] md:hidden"
+            transition={{ duration: 0.22, ease: 'easeInOut' }}
+            className="overflow-hidden border-t border-[var(--border-color)] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] [-webkit-backdrop-filter:blur(var(--glass-blur))] md:hidden"
           >
-            <div className="flex flex-col gap-1 px-4 py-4">
+            <div className="flex flex-col gap-1 px-4 py-4 pb-safe">
               {NAV_LINKS.map((link) => (
                 <NavLink
                   key={link.to}
                   to={link.to}
                   onClick={() => setMobileOpen(false)}
-                  className="rounded-lg px-3 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--brand)]"
+                  className={({ isActive }) =>
+                    `rounded-xl px-4 py-3 text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'bg-brand-600/10 text-brand-400'
+                        : 'text-[var(--text-secondary)] hover:bg-[var(--surface-3)] hover:text-[var(--brand)]'
+                    }`
+                  }
                 >
                   {link.label}
                 </NavLink>
               ))}
-              <div className="mt-2 flex flex-col gap-2 border-t border-[var(--border-color)] pt-2">
+
+              {/* Auth buttons */}
+              <div className="mt-3 flex flex-col gap-2 border-t border-[var(--border-color)] pt-3">
                 <Link
                   to="/login"
                   onClick={() => setMobileOpen(false)}
-                  className="rounded-xl border border-[var(--border-color)] px-4 py-2 text-center text-sm font-medium text-[var(--text-secondary)]"
+                  className="rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-4 py-3 text-center text-sm font-semibold text-[var(--text-primary)] transition-colors hover:border-brand-500/50 hover:text-brand-400"
                 >
                   Sign In
                 </Link>
                 <Link
                   to="/register"
                   onClick={() => setMobileOpen(false)}
-                  className="rounded-xl bg-brand-600 px-4 py-2 text-center text-sm font-semibold text-white"
+                  className="rounded-xl bg-brand-600 px-4 py-3 text-center text-sm font-semibold text-white shadow-glow transition-all hover:bg-brand-500"
                 >
                   Get Started Free
                 </Link>

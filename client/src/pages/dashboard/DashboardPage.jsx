@@ -40,21 +40,21 @@ const getGreeting = () => {
 
 /* ── Stat card ───────────────────────────────────────────────────── */
 const StatCard = ({ icon: Icon, label, value, sub, color, delay }) => (
-  <motion.div {...fadeUp(delay)} className="glass-card p-5">
+  <motion.div {...fadeUp(delay)} className="glass-card p-4 sm:p-5">
     <div className="flex items-start justify-between">
-      <div>
-        <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
           {label}
         </p>
-        <p className="mt-1.5 text-3xl font-bold text-[var(--text-primary)]">
+        <p className="mt-1 text-2xl font-bold text-[var(--text-primary)] sm:mt-1.5 sm:text-3xl">
           {value ?? <Skeleton w="w-16" />}
         </p>
         {sub && (
-          <p className="mt-1 text-xs text-[var(--text-muted)]">{sub}</p>
+          <p className="mt-1 truncate text-xs text-[var(--text-muted)]">{sub}</p>
         )}
       </div>
-      <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${color}`}>
-        <Icon size={20} className="opacity-90" />
+      <div className={`ml-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl sm:h-10 sm:w-10 ${color}`}>
+        <Icon size={18} className="opacity-90 sm:text-[20px]" />
       </div>
     </div>
   </motion.div>
@@ -102,7 +102,7 @@ const DashboardPage = () => {
   const STAT_CARDS = [
     {
       icon: QrCode,
-      label: 'Total Campaigns',
+      label: 'Campaigns',
       value: stats?.totalCampaigns,
       sub: `${stats?.activeCampaigns ?? '—'} active`,
       color: 'bg-brand-500/15 text-brand-400',
@@ -118,7 +118,7 @@ const DashboardPage = () => {
     },
     {
       icon: Calendar,
-      label: "Today's Scans",
+      label: "Today",
       value: stats?.todayScans,
       sub: 'Last 24 hours',
       color: 'bg-green-500/15 text-green-400',
@@ -135,17 +135,20 @@ const DashboardPage = () => {
   ];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4 sm:gap-6">
       {/* ── Welcome card ─────────────────────────────────────────── */}
-      <motion.div {...fadeUp(0)} className="relative overflow-hidden rounded-2xl bg-gradient-brand p-6 text-white shadow-glow">
+      <motion.div
+        {...fadeUp(0)}
+        className="relative overflow-hidden rounded-2xl bg-gradient-brand p-5 text-white shadow-glow sm:p-6"
+      >
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.12),transparent)]" />
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <p className="text-sm font-medium text-white/70">
               {getGreeting()},{' '}
               <span className="font-bold text-white">{user?.name?.split(' ')[0] || 'there'}</span> 👋
             </p>
-            <h2 className="mt-1 text-xl font-bold">
+            <h2 className="mt-1 text-lg font-bold leading-snug sm:text-xl">
               {stats?.totalCampaigns === 0
                 ? 'Create your first AR campaign!'
                 : `You have ${stats?.activeCampaigns ?? '—'} active AR campaign${stats?.activeCampaigns !== 1 ? 's' : ''}.`}
@@ -159,31 +162,30 @@ const DashboardPage = () => {
 
           <Link
             to="/dashboard/campaigns/new"
-            className="flex shrink-0 items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-brand-700 shadow-lg transition-all hover:shadow-xl"
+            className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-brand-700 shadow-lg transition-all hover:shadow-xl"
           >
             <PlusCircle size={16} />
             New Campaign
           </Link>
         </div>
 
-        {/* Decorative sparkle */}
         <Sparkles
           size={64}
           className="pointer-events-none absolute -right-4 -top-4 text-white/10"
         />
       </motion.div>
 
-      {/* ── Stat cards grid ──────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {/* ── Stat cards grid — 2×2 on mobile, 4 cols on lg ─────────── */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {STAT_CARDS.map((card) => (
           <StatCard key={card.label} {...card} />
         ))}
       </div>
 
-      {/* ── Chart + Recent campaigns (2-column on large screens) ── */}
-      <div className="grid gap-4 lg:grid-cols-5">
-        {/* Scan trend chart — 3/5 width */}
-        <motion.div {...fadeUp(0.25)} className="glass-card p-5 lg:col-span-3">
+      {/* ── Chart + Recent campaigns ───────────────────────────────── */}
+      <div className="grid gap-4 sm:gap-5 lg:grid-cols-5">
+        {/* Scan trend chart — full width on mobile, 3/5 on lg */}
+        <motion.div {...fadeUp(0.25)} className="glass-card p-4 sm:p-5 lg:col-span-3">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h3 className="font-semibold text-[var(--text-primary)]">Scan Trend</h3>
@@ -196,8 +198,8 @@ const DashboardPage = () => {
               <div className="loader-spinner" />
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={180}>
-              <AreaChart data={scanTrend} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+            <ResponsiveContainer width="100%" height={160}>
+              <AreaChart data={scanTrend} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
                 <defs>
                   <linearGradient id="scanGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.25} />
@@ -207,13 +209,13 @@ const DashboardPage = () => {
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
                 <XAxis
                   dataKey="date"
-                  tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
-                  tickFormatter={(v) => v.slice(5)} // show MM-DD
+                  tick={{ fontSize: 9, fill: 'var(--text-muted)' }}
+                  tickFormatter={(v) => v.slice(5)}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
-                  tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+                  tick={{ fontSize: 9, fill: 'var(--text-muted)' }}
                   axisLine={false}
                   tickLine={false}
                   allowDecimals={false}
@@ -233,8 +235,8 @@ const DashboardPage = () => {
           )}
         </motion.div>
 
-        {/* Recent campaigns — 2/5 width */}
-        <motion.div {...fadeUp(0.3)} className="glass-card p-5 lg:col-span-2">
+        {/* Recent campaigns — full width on mobile, 2/5 on lg */}
+        <motion.div {...fadeUp(0.3)} className="glass-card p-4 sm:p-5 lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h3 className="font-semibold text-[var(--text-primary)]">Recent Campaigns</h3>
@@ -252,7 +254,7 @@ const DashboardPage = () => {
             <div className="flex flex-col gap-3">
               {[...Array(3)].map((_, i) => (
                 <div key={i} className="flex items-center gap-3">
-                  <Skeleton w="w-8" h="h-8" />
+                  <Skeleton w="w-9" h="h-9" />
                   <div className="flex flex-1 flex-col gap-1.5">
                     <Skeleton w="w-3/4" h="h-3" />
                     <Skeleton w="w-1/2" h="h-3" />
@@ -278,15 +280,14 @@ const DashboardPage = () => {
               {recentCampaigns.map((campaign) => (
                 <div
                   key={campaign._id}
-                  className="flex items-center gap-3 rounded-xl p-2.5 transition-colors hover:bg-[var(--surface-3)]"
+                  className="flex items-center gap-3 rounded-xl p-2 transition-colors hover:bg-[var(--surface-3)] sm:p-2.5"
                 >
-                  {/* Thumbnail or placeholder */}
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-500/10">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-brand-500/10">
                     {campaign.thumbnailUrl ? (
                       <img
                         src={campaign.thumbnailUrl}
                         alt={campaign.campaignName}
-                        className="h-full w-full rounded-lg object-cover"
+                        className="h-full w-full object-cover"
                       />
                     ) : (
                       <QrCode size={16} className="text-brand-400" />

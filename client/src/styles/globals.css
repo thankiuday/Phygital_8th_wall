@@ -200,11 +200,42 @@
 
   /* Page section padding */
   .section-padding {
-    @apply px-4 py-16 md:px-8 lg:px-16 xl:px-24;
+    @apply px-4 py-14 sm:py-16 md:px-8 lg:px-16 xl:px-24;
   }
 
   /* Max content width */
   .content-width {
     @apply mx-auto max-w-7xl;
+  }
+
+  /* Hide scrollbar (for filter tabs, etc.) */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Minimum touch target — 44×44 px per WCAG 2.5.5 */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+
+  /* Safe-area bottom padding for devices with notches/home bars */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 1rem);
+  }
+}
+
+/* ─────────────────────────────────────────
+   Extra mobile utilities
+   ───────────────────────────────────────── */
+@layer utilities {
+  /* xs breakpoint (below 480 px) helpers */
+  @media (min-width: 480px) {
+    .xs\:inline { display: inline; }
+    .xs\:flex   { display: flex; }
+    .xs\:hidden { display: none; }
   }
 }
