@@ -1,0 +1,76 @@
+import axios from 'axios';
+import { getToken, doLogout, setToken } from './tokenBridge';
+
+/**
+ * api — base Axios instance.
+ *
+ * Access token is read from the tokenBridge (set by useAuthStore on mount).
+ * On 401, the interceptor silently calls /auth/refresh, updates the store
+ * via the bridge, then retries the original request once.
+ */
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || '/api',
+  timeout: 30000,
+  headers: { 'Content-Type': 'application/json' },
+  withCredentials: true, // sends httpOnly refresh cookie automatically
+});
+
+/* ── Request interceptor — attach access token ──────────────────── */
+api.interceptors.request.use(
+  (config) => {
+    const token = getToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+/* ── Response interceptor — silent refresh on 401 ───────────────── */
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach((p) => (error ? p.reject(error) : p.resolve(token)));
+  failedQueue = [];
+};
+
+api.interceptors.response.use(
+  (res) => res,
+  async (error) => {
+    const orig = error.config;
+
+    if (error.response?.status === 401 && !orig._retry) {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => failedQueue.push({ resolve, reject }))
+          .then((token) => {
+            orig.headers.Authorization = `Bearer ${token}`;
+            return api(orig);
+          });
+      }
+
+      orig._retry = true;
+      isRefreshing = true;
+
+      try {
+        const res = await api.post('/auth/refresh');
+        const newToken = res.data.data.accessToken;
+        setToken(newToken);
+        processQueue(null, newToken);
+        orig.headers.Authorization = `Bearer ${newToken}`;
+        return api(orig);
+      } catch (refreshErr) {
+        processQueue(refreshErr, null);
+        doLogout();
+        return Promise.reject(refreshErr);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+export default api;

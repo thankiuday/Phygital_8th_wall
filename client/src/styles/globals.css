@@ -1,0 +1,210 @@
+/* ─────────────────────────────────────────
+   Google Fonts — Inter (must be before @tailwind)
+   ───────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────────────────────
+   CSS Custom Properties — Light Theme (default)
+   ───────────────────────────────────────── */
+:root {
+  /* Background layers */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-tertiary: #f1f5f9;
+
+  /* Surface cards */
+  --surface-1: #ffffff;
+  --surface-2: #f8fafc;
+  --surface-3: #f1f5f9;
+
+  /* Text */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+
+  /* Border */
+  --border-color: #e2e8f0;
+  --border-subtle: #f1f5f9;
+
+  /* Brand */
+  --brand: #7c3aed;
+  --brand-light: #8b5cf6;
+  --accent: #06b6d4;
+
+  /* Glassmorphism — light */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --glass-blur: 16px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.1);
+
+  /* Navbar height */
+  --navbar-height: 64px;
+}
+
+/* ─────────────────────────────────────────
+   CSS Custom Properties — Dark Theme
+   ───────────────────────────────────────── */
+.dark {
+  /* Background layers */
+  --bg-primary: #020617;
+  --bg-secondary: #0f172a;
+  --bg-tertiary: #1e293b;
+
+  /* Surface cards */
+  --surface-1: #0f172a;
+  --surface-2: #1e293b;
+  --surface-3: #334155;
+
+  /* Text */
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #64748b;
+
+  /* Border */
+  --border-color: #1e293b;
+  --border-subtle: #334155;
+
+  /* Brand */
+  --brand: #8b5cf6;
+  --brand-light: #a78bfa;
+  --accent: #22d3ee;
+
+  /* Glassmorphism — dark */
+  --glass-bg: rgba(15, 23, 42, 0.6);
+  --glass-border: rgba(139, 92, 246, 0.15);
+  --glass-blur: 16px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+/* ─────────────────────────────────────────
+   Base Styles
+   ───────────────────────────────────────── */
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition: background-color 0.3s ease, color 0.3s ease;
+    min-height: 100vh;
+  }
+
+  /* Scrollbar — dark */
+  .dark ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .dark ::-webkit-scrollbar-track {
+    background: #0f172a;
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 3px;
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+  }
+
+  /* Scrollbar — light */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #f1f5f9;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+}
+
+/* ─────────────────────────────────────────
+   Component Utility Classes
+   ───────────────────────────────────────── */
+@layer components {
+  /* Glassmorphism card */
+  .glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+    border-radius: 1rem;
+  }
+
+  /* Standard card */
+  .card {
+    @apply rounded-2xl border;
+    background-color: var(--surface-1);
+    border-color: var(--border-color);
+    box-shadow: var(--shadow-md);
+  }
+
+  /* Brand gradient text */
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, #7c3aed 0%, #06b6d4 100%);
+  }
+
+  /* Glow ring button effect */
+  .glow-ring {
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.25);
+  }
+
+  /* Input base style */
+  .input-base {
+    @apply w-full rounded-xl border px-4 py-3 text-sm transition-all duration-200 outline-none;
+    background-color: var(--surface-2);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+  }
+
+  .input-base:focus {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+  }
+
+  .input-base::placeholder {
+    color: var(--text-muted);
+  }
+
+  /* Page section padding */
+  .section-padding {
+    @apply px-4 py-16 md:px-8 lg:px-16 xl:px-24;
+  }
+
+  /* Max content width */
+  .content-width {
+    @apply mx-auto max-w-7xl;
+  }
+}

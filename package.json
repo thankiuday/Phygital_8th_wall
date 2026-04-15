@@ -1,0 +1,27 @@
+{
+  "name": "phygital8thwall",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AR Business Card SaaS Platform — Phygital8ThWall",
+  "workspaces": [
+    "client",
+    "server",
+    "ar-engine"
+  ],
+  "scripts": {
+    "dev:client": "npm run dev --workspace=client",
+    "dev:server": "npm run dev --workspace=server",
+    "dev:ar": "npm run dev --workspace=ar-engine",
+    "build:client": "npm run build --workspace=client",
+    "build:ar": "npm run build --workspace=ar-engine",
+    "lint": "npm run lint --workspaces --if-present",
+    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,css,md}\" --ignore-path .gitignore"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3"
+  }
+}

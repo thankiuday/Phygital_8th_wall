@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Allow: /ar/
+
+# Disallow authenticated/private areas
+Disallow: /dashboard/
+Disallow: /admin/
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password/
+
+Sitemap: https://phygital8thwall.com/sitemap.xml

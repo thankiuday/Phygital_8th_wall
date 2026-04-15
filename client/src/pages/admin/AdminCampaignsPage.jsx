@@ -1,0 +1,269 @@
+import { useEffect, useState, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Search, Play, Pause, ExternalLink,
+  ChevronLeft, ChevronRight, QrCode, Loader2,
+} from 'lucide-react';
+import { adminService } from '../../services/adminService';
+
+// ---------------------------------------------------------------------------
+// Badges
+// ---------------------------------------------------------------------------
+const StatusBadge = ({ status }) => {
+  const map = {
+    active: 'bg-green-500/15 text-green-400',
+    paused: 'bg-yellow-500/15 text-yellow-400',
+    draft:  'bg-slate-500/10 text-slate-400',
+  };
+  return (
+    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${map[status] || map.draft}`}>
+      {status}
+    </span>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Row-level moderation button
+// ---------------------------------------------------------------------------
+const ModerationBtn = ({ campaign, onUpdate }) => {
+  const [busy, setBusy] = useState(false);
+  const toggle = async () => {
+    setBusy(true);
+    await onUpdate(campaign._id, { status: campaign.status === 'active' ? 'paused' : 'active' });
+    setBusy(false);
+  };
+  return (
+    <button
+      onClick={toggle}
+      disabled={busy}
+      title={campaign.status === 'active' ? 'Pause campaign' : 'Activate campaign'}
+      className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-40 ${
+        campaign.status === 'active'
+          ? 'text-yellow-400 hover:bg-yellow-500/10'
+          : 'text-green-400 hover:bg-green-500/10'
+      }`}
+    >
+      {busy ? <Loader2 size={12} className="animate-spin" />
+             : campaign.status === 'active' ? <Pause size={12} /> : <Play size={12} />}
+      {campaign.status === 'active' ? 'Pause' : 'Activate'}
+    </button>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Main page
+// ---------------------------------------------------------------------------
+const STATUS_TABS = [
+  { value: '',        label: 'All' },
+  { value: 'active',  label: 'Active' },
+  { value: 'paused',  label: 'Paused' },
+  { value: 'draft',   label: 'Draft' },
+];
+
+const AdminCampaignsPage = () => {
+  const [campaigns, setCampaigns]   = useState([]);
+  const [pagination, setPagination] = useState(null);
+  const [loading, setLoading]       = useState(true);
+  const [search, setSearch]         = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [page, setPage]             = useState(1);
+  const [toastMsg, setToastMsg]     = useState('');
+
+  const load = useCallback(async (p = 1) => {
+    setLoading(true);
+    try {
+      const data = await adminService.getCampaigns({
+        search, page: p, limit: 20,
+        ...(statusFilter && { status: statusFilter }),
+      });
+      setCampaigns(data.campaigns);
+      setPagination(data.pagination);
+    } finally {
+      setLoading(false);
+    }
+  }, [search, statusFilter]);
+
+  useEffect(() => { setPage(1); load(1); }, [search, statusFilter, load]);
+
+  const handlePage = (p) => { setPage(p); load(p); };
+
+  const showToast = (msg) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(''), 3000);
+  };
+
+  const handleUpdate = async (id, updates) => {
+    try {
+      const updated = await adminService.updateCampaign(id, updates);
+      setCampaigns((prev) => prev.map((c) => (c._id === id ? { ...c, ...updated } : c)));
+      showToast('Campaign updated.');
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Update failed.');
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">Campaigns</h1>
+        <p className="mt-1 text-sm text-[var(--text-muted)]">
+          {pagination ? `${pagination.total.toLocaleString()} total campaigns` : ''}
+        </p>
+      </div>
+
+      {/* ── Filters ─────────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search campaign name…"
+            className="w-full rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] py-2.5 pl-8.5 pr-4 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30"
+          />
+        </div>
+        <div className="flex items-center gap-1 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] p-1">
+          {STATUS_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setStatusFilter(tab.value)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                statusFilter === tab.value
+                  ? 'bg-brand-600 text-white shadow-glow'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Table ───────────────────────────────────────────────────────── */}
+      <div className="glass-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[var(--border-color)] text-left text-xs text-[var(--text-muted)]">
+                {['Campaign', 'Owner', 'Status', 'Scans', 'Created', 'Actions'].map((h) => (
+                  <th key={h} className="px-4 py-3 font-medium">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--border-color)]">
+              {loading ? (
+                Array.from({ length: 8 }).map((_, i) => (
+                  <tr key={i}>
+                    {Array.from({ length: 6 }).map((__, j) => (
+                      <td key={j} className="px-4 py-3">
+                        <div className="h-4 animate-pulse rounded bg-[var(--surface-3)]" />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : campaigns.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-12 text-center text-sm text-[var(--text-muted)]">
+                    No campaigns found.
+                  </td>
+                </tr>
+              ) : (
+                campaigns.map((c) => (
+                  <tr key={c._id} className="transition-colors hover:bg-[var(--surface-2)]">
+                    {/* Campaign */}
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        {c.thumbnailUrl ? (
+                          <img src={c.thumbnailUrl} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" />
+                        ) : (
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-500/10">
+                            <QrCode size={14} className="text-brand-400" />
+                          </div>
+                        )}
+                        <span className="max-w-[180px] truncate font-medium text-[var(--text-primary)]">
+                          {c.campaignName}
+                        </span>
+                      </div>
+                    </td>
+                    {/* Owner */}
+                    <td className="px-4 py-3">
+                      <p className="text-xs font-medium text-[var(--text-primary)]">{c.userId?.name || '—'}</p>
+                      <p className="text-xs text-[var(--text-muted)]">{c.userId?.email || '—'}</p>
+                    </td>
+                    {/* Status */}
+                    <td className="px-4 py-3"><StatusBadge status={c.status} /></td>
+                    {/* Scans */}
+                    <td className="px-4 py-3 text-[var(--text-secondary)]">
+                      {c.analytics?.totalScans?.toLocaleString() ?? 0}
+                    </td>
+                    {/* Created */}
+                    <td className="px-4 py-3 text-xs text-[var(--text-muted)]">
+                      {new Date(c.createdAt).toLocaleDateString()}
+                    </td>
+                    {/* Actions */}
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1">
+                        <ModerationBtn campaign={c} onUpdate={handleUpdate} />
+                        <a
+                          href={`/ar/${c._id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:text-brand-400"
+                          title="Preview AR"
+                        >
+                          <ExternalLink size={13} />
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        {pagination && pagination.pages > 1 && (
+          <div className="flex items-center justify-between border-t border-[var(--border-color)] px-4 py-3">
+            <p className="text-xs text-[var(--text-muted)]">
+              Page {pagination.page} of {pagination.pages} &bull; {pagination.total} campaigns
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => handlePage(page - 1)}
+                disabled={page === 1}
+                className="rounded-lg p-1.5 text-[var(--text-muted)] disabled:opacity-40 hover:text-[var(--text-primary)]"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <button
+                onClick={() => handlePage(page + 1)}
+                disabled={page === pagination.pages}
+                className="rounded-lg p-1.5 text-[var(--text-muted)] disabled:opacity-40 hover:text-[var(--text-primary)]"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Toast */}
+      <AnimatePresence>
+        {toastMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] px-5 py-3 text-sm font-medium text-[var(--text-primary)] shadow-xl"
+          >
+            {toastMsg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+export default AdminCampaignsPage;

@@ -1,0 +1,161 @@
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, Loader2, Check } from 'lucide-react';
+
+/**
+ * EditCampaignModal — inline modal to rename a campaign and toggle its status.
+ *
+ * Props:
+ *   campaign    {object}    Campaign document to edit
+ *   onSave      {function}  (id, updates) => Promise<{ success, message? }>
+ *   onClose     {function}  Close the modal
+ */
+const EditCampaignModal = ({ campaign, onSave, onClose }) => {
+  const [name, setName]       = useState(campaign.campaignName);
+  const [status, setStatus]   = useState(campaign.status);
+  const [saving, setSaving]   = useState(false);
+  const [error, setError]     = useState('');
+  const inputRef              = useRef(null);
+
+  // Auto-focus and select-all on open
+  useEffect(() => {
+    inputRef.current?.select();
+  }, []);
+
+  // Close on Escape key
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const trimmed = name.trim();
+    if (!trimmed) { setError('Campaign name cannot be empty.'); return; }
+    if (trimmed.length > 80) { setError('Name must be 80 characters or fewer.'); return; }
+
+    setSaving(true);
+    setError('');
+
+    const updates = {};
+    if (trimmed !== campaign.campaignName) updates.campaignName = trimmed;
+    if (status !== campaign.status)       updates.status = status;
+
+    if (Object.keys(updates).length === 0) { onClose(); return; }
+
+    const result = await onSave(campaign._id, updates);
+    setSaving(false);
+
+    if (result.success) {
+      onClose();
+    } else {
+      setError(result.message || 'Save failed. Please try again.');
+    }
+  };
+
+  const STATUS_OPTIONS = [
+    { value: 'active', label: 'Active', color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/30' },
+    { value: 'paused', label: 'Paused', color: 'text-yellow-400', bg: 'bg-yellow-500/10 border-yellow-500/30' },
+  ];
+
+  return (
+    <AnimatePresence>
+      {/* Backdrop */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm"
+        onClick={onClose}
+      >
+        {/* Panel */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 12 }}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
+          className="w-full max-w-md rounded-2xl border border-[var(--border-color)] bg-[var(--surface-1)] p-6 shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="mb-5 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-[var(--text-primary)]">Edit Campaign</h2>
+            <button
+              onClick={onClose}
+              className="rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Campaign name */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-[var(--text-secondary)]">
+                Campaign Name
+              </label>
+              <input
+                ref={inputRef}
+                type="text"
+                value={name}
+                onChange={(e) => { setName(e.target.value); setError(''); }}
+                maxLength={80}
+                className="w-full rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-3.5 py-2.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30"
+                placeholder="My AR Card"
+              />
+              <p className="text-right text-xs text-[var(--text-muted)]">{name.length}/80</p>
+            </div>
+
+            {/* Status */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-[var(--text-secondary)]">Status</label>
+              <div className="flex gap-2">
+                {STATUS_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setStatus(opt.value)}
+                    className={`flex flex-1 items-center justify-center gap-2 rounded-xl border py-2 text-sm font-semibold transition-all ${
+                      status === opt.value
+                        ? `${opt.bg} ${opt.color}`
+                        : 'border-[var(--border-color)] text-[var(--text-muted)] hover:border-[var(--border-color-hover)]'
+                    }`}
+                  >
+                    {status === opt.value && <Check size={14} />}
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Error */}
+            {error && (
+              <p className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</p>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 rounded-xl border border-[var(--border-color)] py-2.5 text-sm font-semibold text-[var(--text-muted)] transition-colors hover:border-[var(--border-color-hover)] hover:text-[var(--text-primary)]"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white shadow-glow transition-all hover:bg-brand-500 disabled:opacity-60"
+              >
+                {saving ? <><Loader2 size={14} className="animate-spin" /> Saving…</> : 'Save Changes'}
+              </button>
+            </div>
+          </form>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
+
+export default EditCampaignModal;

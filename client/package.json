@@ -1,0 +1,36 @@
+{
+  "name": "client",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint src --ext .js,.jsx",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "autoprefixer": "^10.5.0",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "postcss": "^8.5.9",
+    "tailwindcss": "^3.4.19",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.4"
+  },
+  "dependencies": {
+    "@headlessui/react": "^2.2.10",
+    "axios": "^1.15.0",
+    "framer-motion": "^12.38.0",
+    "lucide-react": "^1.8.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "react-helmet-async": "^3.0.0",
+    "react-is": "^19.2.5",
+    "react-router-dom": "^7.14.1",
+    "recharts": "^3.8.1",
+    "zustand": "^5.0.12"
+  }
+}
