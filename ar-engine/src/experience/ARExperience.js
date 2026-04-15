@@ -131,7 +131,7 @@ export class ARExperience {
     renderer.physicallyCorrectLights = true;
 
     // 3 — Build scene objects
-    this._buildScene(THREE, scene);
+    this._buildScene(THREE, scene, renderer);
 
     // 4 — Wire anchor events
     const anchor = this._mindarThree.addAnchor(0);
@@ -183,7 +183,7 @@ export class ARExperience {
   // Initial state: scale.y = 0, position.z = 0 (collapsed to a line at the
   // card surface) — the entrance animation grows it upward.
   // ───────────────────────────────────────────────────────────────────────────
-  _buildScene(THREE, scene) {
+  _buildScene(THREE, scene, renderer) {
     // --- Off-screen video element ---
     // Start muted so the browser allows immediate autoplay (required for iOS).
     // We unmute in _onTargetFound once the camera gesture has been granted.
@@ -258,8 +258,6 @@ export class ARExperience {
     this._glow.position.set(0, 0, 0.003);   // flat on card, just above surface
     this._glow.scale.set(0, 1, 1);           // collapsed width-wise initially
     this._glow.visible = false;
-
-    void scene;
   }
 
   // ───────────────────────────────────────────────────────────────────────────
