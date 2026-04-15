@@ -3,17 +3,14 @@
 /**
  * validateEnv.js — crash-fast on missing required environment variables.
  *
- * Called once at server startup (before any routes are mounted).
- * If a required variable is missing, we log a clear error and exit with code 1
- * rather than silently running in a broken state.
- *
- * Groups variables so error messages tell you exactly which service is affected.
+ * Only the absolute minimum set needed to boot the server is required.
+ * Optional services (SMTP, etc.) are warned but not fatal — the server
+ * starts in a degraded mode instead of refusing to start at all.
  */
 
 const REQUIRED = {
   'Core': [
     'NODE_ENV',
-    'PORT',
     'JWT_ACCESS_SECRET',
     'JWT_REFRESH_SECRET',
   ],
@@ -27,15 +24,12 @@ const REQUIRED = {
   ],
 };
 
-// These are only required in production
-const PRODUCTION_ONLY = {
-  'Email (SMTP)': [
+// Warn about these but do NOT crash — server works without them
+const OPTIONAL = {
+  'Email (SMTP) — password reset emails will not work': [
     'SMTP_HOST',
     'SMTP_USER',
     'SMTP_PASS',
-  ],
-  'Deployment': [
-    'CLIENT_URL',
   ],
 };
 
@@ -50,21 +44,24 @@ const validateEnv = () => {
     }
   }
 
-  if (process.env.NODE_ENV === 'production') {
-    for (const [group, keys] of Object.entries(PRODUCTION_ONLY)) {
-      for (const key of keys) {
-        if (!process.env[key]) {
-          missing.push(`  [${group}] ${key}`);
-        }
-      }
-    }
-  }
-
   if (missing.length > 0) {
     console.error('\n❌ Missing required environment variables:\n');
     missing.forEach((m) => console.error(m));
-    console.error('\nCopy server/.env.example to server/.env and fill in all values.\n');
+    console.error('\nSet these in your Render environment variables dashboard.\n');
     process.exit(1);
+  }
+
+  // Warn about optional but missing vars (no crash)
+  const warnings = [];
+  for (const [group, keys] of Object.entries(OPTIONAL)) {
+    for (const key of keys) {
+      if (!process.env[key]) warnings.push(`  [${group}] ${key}`);
+    }
+  }
+  if (warnings.length > 0) {
+    console.warn('\n⚠️  Optional env vars not set (non-fatal):\n');
+    warnings.forEach((w) => console.warn(w));
+    console.warn('');
   }
 };
 

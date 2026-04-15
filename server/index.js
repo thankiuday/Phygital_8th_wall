@@ -66,29 +66,38 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:4173',
-  // Production — injected via env vars on Render
+  // Production — injected via Render env vars
   process.env.CLIENT_URL,
   process.env.AR_ENGINE_URL,
-  // Production — hardcoded fallback (in case env vars aren't set yet)
+  // Production — hardcoded fallback so CORS works even before env vars are set
   'https://phygital8thwall-client.onrender.com',
   'https://phygital8thwall-ar.onrender.com',
-].filter(Boolean); // remove any undefined entries
+].filter(Boolean);
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        logger.warn('CORS blocked', { origin });
-        callback(new Error(`CORS: origin ${origin} not allowed`));
-      }
-    },
-    credentials: true,
-    methods:      ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  })
-);
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, Postman, server-to-server)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    // Log blocked origin but do NOT throw — throwing causes Express error
+    // handler to respond with no CORS headers, making the browser show a
+    // misleading "CORS error" when the real error is something else.
+    logger.warn('CORS: blocked origin', { origin });
+    return callback(null, false);
+  },
+  credentials:    true,
+  methods:        ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 200, // some legacy browsers choke on 204
+};
+
+// Handle preflight OPTIONS for ALL routes — must be BEFORE other middleware
+app.options('*', cors(corsOptions));
+app.use(cors(corsOptions));
 
 /* ─────────────────────────────────────────
    Compression — gzip all JSON responses
