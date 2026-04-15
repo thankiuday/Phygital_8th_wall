@@ -92,9 +92,23 @@ export class ARExperience {
       container:      this._container,
       imageTargetSrc: mindBlobUrl,
       maxTrack:       1,
-      uiLoading:      'no',   // we own the loading overlay
-      uiScanning:     'yes',  // keep MindAR's built-in scan frame
+      uiLoading:      'no',
+      uiScanning:     'yes',
       uiError:        'no',
+
+      // ── One-Euro filter: aggressive smoothing for a near-stationary card ──
+      // filterMinCF: lower  → smoother at rest, slightly more lag
+      // filterBeta:  lower  → less speed-based reactivity (less jitter on hold)
+      filterMinCF:    0.001,
+      filterBeta:     0.001,
+
+      // ── Tolerance frames ─────────────────────────────────────────────────
+      // warmupTolerance: require N stable frames before showing content
+      //   → prevents a flash on first detection
+      // missTolerance:   tolerate N missed frames before firing targetLost
+      //   → prevents content disappearing on brief tracking drops
+      warmupTolerance: 5,
+      missTolerance:   20,
     });
 
     const { renderer, scene, camera } = this._mindarThree;
@@ -151,11 +165,13 @@ export class ARExperience {
   // ───────────────────────────────────────────────────────────────────────────
   _buildScene(THREE, scene) {
     // --- Off-screen video element ---
+    // Start muted so the browser allows immediate autoplay (required for iOS).
+    // We unmute in _onTargetFound once the camera gesture has been granted.
     this._videoEl = document.createElement('video');
     Object.assign(this._videoEl, {
       src:         this._campaign.videoUrl,
       loop:        true,
-      muted:       true,
+      muted:       true,   // unmuted later in _onTargetFound
       playsInline: true,
       crossOrigin: 'anonymous',
     });
@@ -207,13 +223,70 @@ export class ARExperience {
   // Event handlers
   // ───────────────────────────────────────────────────────────────────────────
   _onTargetFound() {
-    this._videoEl?.play().catch(() => {});
+    this._playWithAudio();
     animateTargetFound(this._plane, this._glow, PLANE_REST_Z);
   }
 
   _onTargetLost() {
     animateTargetLost(this._plane, this._glow, PLANE_REST_Z);
     this._videoEl?.pause();
+  }
+
+  /**
+   * _playWithAudio
+   * Attempts to play the video unmuted (camera-open counts as a user gesture
+   * on Android Chrome). Falls back to muted if the browser still blocks it
+   * (iOS Safari requires an explicit tap on the page itself).
+   * Shows a small persistent "🔊" button so the user can unlock audio on iOS.
+   */
+  _playWithAudio() {
+    const v = this._videoEl;
+    if (!v) return;
+
+    v.muted = false;
+    v.play().then(() => {
+      // Successfully playing with audio — remove the tap-button if it exists
+      document.getElementById('ar-audio-btn')?.remove();
+    }).catch(() => {
+      // Browser blocked unmuted autoplay (typically iOS Safari)
+      v.muted = true;
+      v.play().catch(() => {});
+      this._showAudioButton();
+    });
+  }
+
+  /** Adds a small persistent tap-to-unmute button for iOS. */
+  _showAudioButton() {
+    if (document.getElementById('ar-audio-btn')) return; // already shown
+
+    const btn = document.createElement('button');
+    btn.id = 'ar-audio-btn';
+    btn.textContent = '🔊 Tap for audio';
+    Object.assign(btn.style, {
+      position:     'fixed',
+      bottom:       '28px',
+      left:         '50%',
+      transform:    'translateX(-50%)',
+      zIndex:       '9998',
+      padding:      '10px 22px',
+      borderRadius: '99px',
+      border:       'none',
+      background:   'rgba(124,58,237,0.85)',
+      color:        '#fff',
+      fontSize:     '14px',
+      fontWeight:   '600',
+      cursor:       'pointer',
+      backdropFilter: 'blur(8px)',
+    });
+    btn.addEventListener('click', () => {
+      if (this._videoEl) {
+        this._videoEl.muted = false;
+        this._videoEl.play().catch(() => {});
+      }
+      btn.remove();
+    }, { once: true });
+
+    document.body.appendChild(btn);
   }
 
   // ───────────────────────────────────────────────────────────────────────────

@@ -132,34 +132,27 @@ export const animateTargetLost = (plane, glow, restZ) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Float loop — runs while target is tracked
+// Idle loop — runs while the target is tracked
+// ─────────────────────────────────────────────────────────────────────────────
+// We intentionally do NOT move the plane position here. Any position animation
+// on top of live tracking adds to the inherent filter jitter and makes the
+// hologram appear to zigzag. Only the base glow pulses (opacity + scale.x)
+// to show the experience is "live" without introducing extra motion.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const _active = { plane: null, glow: null };
+const _active = { glow: null };
 
-/**
- * _startFloat — gentle Z-axis levitation (≈ 3 cm) + glow pulse.
- * Proxy-based so GSAP doesn't fight Three.js's own position object.
- */
 const _startFloat = (plane, glow, restZ) => {
   const gsap = g();
   if (!gsap) return;
 
-  const planeProxy = { z: plane.position.z };
-  const glowProxy  = { x: glow.scale.x };
+  // Ensure plane is locked at its exact rest position
+  plane.position.z = restZ;
 
-  _active.plane = gsap.to(planeProxy, {
-    z: restZ + 0.025,
-    duration: 1.8,
-    ease: 'sine.inOut',
-    yoyo: true,
-    repeat: -1,
-    onUpdate: () => { plane.position.z = planeProxy.z; },
-  });
-
+  const glowProxy = { x: glow.scale.x };
   _active.glow = gsap.to(glowProxy, {
-    x: 1.25,
-    duration: 2.0,
+    x: 1.2,
+    duration: 1.6,
     ease: 'sine.inOut',
     yoyo: true,
     repeat: -1,
@@ -168,9 +161,7 @@ const _startFloat = (plane, glow, restZ) => {
 };
 
 const _stopFloat = (plane, glow, restZ) => {
-  if (_active.plane) { _active.plane.kill(); _active.plane = null; }
-  if (_active.glow)  { _active.glow.kill();  _active.glow  = null; }
-  // Snap back to rest so the next entrance starts from a known state
+  if (_active.glow) { _active.glow.kill(); _active.glow = null; }
   plane.position.z = restZ;
-  glow.scale.x     = 1;
+  glow.scale.x = 1;
 };
