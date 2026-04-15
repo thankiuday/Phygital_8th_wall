@@ -46,21 +46,31 @@ const ALLOWED_ORIGINS = [
   process.env.AR_ENGINE_URL,
 ].filter(Boolean);
 
+const isOriginAllowed = (origin) => {
+  if (!origin) return true;                        // curl / Postman / server-to-server
+  if (ALLOWED_ORIGINS.includes(origin)) return true; // exact match
+  if (origin.endsWith('.onrender.com')) return true;  // any *.onrender.com subdomain
+  if (/^http:\/\/localhost:\d+$/.test(origin)) return true; // any localhost port
+  return false;
+};
+
 app.use((req, res, next) => {
   const origin = req.headers.origin;
 
-  // Always set Vary so caches handle multi-origin correctly
   res.setHeader('Vary', 'Origin');
 
-  if (origin && ALLOWED_ORIGINS.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
+  if (isOriginAllowed(origin)) {
+    // Reflect the exact origin back — required when credentials: true
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,PUT,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
-    res.setHeader('Access-Control-Max-Age', '86400'); // cache preflight 24 h
+    res.setHeader('Access-Control-Max-Age', '86400');
+  } else {
+    logger.warn('CORS: blocked origin', { origin });
   }
 
-  // Respond to preflight immediately — before helmet, rate-limit, etc.
+  // Return immediately for preflight — before helmet, rate-limit, body parser, etc.
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
@@ -147,6 +157,16 @@ app.get('/health', (_req, res) => {
     env:       process.env.NODE_ENV || 'development',
     uptime:    Math.round(process.uptime()),
     cors:      ALLOWED_ORIGINS,
+  });
+});
+
+/* Debug — shows exact headers Render forwards (remove after CORS is confirmed) */
+app.get('/cors-debug', (req, res) => {
+  res.json({
+    origin:           req.headers.origin,
+    host:             req.headers.host,
+    isAllowed:        isOriginAllowed(req.headers.origin),
+    allowedOrigins:   ALLOWED_ORIGINS,
   });
 });
 
