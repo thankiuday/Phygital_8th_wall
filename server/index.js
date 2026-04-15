@@ -10,7 +10,6 @@ require('./src/utils/validateEnv')();
 require('express-async-errors');
 
 const express      = require('express');
-const cors         = require('cors');
 const helmet       = require('helmet');
 const compression  = require('compression');
 const hpp          = require('hpp');
@@ -32,25 +31,50 @@ const PORT = process.env.PORT || 5000;
 connectDB();
 
 /* ─────────────────────────────────────────
-   Security Headers (Helmet)
+   CORS — MUST be the very first middleware.
+   Manual implementation guarantees headers
+   are present on every response, including
+   errors thrown by later middleware.
+   ───────────────────────────────────────── */
+const ALLOWED_ORIGINS = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:4173',
+  'https://phygital8thwall-client.onrender.com',
+  'https://phygital8thwall-ar.onrender.com',
+  process.env.CLIENT_URL,
+  process.env.AR_ENGINE_URL,
+].filter(Boolean);
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  // Always set Vary so caches handle multi-origin correctly
+  res.setHeader('Vary', 'Origin');
+
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,PUT,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+    res.setHeader('Access-Control-Max-Age', '86400'); // cache preflight 24 h
+  }
+
+  // Respond to preflight immediately — before helmet, rate-limit, etc.
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+
+  next();
+});
+
+/* ─────────────────────────────────────────
+   Security Headers (Helmet) — after CORS
    ───────────────────────────────────────── */
 app.use(
   helmet({
-    crossOriginEmbedderPolicy: false,           // required for AR engine camera access
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc:  ["'self'"],
-        scriptSrc:   ["'self'", "'unsafe-inline'", 'cdn.jsdelivr.net', 'apps.8thwall.com'],
-        styleSrc:    ["'self'", "'unsafe-inline'", 'fonts.googleapis.com'],
-        fontSrc:     ["'self'", 'fonts.gstatic.com'],
-        imgSrc:      ["'self'", 'data:', 'res.cloudinary.com', 'blob:'],
-        mediaSrc:    ["'self'", 'res.cloudinary.com', 'blob:'],
-        connectSrc:  ["'self'", 'api.cloudinary.com'],
-        frameSrc:    ["'none'"],
-        objectSrc:   ["'none'"],
-        upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
-      },
-    },
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: false, // Disabled — this is an API server, not a browser page
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     hsts: process.env.NODE_ENV === 'production'
       ? { maxAge: 31536000, includeSubDomains: true, preload: true }
@@ -59,53 +83,12 @@ app.use(
 );
 
 /* ─────────────────────────────────────────
-   CORS
-   ───────────────────────────────────────── */
-const allowedOrigins = [
-  // Local development
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://localhost:4173',
-  // Production — injected via Render env vars
-  process.env.CLIENT_URL,
-  process.env.AR_ENGINE_URL,
-  // Production — hardcoded fallback so CORS works even before env vars are set
-  'https://phygital8thwall-client.onrender.com',
-  'https://phygital8thwall-ar.onrender.com',
-].filter(Boolean);
-
-const corsOptions = {
-  origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, Postman, server-to-server)
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
-    // Log blocked origin but do NOT throw — throwing causes Express error
-    // handler to respond with no CORS headers, making the browser show a
-    // misleading "CORS error" when the real error is something else.
-    logger.warn('CORS: blocked origin', { origin });
-    return callback(null, false);
-  },
-  credentials:    true,
-  methods:        ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  optionsSuccessStatus: 200, // some legacy browsers choke on 204
-};
-
-// Handle preflight OPTIONS for ALL routes — must be BEFORE other middleware
-app.options('*', cors(corsOptions));
-app.use(cors(corsOptions));
-
-/* ─────────────────────────────────────────
-   Compression — gzip all JSON responses
+   Compression
    ───────────────────────────────────────── */
 app.use(compression({ level: 6, threshold: 1024 }));
 
 /* ─────────────────────────────────────────
-   Trust proxy (needed behind Render/Railway/Vercel reverse proxy)
+   Trust proxy (Render / Railway reverse proxy)
    ───────────────────────────────────────── */
 app.set('trust proxy', 1);
 
@@ -118,12 +101,12 @@ const globalLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders:   false,
   message: { success: false, message: 'Too many requests. Please try again later.' },
-  skip: (req) => req.path === '/health', // never rate-limit health checks
+  skip: (req) => req.path === '/health',
 });
 app.use(globalLimiter);
 
 /* ─────────────────────────────────────────
-   HTTP Parameter Pollution protection
+   HTTP Parameter Pollution
    ───────────────────────────────────────── */
 app.use(hpp({ whitelist: ['status', 'page', 'limit', 'period', 'role'] }));
 
@@ -135,7 +118,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 /* ─────────────────────────────────────────
-   Input Sanitization (must run after body parsing)
+   Input Sanitization
    ───────────────────────────────────────── */
 app.use(sanitize);
 
@@ -147,8 +130,8 @@ app.use(
     process.env.NODE_ENV === 'production' ? 'combined' : 'dev',
     {
       stream: logger.stream,
-      // Skip health-check noise in logs
-      skip: (_req, res) => res.statusCode < 400 && process.env.NODE_ENV === 'production',
+      skip: (_req, res) =>
+        res.statusCode < 400 && process.env.NODE_ENV === 'production',
     }
   )
 );
@@ -163,18 +146,19 @@ app.get('/health', (_req, res) => {
     timestamp: new Date().toISOString(),
     env:       process.env.NODE_ENV || 'development',
     uptime:    Math.round(process.uptime()),
+    cors:      ALLOWED_ORIGINS,
   });
 });
 
 /* ─────────────────────────────────────────
    API Routes
    ───────────────────────────────────────── */
-app.use('/api/auth',      require('./src/routes/authRoutes'));        // Module 2
-app.use('/api/dashboard', require('./src/routes/dashboardRoutes'));   // Module 3
-app.use('/api/campaigns', require('./src/routes/campaignRoutes'));    // Module 4
-app.use('/api/public',    require('./src/routes/publicRoutes'));      // Module 5 — no auth
-app.use('/api/analytics', require('./src/routes/analyticsRoutes'));   // Module 7
-app.use('/api/admin',     require('./src/routes/adminRoutes'));       // Module 9
+app.use('/api/auth',      require('./src/routes/authRoutes'));
+app.use('/api/dashboard', require('./src/routes/dashboardRoutes'));
+app.use('/api/campaigns', require('./src/routes/campaignRoutes'));
+app.use('/api/public',    require('./src/routes/publicRoutes'));
+app.use('/api/analytics', require('./src/routes/analyticsRoutes'));
+app.use('/api/admin',     require('./src/routes/adminRoutes'));
 
 /* ─────────────────────────────────────────
    Error Handling (must be last)
@@ -186,7 +170,7 @@ app.use(errorHandler);
    Start Server
    ───────────────────────────────────────── */
 app.listen(PORT, () => {
-  logger.info(`Server started`, {
+  logger.info('Server started', {
     port: PORT,
     env:  process.env.NODE_ENV || 'development',
     url:  `http://localhost:${PORT}`,
@@ -194,14 +178,17 @@ app.listen(PORT, () => {
 });
 
 /* ─────────────────────────────────────────
-   Unhandled rejection / exception safety net
+   Safety net
    ───────────────────────────────────────── */
 process.on('unhandledRejection', (reason) => {
   logger.error('Unhandled promise rejection', { reason: String(reason) });
 });
 
 process.on('uncaughtException', (err) => {
-  logger.error('Uncaught exception — shutting down', { error: err.message, stack: err.stack });
+  logger.error('Uncaught exception — shutting down', {
+    error: err.message,
+    stack: err.stack,
+  });
   process.exit(1);
 });
 
