@@ -62,12 +62,17 @@ app.use(
    CORS
    ───────────────────────────────────────── */
 const allowedOrigins = [
-  process.env.CLIENT_URL     || 'http://localhost:5173',
-  process.env.AR_ENGINE_URL  || 'http://localhost:5174',
+  // Local development
   'http://localhost:5173',
   'http://localhost:5174',
-  'http://localhost:4173',  // Vite preview
-];
+  'http://localhost:4173',
+  // Production — injected via env vars on Render
+  process.env.CLIENT_URL,
+  process.env.AR_ENGINE_URL,
+  // Production — hardcoded fallback (in case env vars aren't set yet)
+  'https://phygital8thwall-client.onrender.com',
+  'https://phygital8thwall-ar.onrender.com',
+].filter(Boolean); // remove any undefined entries
 
 app.use(
   cors({
