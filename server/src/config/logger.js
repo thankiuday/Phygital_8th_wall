@@ -1,27 +1,17 @@
 'use strict';
 
 /**
- * logger.js — Winston structured logger
+ * logger.js — Winston structured logger.
  *
- * Outputs:
- *   - Console: colorized, human-readable in development
- *   - File:    JSON, daily-rotated, kept for 14 days
- *
- * Usage:
- *   const logger = require('../config/logger');
- *   logger.info('Server started', { port: 5000 });
- *   logger.error('DB connection failed', { err: error.message });
+ * Console-only on Render/production (Render streams logs externally).
+ * File transport is only added when LOG_TO_FILE=true is explicitly set.
  */
 
 const { createLogger, format, transports } = require('winston');
-require('winston-daily-rotate-file');
-const path = require('path');
-
 const { combine, timestamp, errors, json, colorize, printf } = format;
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-// ── Console format (development only) ──────────────────────────────────────
 const devFormat = combine(
   colorize({ all: true }),
   timestamp({ format: 'HH:mm:ss' }),
@@ -32,55 +22,51 @@ const devFormat = combine(
   })
 );
 
-// ── File format (production) ────────────────────────────────────────────────
-const fileFormat = combine(
-  timestamp(),
-  errors({ stack: true }),
-  json()
-);
+const fileFormat = combine(timestamp(), errors({ stack: true }), json());
 
-// ── Transports ──────────────────────────────────────────────────────────────
-const transportList = [];
-
-// Always log to console
-transportList.push(
+const transportList = [
   new transports.Console({
     format: isProduction ? fileFormat : devFormat,
     silent: process.env.NODE_ENV === 'test',
-  })
-);
+  }),
+];
 
-// In production, also write to rotating files
-if (isProduction) {
-  const logDir = path.join(process.cwd(), 'logs');
+// Only add file transport when explicitly opted-in (not on Render)
+if (process.env.LOG_TO_FILE === 'true') {
+  try {
+    require('winston-daily-rotate-file');
+    const path = require('path');
+    const logDir = path.join(process.cwd(), 'logs');
+    const { DailyRotateFile } = require('winston').transports;
 
-  transportList.push(
-    new transports.DailyRotateFile({
-      filename:     path.join(logDir, 'error-%DATE%.log'),
-      datePattern:  'YYYY-MM-DD',
-      level:        'error',
-      maxFiles:     '14d',
-      zippedArchive: true,
-      format:        fileFormat,
-    }),
-    new transports.DailyRotateFile({
-      filename:     path.join(logDir, 'combined-%DATE%.log'),
-      datePattern:  'YYYY-MM-DD',
-      maxFiles:     '14d',
-      zippedArchive: true,
-      format:        fileFormat,
-    })
-  );
+    transportList.push(
+      new DailyRotateFile({
+        filename:     path.join(logDir, 'error-%DATE%.log'),
+        datePattern:  'YYYY-MM-DD',
+        level:        'error',
+        maxFiles:     '14d',
+        zippedArchive: true,
+        format:        fileFormat,
+      }),
+      new DailyRotateFile({
+        filename:     path.join(logDir, 'combined-%DATE%.log'),
+        datePattern:  'YYYY-MM-DD',
+        maxFiles:     '14d',
+        zippedArchive: true,
+        format:        fileFormat,
+      })
+    );
+  } catch (err) {
+    console.warn('[logger] File transport not available:', err.message);
+  }
 }
 
-// ── Logger instance ─────────────────────────────────────────────────────────
 const logger = createLogger({
   level:       isProduction ? 'info' : 'debug',
   exitOnError: false,
   transports:  transportList,
 });
 
-// Allow logger.stream for Morgan integration
 logger.stream = {
   write: (message) => logger.http(message.trim()),
 };
