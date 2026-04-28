@@ -3,21 +3,24 @@
  *
  * STABILITY PIPELINE
  * ──────────────────
- * Three layers cooperate so the hologram is steady at rest AND glides on motion:
+ * Two layers cooperate so the hologram is steady at rest AND glides on motion:
  *
  *  1. MindAR One-Euro filter — algorithm-level smoothing of raw tracking
  *     (filterMinCF / filterBeta on MindARThree).  Tight cutoff at rest kills
  *     shimmer; high beta opens it on real motion → no swimming / lag.
  *
- *  2. Post-MindAR anchor-matrix EMA — every render frame we read the matrix
- *     MindAR just wrote into anchor.group, lerp/slerp our cached "smoothed"
- *     pose toward it (with a sub-millimetre dead-zone), and write the
- *     smoothed pose BACK to anchor.group.matrix.  All children inherit the
- *     smoothed transform for free; no scene-space re-parenting needed (which
- *     historically broke first-frame visibility).
+ *  2. Camera-facing billboard with EMA — the plane's facing direction is
+ *     slerped each frame, so it glides toward the viewer rather than snapping.
  *
- *  3. Camera-facing billboard with EMA — the plane's facing direction is
- *     also slerped each frame, so it glides toward the viewer.
+ * NOTE on a tempting third layer:
+ * A post-MindAR anchor-matrix EMA (decompose → lerp/slerp → recompose) was
+ * tried but kept breaking visibility on MindAR 1.1.5: any subsequent call to
+ * anchor.group.getWorldPosition() / getWorldQuaternion() triggers Three.js
+ * updateMatrix(), which recomposes anchor.group.matrix from its identity
+ * position/quaternion/scale — wiping both our write AND MindAR's pose.  The
+ * plane then renders at scene origin (= camera) and is invisible.  We rely on
+ * One-Euro and the billboard EMA instead; the One-Euro pair below is tuned
+ * conservatively for that reason.
  *
  * SCENE HIERARCHY (minimalist)
  * ────────────────────────────
@@ -65,14 +68,6 @@ export const PLANE_REST_Z = PLANE_HEIGHT / 2;  // ≈ 0.578
 // Higher α = snappier; lower α = smoother but laggier.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Anchor-matrix EMA factors (per-frame lerp/slerp toward the raw MindAR pose).
-// 0.25 ≈ 4-frame half-life at 60 fps: smooth, but tracks real motion within ~70 ms.
-const ANCHOR_SMOOTH_ALPHA    = 0.25;
-
-// Sub-millimetre positional dead-zone (squared, in MindAR units ≈ metres²).
-// (0.0004 m)² — kills the last shimmer when the card is perfectly still.
-const ANCHOR_POS_DEADZONE_SQ = 1.6e-7;
-
 // Billboard facing-direction quaternion EMA.  0.18 → 5-frame half-life.
 const BILLBOARD_ALPHA = 0.18;
 
@@ -98,9 +93,6 @@ export class ARExperience {
 
     // Pre-allocated render-loop scratch objects
     this._scratch      = null;
-
-    // Anchor-EMA state
-    this._anchorPrimed = false;  // false → next frame snaps; true → lerp/slerp
 
     // FPS-aware quality state
     this._fpsLastTs        = 0;
@@ -211,33 +203,8 @@ export class ARExperience {
     const sc = this._scratch;
 
     this._renderLoop = (now) => {
-      // 0. Anchor-matrix EMA (in-place rewrite of anchor.group.matrix).
-      //    Reading MindAR's matrix directly (instead of getWorldPosition)
-      //    bypasses updateMatrix(), which would otherwise recompose the matrix
-      //    from identity p/q/s and wipe the pose MindAR just wrote.
-      this._anchor.group.matrix.decompose(sc.rawPos, sc.rawQuat, sc.scl);
-
-      const isLive =
-        sc.rawPos.lengthSq() > 1e-8 ||
-        Math.abs(1 - sc.rawQuat.w) > 1e-6;
-
-      if (isLive) {
-        if (!this._anchorPrimed) {
-          sc.smoothPos.copy(sc.rawPos);
-          sc.smoothQuat.copy(sc.rawQuat);
-          this._anchorPrimed = true;
-        } else {
-          sc.posDelta.subVectors(sc.rawPos, sc.smoothPos);
-          if (sc.posDelta.lengthSq() > ANCHOR_POS_DEADZONE_SQ) {
-            sc.smoothPos.lerp(sc.rawPos, ANCHOR_SMOOTH_ALPHA);
-          }
-          sc.smoothQuat.slerp(sc.rawQuat, ANCHOR_SMOOTH_ALPHA);
-        }
-        this._anchor.group.matrix.compose(sc.smoothPos, sc.smoothQuat, sc.unitScale);
-      }
-
-      // 1. Billboard: plane (+ rim future siblings) always faces the camera.
-      //    EMA-smoothed quaternion → calmer face-to-camera.
+      // Billboard: plane always faces the camera, with an EMA on the facing
+      // quaternion → calmer face-to-camera updates (no per-frame shimmer).
       if (this._plane.visible) {
         camera.getWorldPosition(sc.camPos);
         this._anchor.group.getWorldPosition(sc.anchorWorldPos);
@@ -279,15 +246,6 @@ export class ARExperience {
   // ───────────────────────────────────────────────────────────────────────────
   _buildScene(THREE, renderer) {
     this._scratch = {
-      // Anchor-matrix EMA
-      rawPos:              new THREE.Vector3(),
-      rawQuat:             new THREE.Quaternion(),
-      scl:                 new THREE.Vector3(),
-      smoothPos:           new THREE.Vector3(),
-      smoothQuat:          new THREE.Quaternion(),
-      posDelta:            new THREE.Vector3(),
-      unitScale:           new THREE.Vector3(1, 1, 1),
-
       // Billboard
       camPos:              new THREE.Vector3(),
       anchorWorldPos:      new THREE.Vector3(),
@@ -456,10 +414,8 @@ export class ARExperience {
   // Event handlers
   // ───────────────────────────────────────────────────────────────────────────
   _onTargetFound() {
-    // Snap the EMA on (re-)detection so we don't carry stale pose
-    this._anchorPrimed = false;
-
-    // Prime the smoothed billboard quaternion toward the camera
+    // Prime the smoothed billboard quaternion toward the camera so the very
+    // first frame already faces the user (no slerp ramp-in shimmer).
     const sc = this._scratch;
     const camera = this._mindarThree.camera;
     this._anchor.group.getWorldPosition(sc.anchorWorldPos);
@@ -478,7 +434,6 @@ export class ARExperience {
   }
 
   _onTargetLost() {
-    this._anchorPrimed = false;
     animateTargetLost(this._plane, PLANE_REST_Z);
     this._videoEl?.pause();
     // Keep controls visible — user may want to keep using them; spinner hides
