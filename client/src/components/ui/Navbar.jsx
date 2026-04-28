@@ -43,7 +43,7 @@ const Navbar = () => {
       }`}
       style={{ height: 'var(--navbar-height)' }}
     >
-      <div className="content-width flex h-full items-center justify-between px-4 sm:px-6 md:px-8">
+      <div className="content-width pt-safe flex h-full items-center justify-between px-4 sm:px-6 md:px-8">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2 font-bold" onClick={() => setMobileOpen(false)}>
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-brand shadow-glow">
@@ -81,12 +81,13 @@ const Navbar = () => {
             Get Started Free
           </Link>
 
-          {/* Mobile hamburger — min 44×44 tap target */}
+          {/* Mobile hamburger — full 44×44 tap target (WCAG 2.5.5) */}
           <button
             onClick={() => setMobileOpen((p) => !p)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border-color)] bg-[var(--glass-bg)] backdrop-blur-sm [-webkit-backdrop-filter:blur(8px)] text-[var(--text-primary)] transition-colors hover:border-brand-500/50 hover:text-brand-400 md:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--border-color)] bg-[var(--glass-bg)] backdrop-blur-sm [-webkit-backdrop-filter:blur(8px)] text-[var(--text-primary)] transition-colors hover:border-brand-500/50 hover:text-brand-400 md:hidden"
             aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={mobileOpen}
+            aria-controls="mobile-nav-drawer"
           >
             <AnimatePresence mode="wait" initial={false}>
               <motion.span
@@ -103,17 +104,20 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* Mobile menu — full-width slide down */}
+      {/* Mobile menu — full-width slide down. The drawer panel itself is fully
+          opaque (theme-aware) so page content is hidden behind it; the header
+          bar above keeps its glass treatment for that premium feel. */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
+            id="mobile-nav-drawer"
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.22, ease: 'easeInOut' }}
-            className="overflow-hidden border-t border-[var(--border-color)] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] [-webkit-backdrop-filter:blur(var(--glass-blur))] md:hidden"
+            className="overflow-hidden border-t border-[var(--border-color)] bg-[var(--surface-solid)] shadow-lg md:hidden"
           >
-            <div className="flex flex-col gap-1 px-4 py-4 pb-safe">
+            <div className="flex flex-col gap-1 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
               {NAV_LINKS.map((link) => (
                 <NavLink
                   key={link.to}

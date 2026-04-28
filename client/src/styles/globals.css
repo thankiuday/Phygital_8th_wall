@@ -40,6 +40,12 @@
   --glass-border: rgba(255, 255, 255, 0.5);
   --glass-blur: 16px;
 
+  /* Solid surface — used by mobile drawers / modals where translucency must
+     not leak page content through. Theme-aware (white in light, deep slate
+     in dark) and fully opaque. */
+  --surface-solid: #ffffff;
+  --overlay-bg: rgba(15, 23, 42, 0.55);
+
   /* Shadows */
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
@@ -81,6 +87,10 @@
   --glass-bg: rgba(15, 23, 42, 0.6);
   --glass-border: rgba(139, 92, 246, 0.15);
   --glass-blur: 16px;
+
+  /* Solid surface — opaque per theme */
+  --surface-solid: #0f172a;
+  --overlay-bg: rgba(0, 0, 0, 0.65);
 
   /* Shadows */
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
@@ -146,6 +156,34 @@
 
   ::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
+  }
+
+  /* Universal keyboard-reachable focus ring. The default browser ring is
+     either invisible against our brand colours or removed by Tailwind's
+     preflight on certain elements. This makes accessibility a baseline. */
+  a:focus-visible,
+  button:focus-visible,
+  [role='button']:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+    border-radius: 0.5rem;
+  }
+}
+
+/* ─────────────────────────────────────────
+   prefers-reduced-motion — respect OS-level setting
+   ───────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
@@ -225,6 +263,11 @@
   /* Safe-area bottom padding for devices with notches/home bars */
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom, 1rem);
+  }
+
+  /* Safe-area top padding (notch / dynamic-island / status bar) */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
   }
 }
 

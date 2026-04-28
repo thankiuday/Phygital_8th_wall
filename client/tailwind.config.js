@@ -5,6 +5,14 @@ export default {
   content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
   theme: {
     extend: {
+      // Custom xs breakpoint (480 px) — referenced by `xs:inline` etc. across pages
+      screens: {
+        xs: '480px',
+      },
+      // Spacing keys used in the codebase that aren't in the default scale
+      spacing: {
+        '8.5': '2.125rem',
+      },
       colors: {
         // Primary brand palette — purple/violet
         brand: {
