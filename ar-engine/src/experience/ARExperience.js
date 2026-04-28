@@ -36,16 +36,26 @@
  *
  * INVISIBLE-PLANE RACE — and the fix
  * ──────────────────────────────────
- * Previously _smoothGroup started at scene origin (0,0,0) which is the
- * camera's own origin, so on first detection the plane was clipped/invisible
- * until the EMA had converged onto the card.  We now keep _smoothGroup
- * .visible = false at construction, and on _onTargetFound:
- *   a. force this._anchor.group.updateWorldMatrix(true, false)
- *   b. copy the latest world position/quaternion into _smoothGroup
- *   c. set _smoothGroup.visible = true
- *   d. start the entrance animation
- * The very first rendered frame after detection therefore has _smoothGroup
- * already at the card pose — no origin flash.
+ * MindAR sets `anchor.group.matrix` directly each frame (matrixAutoUpdate is
+ * effectively bypassed); calling `getWorldPosition()` from inside the
+ * onTargetFound callback can trigger updateMatrix() which recomposes
+ * `anchor.group.matrix` from its identity position/quaternion/scale — that
+ * destroys the live pose and the plane snaps to scene origin.
+ *
+ * Fix:
+ *   1. _onTargetFound only flips state flags (_tracking = true, _needsSnap = true);
+ *      it does NOT read the pose, NOT touch _smoothGroup.visible, and does NOT
+ *      start the entrance animation.
+ *   2. The render loop does the snap on the first frame where MindAR has
+ *      already updated the matrix for that animation tick:
+ *        a. Decompose `anchor.group.matrix` directly into pos/quat (bypasses
+ *           updateMatrix entirely).
+ *        b. Copy onto _smoothGroup, prime smoothBillboardQuat toward camera.
+ *        c. Set _smoothGroup.visible = true.
+ *        d. Then call _playWithAudio() and animateTargetFound().
+ *   3. If the decomposed pose is still ~origin (matrix not yet populated),
+ *      we wait one more frame.  After ~20 frames a safety fallback shows
+ *      the plane anyway so the user never sees "audio playing, no video".
  *
  * GLOBAL DEPENDENCIES (loaded via CDN in index.html):
  *   window.MINDAR.IMAGE  — MindARThree + Compiler  (mind-ar@1.1.5 UMD)
@@ -120,6 +130,8 @@ export class ARExperience {
 
     // State flags
     this._tracking     = false;  // true only while MindAR actively tracks
+    this._needsSnap    = false;  // first render frame after a target is found
+    this._snapTries    = 0;      // safety counter for the snap retry loop
     this._started      = false;
     this._sessionStart = null;
     this._renderLoop   = null;
@@ -214,11 +226,54 @@ export class ARExperience {
     const sc = this._scratch;
 
     this._renderLoop = () => {
+      // 0. Deferred snap: first render frame after _onTargetFound where
+      //    MindAR's matrix is populated.  Reading anchor.group.matrix directly
+      //    (instead of getWorldPosition) bypasses updateMatrix(), which would
+      //    otherwise recompose the matrix from identity p/q/s and wipe the
+      //    pose MindAR just wrote.
+      if (this._tracking && this._needsSnap) {
+        this._anchor.group.matrix.decompose(
+          sc.anchorPos, sc.anchorQuat, sc.scl
+        );
+
+        const matrixPopulated =
+          sc.anchorPos.lengthSq() > 1e-8 ||
+          Math.abs(1 - sc.anchorQuat.w) > 1e-6;
+
+        if (matrixPopulated || this._snapTries > 20) {
+          // Snap _smoothGroup onto the (real) tracked card pose
+          this._smoothGroup.position.copy(sc.anchorPos);
+          this._smoothGroup.quaternion.copy(sc.anchorQuat);
+
+          // Prime the smoothed billboard quaternion so frame 1 already faces
+          // the camera (no slerp ramp-in shimmer)
+          camera.getWorldPosition(sc.camPos);
+          sc.towardCam.subVectors(sc.camPos, sc.anchorPos);
+          if (sc.towardCam.lengthSq() > 0.0001) {
+            sc.towardCam.normalize();
+            sc.smoothBillboardQuat.setFromUnitVectors(sc.FWD, sc.towardCam);
+          }
+
+          this._smoothGroup.visible = true;
+          this._needsSnap = false;
+          this._snapTries = 0;
+
+          this._playWithAudio();
+          animateTargetFound(
+            this._plane, this._glow, this._scanRing, this._rimGlow, PLANE_REST_Z
+          );
+        } else {
+          this._snapTries += 1;
+        }
+      }
+
       // 1. EMA smoothing: _smoothGroup tracks anchor world transform
-      //    (only while tracking → no drift on target lost).
-      if (this._tracking) {
-        this._anchor.group.getWorldPosition(sc.anchorPos);
-        this._anchor.group.getWorldQuaternion(sc.anchorQuat);
+      //    (only while tracking AND after the snap → no drift on target lost,
+      //    no pre-snap origin lerp).
+      if (this._tracking && !this._needsSnap) {
+        this._anchor.group.matrix.decompose(
+          sc.anchorPos, sc.anchorQuat, sc.scl
+        );
 
         // Positional dead-zone: skip the lerp if movement is below the
         // shimmer threshold.  Compared on the full vector length so a
@@ -284,6 +339,7 @@ export class ARExperience {
     this._scratch = {
       anchorPos:           new THREE.Vector3(),
       anchorQuat:          new THREE.Quaternion(),
+      scl:                 new THREE.Vector3(),  // unused decompose output
       posDelta:            new THREE.Vector3(),
       camPos:              new THREE.Vector3(),
       smoothPos:           new THREE.Vector3(),
@@ -398,43 +454,26 @@ export class ARExperience {
   // Event handlers
   // ───────────────────────────────────────────────────────────────────────────
   _onTargetFound() {
-    // Snap _smoothGroup to the anchor's current world pose BEFORE the entrance
-    // animation, so frame 1 is already at the card location (no origin flash).
-    const sc = this._scratch;
-
-    // Force MindAR's latest matrix to propagate through the scene graph
-    // before we read it — defeats the original "first frame at origin" race.
-    this._anchor.group.updateWorldMatrix(true, false);
-    this._anchor.group.getWorldPosition(sc.anchorPos);
-    this._anchor.group.getWorldQuaternion(sc.anchorQuat);
-
-    this._smoothGroup.position.copy(sc.anchorPos);
-    this._smoothGroup.quaternion.copy(sc.anchorQuat);
-
-    // Reset the smoothed billboard quaternion to the desired world facing
-    // direction so the very first frame already faces the camera.
-    this._smoothGroup.getWorldPosition(sc.smoothPos);
-    this._mindarThree.camera.getWorldPosition(sc.camPos);
-    sc.towardCam.subVectors(sc.camPos, sc.smoothPos);
-    if (sc.towardCam.lengthSq() > 0.0001) {
-      sc.towardCam.normalize();
-      sc.smoothBillboardQuat.setFromUnitVectors(sc.FWD, sc.towardCam);
-    }
-
-    this._smoothGroup.visible = true;
-    this._tracking = true;
-
-    this._playWithAudio();
-    animateTargetFound(
-      this._plane, this._glow, this._scanRing, this._rimGlow, PLANE_REST_Z
-    );
+    // Don't read anchor.group's pose here — MindAR may not have populated
+    // the matrix yet, and Three's getWorldPosition can clobber it.  The
+    // render loop performs the snap on the first frame where the matrix
+    // is non-identity, then starts audio + entrance animation.
+    this._tracking  = true;
+    this._needsSnap = true;
+    this._snapTries = 0;
   }
 
   _onTargetLost() {
-    this._tracking = false;
+    this._tracking  = false;
+    this._needsSnap = false;
+    this._snapTries = 0;
     animateTargetLost(
       this._plane, this._glow, this._scanRing, this._rimGlow, PLANE_REST_Z
     );
+    // Hide _smoothGroup again on lost so a re-detect goes through the same
+    // snap-then-show path (avoids briefly showing the plane at the previous
+    // pose before the new snap lands).
+    this._smoothGroup.visible = false;
     this._videoEl?.pause();
   }
 
