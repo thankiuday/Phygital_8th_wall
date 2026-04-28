@@ -174,8 +174,57 @@ const AdminUsersPage = () => {
         </div>
       </div>
 
-      {/* ── Table ───────────────────────────────────────────────────────── */}
-      <div className="glass-card overflow-hidden">
+      {/* ── Mobile card list (below md:) ─────────────────────────────── */}
+      <div className="space-y-3 md:hidden">
+        {loading ? (
+          Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-28 animate-pulse rounded-2xl bg-[var(--surface-2)]" />
+          ))
+        ) : users.length === 0 ? (
+          <div className="rounded-2xl border border-[var(--border-color)] bg-[var(--surface-1)] p-8 text-center text-sm text-[var(--text-muted)]">
+            No users found.
+          </div>
+        ) : (
+          users.map((u) => (
+            <article
+              key={u._id}
+              className={`glass-card flex flex-col gap-3 p-4 ${!u.isActive ? 'opacity-60' : ''}`}
+            >
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-brand text-sm font-bold text-white">
+                  {u.name?.[0]?.toUpperCase() || 'U'}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-[var(--text-primary)]">{u.name}</p>
+                  <p className="truncate text-xs text-[var(--text-muted)]">{u.email}</p>
+                </div>
+                <UserActions user={u} onUpdate={handleUpdate} currentUserId={null} />
+              </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[var(--border-color)] pt-3 text-xs">
+                <span className="flex items-center gap-1.5">
+                  <span className="text-[var(--text-muted)]">Role</span>
+                  <RoleBadge role={u.role} />
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="text-[var(--text-muted)]">Status</span>
+                  <ActiveBadge isActive={u.isActive} />
+                </span>
+                <span className="text-[var(--text-muted)]">
+                  {u.campaignCount} campaigns · {u.scanCount?.toLocaleString() ?? 0} scans
+                </span>
+                {u.lastLoginAt && (
+                  <span className="text-[var(--text-muted)]">
+                    Last login {new Date(u.lastLoginAt).toLocaleDateString()}
+                  </span>
+                )}
+              </div>
+            </article>
+          ))
+        )}
+      </div>
+
+      {/* ── Table (md: and up) ───────────────────────────────────────── */}
+      <div className="glass-card hidden overflow-hidden md:block">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -242,34 +291,35 @@ const AdminUsersPage = () => {
             </tbody>
           </table>
         </div>
-
-        {/* Pagination */}
-        {pagination && pagination.pages > 1 && (
-          <div className="flex items-center justify-between border-t border-[var(--border-color)] px-4 py-3">
-            <p className="text-xs text-[var(--text-muted)]">
-              Page {pagination.page} of {pagination.pages} &bull; {pagination.total} users
-            </p>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => handlePage(page - 1)}
-                disabled={page === 1}
-                aria-label="Previous page"
-                className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
-              >
-                <ChevronLeft size={18} />
-              </button>
-              <button
-                onClick={() => handlePage(page + 1)}
-                disabled={page === pagination.pages}
-                aria-label="Next page"
-                className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
-              >
-                <ChevronRight size={18} />
-              </button>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Pagination — works for both card and table layouts. Stacks on
+          phones so the chevrons drop below the page-of-pages counter. */}
+      {pagination && pagination.pages > 1 && (
+        <div className="flex flex-col items-stretch gap-2 rounded-2xl border border-[var(--border-color)] bg-[var(--surface-1)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-[var(--text-muted)]">
+            Page {pagination.page} of {pagination.pages} &bull; {pagination.total} users
+          </p>
+          <div className="flex items-center justify-end gap-2">
+            <button
+              onClick={() => handlePage(page - 1)}
+              disabled={page === 1}
+              aria-label="Previous page"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-[var(--border-color)] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <button
+              onClick={() => handlePage(page + 1)}
+              disabled={page === pagination.pages}
+              aria-label="Next page"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-[var(--border-color)] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Toast */}
       <AnimatePresence>

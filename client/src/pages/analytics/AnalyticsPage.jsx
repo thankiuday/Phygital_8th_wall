@@ -388,7 +388,56 @@ const AnalyticsPage = () => {
         ) : topCampaigns.length === 0 ? (
           <p className="text-sm text-[var(--text-muted)]">No scan data yet for this period.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            {/* Mobile cards (below md:) */}
+            <div className="space-y-3 md:hidden">
+              {topCampaigns.map((c, i) => (
+                <article
+                  key={c._id}
+                  className="flex flex-col gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] p-4"
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 w-5 shrink-0 text-xs text-[var(--text-muted)]">{i + 1}</span>
+                    {c.thumbnailUrl ? (
+                      <img
+                        src={c.thumbnailUrl}
+                        alt=""
+                        className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-white/10"
+                      />
+                    ) : (
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-500/20 text-xs font-bold text-brand-400">
+                        AR
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-[var(--text-primary)]">{c.campaignName}</p>
+                      <p className="text-xs text-[var(--text-muted)]">
+                        <span className="font-semibold text-[var(--text-primary)]">{c.scans}</span> scans · {c.uniqueVisitors} unique
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                        c.status === 'active'
+                          ? 'bg-green-500/15 text-green-400'
+                          : 'bg-yellow-500/15 text-yellow-400'
+                      }`}
+                    >
+                      {c.status}
+                    </span>
+                  </div>
+                  <Link
+                    to={`/dashboard/campaigns/${c._id}/analytics`}
+                    className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--surface-1)] px-3 text-xs font-medium text-brand-400 hover:border-brand-500/50"
+                    aria-label={`View analytics for ${c.campaignName}`}
+                  >
+                    View Details <ExternalLink size={12} />
+                  </Link>
+                </article>
+              ))}
+            </div>
+
+            {/* Desktop table (md: and up) */}
+            <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--border-color)] text-left text-xs text-[var(--text-muted)]">
@@ -452,7 +501,8 @@ const AnalyticsPage = () => {
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </div>
     </motion.div>
