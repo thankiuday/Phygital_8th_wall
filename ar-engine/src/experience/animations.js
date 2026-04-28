@@ -235,12 +235,13 @@ const _startFloat = (plane, glow, rimGlow, restZ) => {
   plane.position.z = restZ;
   plane.scale.set(1, 1, 1);
 
-  // Scale breathing — subtle "alive" pulse in screen space.
-  // Use a proxy so we control x, y, z together without over-animating z.
+  // Scale breathing — very subtle "alive" pulse in screen space.
+  // Smaller amplitude (1.012) and slower period (3.6 s) so the breathing
+  // never visually competes with tracking jitter.
   const scalePx = { v: 1 };
   _active.scale = gsap.to(scalePx, {
-    v: 1.03,
-    duration: 2.4,
+    v: 1.012,
+    duration: 3.6,
     ease: 'sine.inOut',
     yoyo: true,
     repeat: -1,
@@ -250,20 +251,20 @@ const _startFloat = (plane, glow, rimGlow, restZ) => {
     },
   });
 
-  // rimGlow opacity breathes in sync with scale (0.35 ↔ 0.55)
+  // rimGlow opacity breathes in sync with scale (0.35 ↔ 0.45) — gentler
   _active.rim = gsap.to(rimGlow.material, {
-    opacity: 0.55,
-    duration: 2.4,
+    opacity: 0.45,
+    duration: 3.6,
     ease: 'sine.inOut',
     yoyo: true,
     repeat: -1,
   });
 
-  // Base glow width pulses gently
+  // Base glow width pulses gently (1.10 ↔ 1.16, 2.4 s) — smaller, slower
   const glowPx = { x: glow.scale.x };
   _active.glow = gsap.to(glowPx, {
-    x: 1.2,
-    duration: 1.6,
+    x: 1.16,
+    duration: 2.4,
     ease: 'sine.inOut',
     yoyo: true,
     repeat: -1,
