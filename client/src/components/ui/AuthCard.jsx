@@ -9,7 +9,10 @@ import { Zap } from 'lucide-react';
  */
 const AuthCard = ({ title, subtitle, children }) => {
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center bg-[var(--bg-primary)] px-4 py-8 sm:py-12">
+    <div
+      className="relative flex min-h-screen flex-col items-center justify-center bg-[var(--bg-primary)] px-4 py-8 sm:py-12"
+      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
+    >
       {/* Background glow blob */}
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden>
         <div className="absolute left-1/2 top-1/2 h-[400px] w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-600/15 blur-[80px] sm:h-[500px] sm:w-[500px] sm:blur-[100px] dark:bg-brand-700/25" />
@@ -31,8 +34,10 @@ const AuthCard = ({ title, subtitle, children }) => {
           <span className="gradient-text text-xl font-bold tracking-tight">Phygital8ThWall</span>
         </Link>
 
-        {/* Card */}
-        <div className="glass-card p-5 sm:p-8">
+        {/* Card — solid surface on phones so the keyboard area stays
+            readable; restores the glass treatment from sm: up via a CSS
+            module-style override below. */}
+        <div className="auth-card-surface rounded-2xl border border-[var(--border-color)] bg-[var(--surface-solid)] p-5 shadow-[var(--shadow-md)] sm:p-8">
           <div className="mb-5 text-center sm:mb-6">
             <h1 className="text-xl font-bold text-[var(--text-primary)] sm:text-2xl">{title}</h1>
             {subtitle && (

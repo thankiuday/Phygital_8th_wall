@@ -115,15 +115,15 @@ const ARExperiencePage = () => {
   /* ── Error state ───────────────────────────────────────────── */
   if (error) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-5 bg-[#020617] px-6 text-center">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-5 bg-[#020617] px-[max(1.5rem,env(safe-area-inset-left))] py-[max(2rem,env(safe-area-inset-top))] text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-red-500/15">
           <AlertTriangle size={28} className="text-red-400" />
         </div>
-        <div>
+        <div className="max-w-md">
           <h2 className="text-xl font-bold text-white">Experience unavailable</h2>
-          <p className="mt-1.5 text-sm text-white/50">{error}</p>
+          <p className="mt-1.5 break-words text-balance text-sm text-white/50">{error}</p>
         </div>
-        <Link to="/" className="text-sm font-medium text-brand-400 hover:text-brand-300 hover:underline">
+        <Link to="/" className="inline-flex min-h-[44px] items-center text-sm font-medium text-brand-400 hover:text-brand-300 hover:underline">
           Visit Phygital8ThWall →
         </Link>
       </div>
@@ -132,7 +132,14 @@ const ARExperiencePage = () => {
 
   /* ── Main page ─────────────────────────────────────────────── */
   return (
-    <div className="flex min-h-screen flex-col items-center justify-between bg-[#020617] px-5 py-10 text-white">
+    <div
+      className="flex min-h-screen flex-col items-center justify-between bg-[#020617] py-10 text-white"
+      style={{
+        paddingLeft: 'max(1.25rem, env(safe-area-inset-left))',
+        paddingRight: 'max(1.25rem, env(safe-area-inset-right))',
+        paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)',
+      }}
+    >
       <SEOHead
         title={campaign?.campaignName ? `${campaign.campaignName} — AR Experience` : 'AR Experience'}
         description="Point your camera at the business card to launch the AR hologram experience."
@@ -145,8 +152,12 @@ const ARExperiencePage = () => {
       </div>
 
       {/* Header */}
-      <Link to="/" className="flex items-center gap-2 self-start">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-brand shadow-glow">
+      <Link
+        to="/"
+        aria-label="Phygital8ThWall home"
+        className="inline-flex min-h-11 min-w-11 items-center gap-2 self-start"
+      >
+        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-brand shadow-glow">
           <Zap size={16} className="text-white" />
         </span>
         <span className="text-sm font-bold tracking-tight text-white/70">Phygital8ThWall</span>
@@ -187,7 +198,9 @@ const ARExperiencePage = () => {
 
         {/* Campaign info */}
         <div>
-          <h1 className="text-2xl font-extrabold text-white">{campaign?.campaignName}</h1>
+          <h1 className="break-words text-balance text-2xl font-extrabold text-white">
+            {campaign?.campaignName}
+          </h1>
           <p className="mt-2 text-sm leading-relaxed text-white/50">
             Point your camera at the business card to see the augmented reality experience.
           </p>
@@ -197,10 +210,10 @@ const ARExperiencePage = () => {
         <div className="flex w-full flex-col gap-2">
           {HOW_TO_STEPS.map(({ icon: Icon, text }, i) => (
             <div key={i} className="flex items-center gap-3 rounded-xl border border-white/8 bg-white/5 px-4 py-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-500/20">
-                <Icon size={16} className="text-brand-400" />
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-500/20">
+                <Icon size={18} className="text-brand-400" />
               </div>
-              <p className="text-left text-xs text-white/70">{text}</p>
+              <p className="text-left text-sm text-white/70">{text}</p>
             </div>
           ))}
         </div>

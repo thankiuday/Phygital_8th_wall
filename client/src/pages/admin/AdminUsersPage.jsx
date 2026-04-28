@@ -263,9 +263,9 @@ const AdminUsersPage = () => {
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-brand text-xs font-bold text-white">
                           {u.name?.[0]?.toUpperCase() || 'U'}
                         </div>
-                        <div>
-                          <p className="font-medium text-[var(--text-primary)]">{u.name}</p>
-                          <p className="text-xs text-[var(--text-muted)]">{u.email}</p>
+                        <div className="min-w-0">
+                          <p className="block max-w-[14rem] truncate font-medium text-[var(--text-primary)]">{u.name}</p>
+                          <p className="block max-w-[14rem] truncate text-xs text-[var(--text-muted)]">{u.email}</p>
                         </div>
                       </div>
                     </td>

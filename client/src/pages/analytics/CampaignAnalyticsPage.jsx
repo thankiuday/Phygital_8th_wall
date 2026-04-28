@@ -140,24 +140,24 @@ const CampaignAnalyticsPage = () => {
       {/* ── Breadcrumb + header ─────────────────────────────────────────── */}
       <div>
         {/* Breadcrumb */}
-        <div className="mb-4 flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
-          <Link to="/dashboard/analytics" className="flex items-center gap-1 hover:text-brand-400">
+        <div className="mb-4 flex min-w-0 items-center gap-1.5 text-xs text-[var(--text-muted)]">
+          <Link to="/dashboard/analytics" className="inline-flex shrink-0 items-center gap-1 hover:text-brand-400">
             <ArrowLeft size={12} /> Analytics
           </Link>
-          <ChevronRight size={12} />
+          <ChevronRight size={12} className="shrink-0" />
           <Link
             to={`/dashboard/campaigns/${id}`}
-            className="hover:text-brand-400"
+            className="block max-w-[12rem] truncate hover:text-brand-400"
           >
             {campaign?.campaignName || 'Campaign'}
           </Link>
-          <ChevronRight size={12} />
-          <span>Analytics</span>
+          <ChevronRight size={12} className="shrink-0" />
+          <span className="shrink-0">Analytics</span>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+          <div className="min-w-0">
+            <h1 className="break-words text-2xl font-bold text-[var(--text-primary)]">
               {campaign?.campaignName || 'Campaign Analytics'}
             </h1>
             <p className="mt-1 text-sm text-[var(--text-muted)]">

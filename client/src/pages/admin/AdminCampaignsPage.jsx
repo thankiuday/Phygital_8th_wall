@@ -246,15 +246,15 @@ const AdminCampaignsPage = () => {
                             <QrCode size={14} className="text-brand-400" />
                           </div>
                         )}
-                        <span className="max-w-[180px] truncate font-medium text-[var(--text-primary)]">
+                        <span className="block max-w-[14rem] truncate font-medium text-[var(--text-primary)]">
                           {c.campaignName}
                         </span>
                       </div>
                     </td>
                     {/* Owner */}
                     <td className="px-4 py-3">
-                      <p className="text-xs font-medium text-[var(--text-primary)]">{c.userId?.name || '—'}</p>
-                      <p className="text-xs text-[var(--text-muted)]">{c.userId?.email || '—'}</p>
+                      <p className="block max-w-[14rem] truncate text-xs font-medium text-[var(--text-primary)]">{c.userId?.name || '—'}</p>
+                      <p className="block max-w-[14rem] truncate text-xs text-[var(--text-muted)]">{c.userId?.email || '—'}</p>
                     </td>
                     {/* Status */}
                     <td className="px-4 py-3"><StatusBadge status={c.status} /></td>

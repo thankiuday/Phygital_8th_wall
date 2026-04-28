@@ -22,6 +22,7 @@ import {
 } from 'recharts';
 import useAuthStore from '../../store/useAuthStore';
 import useDashboardStore from '../../store/useDashboardStore';
+import useIsMobile from '../../hooks/useIsMobile';
 
 /* ── Animation variants ──────────────────────────────────────────── */
 const fadeUp = (delay = 0) => ({
@@ -94,6 +95,10 @@ const ChartTooltip = ({ active, payload, label }) => {
 const DashboardPage = () => {
   const { user } = useAuthStore();
   const { stats, recentCampaigns, scanTrend, isLoading, fetchStats } = useDashboardStore();
+  const isMobile = useIsMobile();
+  const chartMargin = isMobile
+    ? { top: 4, right: 4, left: 0, bottom: 0 }
+    : { top: 4, right: 4, left: -24, bottom: 0 };
 
   useEffect(() => {
     fetchStats();
@@ -199,7 +204,7 @@ const DashboardPage = () => {
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={160}>
-              <AreaChart data={scanTrend} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
+              <AreaChart data={scanTrend} margin={chartMargin}>
                 <defs>
                   <linearGradient id="scanGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.25} />
@@ -308,10 +313,11 @@ const DashboardPage = () => {
 
                   <Link
                     to={`/dashboard/campaigns/${campaign._id}`}
-                    className="shrink-0 rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:text-brand-400"
+                    aria-label={`Open ${campaign.campaignName}`}
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:text-brand-400"
                     title="View campaign"
                   >
-                    <ExternalLink size={14} />
+                    <ExternalLink size={16} />
                   </Link>
                 </div>
               ))}
