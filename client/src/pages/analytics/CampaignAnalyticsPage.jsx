@@ -14,6 +14,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import useAnalyticsStore from '../../store/useAnalyticsStore';
+import useIsMobile from '../../hooks/useIsMobile';
 
 // ---------------------------------------------------------------------------
 // Constants (same as AnalyticsPage to keep brand consistent)
@@ -61,24 +62,26 @@ const HourlyHeatmap = ({ data }) => {
   if (!data?.length) return <ChartSkeleton h="h-16" />;
   const max = Math.max(...data.map((d) => d.count), 1);
   return (
-    <div className="flex items-end gap-0.5">
-      {data.map(({ hour, count }) => (
-        <div key={hour} className="flex flex-1 flex-col items-center gap-1">
-          <div
-            className="w-full rounded-t-sm"
-            style={{
-              height: `${Math.max(4, (count / max) * 48)}px`,
-              background: count > 0
-                ? `rgba(124,58,237,${0.2 + (count / max) * 0.8})`
-                : 'rgba(255,255,255,0.05)',
-            }}
-            title={`${hour}:00 — ${count} scans`}
-          />
-          {hour % 6 === 0 && (
-            <span className="text-[9px] text-[var(--text-muted)]">{hour}h</span>
-          )}
-        </div>
-      ))}
+    <div className="-mx-4 overflow-x-auto px-4 scrollbar-hide">
+      <div className="flex items-end gap-0.5">
+        {data.map(({ hour, count }) => (
+          <div key={hour} className="flex min-w-[14px] flex-1 flex-col items-center gap-1">
+            <div
+              className="w-full rounded-t-sm"
+              style={{
+                height: `${Math.max(4, (count / max) * 48)}px`,
+                background: count > 0
+                  ? `rgba(124,58,237,${0.2 + (count / max) * 0.8})`
+                  : 'rgba(255,255,255,0.05)',
+              }}
+              title={`${hour}:00 — ${count} scans`}
+            />
+            {hour % 6 === 0 && (
+              <span className="text-[11px] text-[var(--text-muted)]">{hour}h</span>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
@@ -88,6 +91,11 @@ const HourlyHeatmap = ({ data }) => {
 // ---------------------------------------------------------------------------
 const CampaignAnalyticsPage = () => {
   const { id } = useParams();
+  const isMobile = useIsMobile();
+  const chartMargin = isMobile
+    ? { top: 4, right: 4, bottom: 0, left: 0 }
+    : { top: 4, right: 4, bottom: 0, left: -20 };
+  const yAxisWidth = isMobile ? 36 : 60;
   const {
     campaignData,
     period,
@@ -232,7 +240,7 @@ const CampaignAnalyticsPage = () => {
           <ChartSkeleton h="h-56" />
         ) : (
           <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={scanTrend} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+            <AreaChart data={scanTrend} margin={chartMargin}>
               <defs>
                 <linearGradient id="cGradScans" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%"  stopColor="#7c3aed" stopOpacity={0.4} />
@@ -252,11 +260,14 @@ const CampaignAnalyticsPage = () => {
               />
               <YAxis
                 allowDecimals={false}
+                width={yAxisWidth}
                 tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
                 axisLine={false} tickLine={false}
               />
               <Tooltip contentStyle={TOOLTIP_STYLE} />
-              <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+              {!isMobile && (
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+              )}
               <Area
                 type="monotone" dataKey="scans"
                 stroke="#7c3aed" strokeWidth={2} fill="url(#cGradScans)"
@@ -294,15 +305,15 @@ const CampaignAnalyticsPage = () => {
                   <Tooltip contentStyle={TOOLTIP_STYLE} />
                 </PieChart>
               </ResponsiveContainer>
-              <ul className="flex flex-1 flex-col gap-2">
+              <ul className="flex min-w-0 flex-1 flex-col gap-2">
                 {devices.map((d, i) => (
                   <li key={d.device} className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <div className="h-2.5 w-2.5 rounded-full"
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="h-2.5 w-2.5 shrink-0 rounded-full"
                         style={{ background: DEVICE_COLORS[i % DEVICE_COLORS.length] }} />
-                      <span className="text-xs capitalize text-[var(--text-secondary)]">{d.device}</span>
+                      <span className="truncate text-xs capitalize text-[var(--text-secondary)]">{d.device}</span>
                     </div>
-                    <span className="text-xs font-semibold text-[var(--text-primary)]">{d.count}</span>
+                    <span className="shrink-0 text-xs font-semibold text-[var(--text-primary)]">{d.count}</span>
                   </li>
                 ))}
               </ul>

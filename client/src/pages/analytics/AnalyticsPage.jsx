@@ -13,6 +13,7 @@ import {
   Smartphone, Monitor, BarChart3, ExternalLink,
 } from 'lucide-react';
 import useAnalyticsStore from '../../store/useAnalyticsStore';
+import useIsMobile from '../../hooks/useIsMobile';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -90,24 +91,28 @@ const HourlyHeatmap = ({ data }) => {
   if (!data?.length) return <ChartSkeleton h="h-16" />;
   const max = Math.max(...data.map((d) => d.count), 1);
   return (
-    <div className="flex items-end gap-0.5" title="Hourly scan distribution">
-      {data.map(({ hour, count }) => (
-        <div key={hour} className="group flex flex-1 flex-col items-center gap-1">
-          <div
-            className="w-full rounded-t-sm transition-all"
-            style={{
-              height: `${Math.max(4, (count / max) * 48)}px`,
-              background: count > 0
-                ? `rgba(124,58,237,${0.2 + (count / max) * 0.8})`
-                : 'rgba(255,255,255,0.05)',
-            }}
-            title={`${hour}:00 — ${count} scans`}
-          />
-          {hour % 6 === 0 && (
-            <span className="text-[9px] text-[var(--text-muted)]">{hour}h</span>
-          )}
-        </div>
-      ))}
+    // Negative margin + horizontal scroll lets phones swipe through the
+    // 24 buckets instead of squeezing each into a 4-pixel sliver.
+    <div className="-mx-4 overflow-x-auto px-4 scrollbar-hide" title="Hourly scan distribution">
+      <div className="flex items-end gap-0.5">
+        {data.map(({ hour, count }) => (
+          <div key={hour} className="group flex min-w-[14px] flex-1 flex-col items-center gap-1">
+            <div
+              className="w-full rounded-t-sm transition-all"
+              style={{
+                height: `${Math.max(4, (count / max) * 48)}px`,
+                background: count > 0
+                  ? `rgba(124,58,237,${0.2 + (count / max) * 0.8})`
+                  : 'rgba(255,255,255,0.05)',
+              }}
+              title={`${hour}:00 — ${count} scans`}
+            />
+            {hour % 6 === 0 && (
+              <span className="text-[11px] text-[var(--text-muted)]">{hour}h</span>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
@@ -117,6 +122,13 @@ const HourlyHeatmap = ({ data }) => {
 // ---------------------------------------------------------------------------
 const AnalyticsPage = () => {
   const { overview, period, isLoading, error, fetchOverview, setPeriod } = useAnalyticsStore();
+  const isMobile = useIsMobile();
+
+  // Margins / Y-axis width are tighter on mobile so the plot uses every pixel
+  const chartMargin = isMobile
+    ? { top: 4, right: 4, bottom: 0, left: 0 }
+    : { top: 4, right: 4, bottom: 0, left: -20 };
+  const yAxisWidth = isMobile ? 36 : 60;
 
   useEffect(() => { fetchOverview(); }, [fetchOverview]);
 
@@ -209,7 +221,7 @@ const AnalyticsPage = () => {
           <ChartSkeleton h="h-56" />
         ) : (
           <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={scanTrend} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+            <AreaChart data={scanTrend} margin={chartMargin}>
               <defs>
                 <linearGradient id="gradScans" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%"  stopColor="#7c3aed" stopOpacity={0.4} />
@@ -230,6 +242,7 @@ const AnalyticsPage = () => {
               />
               <YAxis
                 allowDecimals={false}
+                width={yAxisWidth}
                 tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
@@ -238,11 +251,13 @@ const AnalyticsPage = () => {
                 contentStyle={CHART_TOOLTIP_STYLE}
                 labelStyle={{ color: '#a78bfa', marginBottom: 4 }}
               />
-              <Legend
-                iconType="circle"
-                iconSize={8}
-                wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
-              />
+              {!isMobile && (
+                <Legend
+                  iconType="circle"
+                  iconSize={8}
+                  wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
+                />
+              )}
               <Area
                 type="monotone"
                 dataKey="scans"
@@ -302,19 +317,19 @@ const AnalyticsPage = () => {
                   />
                 </PieChart>
               </ResponsiveContainer>
-              <ul className="flex flex-1 flex-col gap-2">
+              <ul className="flex min-w-0 flex-1 flex-col gap-2">
                 {devices.map((d, i) => (
                   <li key={d.device} className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
                       <div
-                        className="h-2.5 w-2.5 rounded-full"
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
                         style={{ background: DEVICE_COLORS[i % DEVICE_COLORS.length] }}
                       />
-                      <span className="text-xs capitalize text-[var(--text-secondary)]">
+                      <span className="truncate text-xs capitalize text-[var(--text-secondary)]">
                         {d.device}
                       </span>
                     </div>
-                    <span className="text-xs font-semibold text-[var(--text-primary)]">
+                    <span className="shrink-0 text-xs font-semibold text-[var(--text-primary)]">
                       {d.count}
                     </span>
                   </li>
