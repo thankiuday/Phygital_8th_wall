@@ -236,8 +236,16 @@ const CampaignAnalyticsPage = () => {
           <h2 className="text-base font-semibold text-[var(--text-primary)]">Scan Trend</h2>
           <span className="text-xs text-[var(--text-muted)]">Last {period}</span>
         </div>
-        {isLoadingCamp || !scanTrend.length ? (
+        {isLoadingCamp ? (
           <ChartSkeleton h="h-56" />
+        ) : !scanTrend.length ? (
+          <div className="flex h-56 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border-color)] text-center">
+            <BarChart3 size={28} className="text-[var(--text-muted)]/60" />
+            <p className="text-sm font-medium text-[var(--text-secondary)]">No scans yet for this period</p>
+            <p className="max-w-xs text-xs text-[var(--text-muted)]">
+              Once someone scans this campaign's QR code, the trend will populate here.
+            </p>
+          </div>
         ) : (
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={scanTrend} margin={chartMargin}>

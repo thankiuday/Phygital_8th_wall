@@ -177,8 +177,47 @@ const CampaignDetailPage = () => {
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 size={32} className="animate-spin text-brand-500" />
+      <div
+        role="status"
+        aria-label="Loading campaign"
+        className="mx-auto flex max-w-4xl flex-col gap-4 p-4 sm:gap-5 sm:p-6"
+      >
+        {/* Header bar */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="h-6 w-28 animate-pulse rounded-md bg-[var(--surface-2)]" />
+          <div className="h-6 w-3 animate-pulse rounded-md bg-[var(--surface-2)] opacity-50" />
+          <div className="h-6 w-40 animate-pulse rounded-md bg-[var(--surface-2)]" />
+          <div className="h-6 w-16 animate-pulse rounded-full bg-[var(--surface-2)]" />
+          <div className="ml-auto hidden gap-2 sm:flex">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-9 w-24 animate-pulse rounded-xl bg-[var(--surface-2)]" />
+            ))}
+          </div>
+          <div className="ml-auto flex gap-1.5 sm:hidden">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-11 w-11 animate-pulse rounded-xl bg-[var(--surface-2)]" />
+            ))}
+          </div>
+        </div>
+
+        {/* Content grid */}
+        <div className="grid gap-4 sm:gap-5 lg:grid-cols-5">
+          <div className="glass-card lg:col-span-2">
+            <div className="aspect-square animate-pulse rounded-2xl bg-[var(--surface-2)]" />
+          </div>
+          <div className="flex flex-col gap-4 lg:col-span-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="h-24 animate-pulse rounded-2xl bg-[var(--surface-2)]" />
+              <div className="h-24 animate-pulse rounded-2xl bg-[var(--surface-2)]" />
+            </div>
+            <div className="h-48 animate-pulse rounded-2xl bg-[var(--surface-2)]" />
+            <div className="h-64 animate-pulse rounded-2xl bg-[var(--surface-2)]" />
+          </div>
+        </div>
+
+        <span className="sr-only">
+          Loading campaign details… <Loader2 className="hidden" />
+        </span>
       </div>
     );
   }

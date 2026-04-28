@@ -1,7 +1,8 @@
 import { Helmet } from 'react-helmet-async';
+import { useLocation } from 'react-router-dom';
 
 const APP_NAME = import.meta.env.VITE_APP_NAME || 'Phygital8ThWall';
-const APP_URL  = import.meta.env.VITE_APP_URL  || 'https://phygital8thwall.com';
+const APP_URL  = (import.meta.env.VITE_APP_URL  || 'https://phygital8thwall.com').replace(/\/$/, '');
 const OG_IMAGE = `${APP_URL}/og-image.png`;
 
 /**
@@ -19,10 +20,14 @@ const SEOHead = ({
   title,
   description = 'Create AR business card experiences in minutes. Upload your card, add a video, and share your augmented reality hologram.',
   image   = OG_IMAGE,
-  url     = APP_URL,
+  url,
   type    = 'website',
   noIndex = false,
 }) => {
+  const location = useLocation();
+  // Canonical URL follows the active route by default so analytics / search
+  // engines see the actual page path; callers can still override via `url`.
+  const canonical = url ?? `${APP_URL}${location.pathname}`;
   const fullTitle = title ? `${title} | ${APP_NAME}` : `${APP_NAME} — AR Business Card Platform`;
 
   return (
@@ -30,7 +35,7 @@ const SEOHead = ({
       {/* ── Primary ────────────────────────────────────────────────── */}
       <title>{fullTitle}</title>
       <meta name="description" content={description} />
-      <link rel="canonical" href={url} />
+      <link rel="canonical" href={canonical} />
       {noIndex && <meta name="robots" content="noindex, nofollow" />}
 
       {/* ── Open Graph ─────────────────────────────────────────────── */}
@@ -38,7 +43,7 @@ const SEOHead = ({
       <meta property="og:title"       content={fullTitle} />
       <meta property="og:description" content={description} />
       <meta property="og:image"       content={image} />
-      <meta property="og:url"         content={url} />
+      <meta property="og:url"         content={canonical} />
       <meta property="og:site_name"   content={APP_NAME} />
 
       {/* ── Twitter Card ───────────────────────────────────────────── */}

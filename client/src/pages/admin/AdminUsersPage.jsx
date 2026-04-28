@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, UserCheck, UserX, Shield, ShieldOff,
-  ChevronLeft, ChevronRight, Loader2,
+  ChevronLeft, ChevronRight, Loader2, Users,
 } from 'lucide-react';
 import { adminService } from '../../services/adminService';
 
@@ -181,8 +181,14 @@ const AdminUsersPage = () => {
             <div key={i} className="h-28 animate-pulse rounded-2xl bg-[var(--surface-2)]" />
           ))
         ) : users.length === 0 ? (
-          <div className="rounded-2xl border border-[var(--border-color)] bg-[var(--surface-1)] p-8 text-center text-sm text-[var(--text-muted)]">
-            No users found.
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-[var(--border-color)] bg-[var(--surface-1)] p-8 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--surface-2)]">
+              <Users size={20} className="text-[var(--text-muted)]" />
+            </div>
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">No users found</h3>
+            <p className="max-w-xs text-xs text-[var(--text-muted)]">
+              Try a different search term or filter.
+            </p>
           </div>
         ) : (
           users.map((u) => (
@@ -247,8 +253,16 @@ const AdminUsersPage = () => {
                 ))
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-sm text-[var(--text-muted)]">
-                    No users found.
+                  <td colSpan={7} className="px-4 py-12">
+                    <div className="flex flex-col items-center gap-2 text-center">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--surface-2)]">
+                        <Users size={20} className="text-[var(--text-muted)]" />
+                      </div>
+                      <p className="text-sm font-semibold text-[var(--text-primary)]">No users found</p>
+                      <p className="text-xs text-[var(--text-muted)]">
+                        Try a different search term or filter.
+                      </p>
+                    </div>
                   </td>
                 </tr>
               ) : (

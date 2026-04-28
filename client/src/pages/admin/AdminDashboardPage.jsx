@@ -127,7 +127,15 @@ const AdminDashboardPage = () => {
           {loading ? (
             <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} h="h-10" />)}</div>
           ) : (data?.topUsers?.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)]">No scan data yet.</p>
+            <div className="flex flex-col items-center gap-2 py-6 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--surface-2)]">
+                <Users size={20} className="text-[var(--text-muted)]" />
+              </div>
+              <p className="text-sm font-semibold text-[var(--text-primary)]">No scan data yet</p>
+              <p className="max-w-xs text-xs text-[var(--text-muted)]">
+                Top users by scan volume will appear here once campaigns start receiving traffic.
+              </p>
+            </div>
           ) : (
             <ul className="space-y-2">
               {data?.topUsers?.map((u, i) => (
@@ -162,7 +170,15 @@ const AdminDashboardPage = () => {
           {loading ? (
             <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} h="h-12" />)}</div>
           ) : (data?.recentCampaigns?.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)]">No campaigns yet.</p>
+            <div className="flex flex-col items-center gap-2 py-6 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--surface-2)]">
+                <QrCode size={20} className="text-[var(--text-muted)]" />
+              </div>
+              <p className="text-sm font-semibold text-[var(--text-primary)]">No campaigns yet</p>
+              <p className="max-w-xs text-xs text-[var(--text-muted)]">
+                The most recent published campaigns across the platform will show up here.
+              </p>
+            </div>
           ) : (
             <ul className="space-y-2">
               {data?.recentCampaigns?.map((c) => (

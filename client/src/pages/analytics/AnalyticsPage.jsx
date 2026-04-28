@@ -217,8 +217,16 @@ const AnalyticsPage = () => {
           <SectionTitle>Scan Trend</SectionTitle>
           <span className="text-xs text-[var(--text-muted)]">Last {period}</span>
         </div>
-        {isLoading || !scanTrend.length ? (
+        {isLoading ? (
           <ChartSkeleton h="h-56" />
+        ) : !scanTrend.length ? (
+          <div className="flex h-56 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border-color)] text-center">
+            <BarChart3 size={28} className="text-[var(--text-muted)]/60" />
+            <p className="text-sm font-medium text-[var(--text-secondary)]">No scans yet for this period</p>
+            <p className="max-w-xs text-xs text-[var(--text-muted)]">
+              Once visitors scan your campaign QR, the trend will populate here.
+            </p>
+          </div>
         ) : (
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={scanTrend} margin={chartMargin}>
