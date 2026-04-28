@@ -1,8 +1,13 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import useAuthStore from '../store/useAuthStore';
 
 const NotFoundPage = () => {
+  const { isAuthenticated } = useAuthStore();
+  const returnPath = isAuthenticated ? '/dashboard' : '/';
+  const returnLabel = isAuthenticated ? 'Back to Dashboard' : 'Back to Home';
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 text-center">
       <motion.div
@@ -24,11 +29,11 @@ const NotFoundPage = () => {
           The page you are looking for does not exist or has been moved.
         </p>
         <Link
-          to="/"
+          to={returnPath}
           className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-glow hover:bg-brand-500"
         >
           <ArrowLeft size={16} />
-          Back to Home
+          {returnLabel}
         </Link>
       </motion.div>
     </div>
