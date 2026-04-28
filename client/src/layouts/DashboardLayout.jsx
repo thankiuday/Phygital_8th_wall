@@ -1,16 +1,35 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import Sidebar from '../components/ui/Sidebar';
 import DashboardTopBar from '../components/ui/DashboardTopBar';
 
-/* ── Map route paths to readable page titles ─────────────────────── */
+/* ── Map route paths/prefixes to readable page titles ────────────── */
 const PAGE_TITLES = {
   '/dashboard': 'Dashboard',
   '/dashboard/campaigns': 'Campaigns',
   '/dashboard/campaigns/new': 'New Campaign',
   '/dashboard/analytics': 'Analytics',
   '/dashboard/settings': 'Settings',
+};
+
+// Order matters: longest, most specific prefix first.
+const TITLE_PREFIXES = [
+  ['/dashboard/campaigns/new', 'New Campaign'],
+  ['/dashboard/campaigns/', 'Campaign Detail'],
+  ['/dashboard/analytics/', 'Campaign Analytics'],
+  ['/dashboard/campaigns', 'Campaigns'],
+  ['/dashboard/analytics', 'Analytics'],
+  ['/dashboard/settings', 'Settings'],
+  ['/dashboard', 'Dashboard'],
+];
+
+const resolvePageTitle = (pathname) => {
+  if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname];
+  for (const [prefix, label] of TITLE_PREFIXES) {
+    if (pathname.startsWith(prefix)) return label;
+  }
+  return 'Dashboard';
 };
 
 /**
@@ -25,7 +44,13 @@ const DashboardLayout = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
 
-  const pageTitle = PAGE_TITLES[location.pathname] || 'Dashboard';
+  const pageTitle = resolvePageTitle(location.pathname);
+
+  // Auto-close the mobile drawer whenever the route changes — picking a
+  // sidebar item should land you on the page, not on the (still-open) drawer.
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--bg-secondary)] text-[var(--text-primary)]">
@@ -60,6 +85,7 @@ const DashboardLayout = () => {
               <Sidebar
                 collapsed={false}
                 onCollapse={() => setMobileOpen(false)}
+                onNavigate={() => setMobileOpen(false)}
               />
             </motion.div>
           </>

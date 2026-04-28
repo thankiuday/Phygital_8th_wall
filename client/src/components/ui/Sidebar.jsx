@@ -29,10 +29,11 @@ const ADMIN_ITEMS = [
 ];
 
 /* ── Single nav item ─────────────────────────────────────────────── */
-const SidebarLink = ({ to, icon: Icon, label, collapsed, end }) => (
+const SidebarLink = ({ to, icon: Icon, label, collapsed, end, onNavigate }) => (
   <NavLink
     to={to}
     end={end}
+    onClick={onNavigate}
     className={({ isActive }) =>
       cn(
         'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
@@ -61,7 +62,9 @@ const SidebarLink = ({ to, icon: Icon, label, collapsed, end }) => (
 );
 
 /* ── Sidebar component ───────────────────────────────────────────── */
-const Sidebar = ({ collapsed, onCollapse }) => {
+// `onCollapse` toggles the desktop rail; `onNavigate` is fired on every link
+// click so the parent (DashboardLayout) can close its mobile drawer.
+const Sidebar = ({ collapsed, onCollapse, onNavigate }) => {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
 
@@ -107,8 +110,9 @@ const Sidebar = ({ collapsed, onCollapse }) => {
       <div className={cn('p-3', collapsed && 'px-2')}>
         <Link
           to="/dashboard/campaigns/new"
+          onClick={onNavigate}
           className={cn(
-            'flex items-center gap-2 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white shadow-glow transition-all hover:bg-brand-500 hover:shadow-glow-lg',
+            'flex min-h-[44px] items-center gap-2 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white shadow-glow transition-all hover:bg-brand-500 hover:shadow-glow-lg',
             collapsed ? 'justify-center px-0' : 'px-3'
           )}
           title={collapsed ? 'New Campaign' : undefined}
@@ -133,7 +137,7 @@ const Sidebar = ({ collapsed, onCollapse }) => {
       {/* ── Nav links ────────────────────────────────────────────── */}
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-2">
         {NAV_ITEMS.map((item) => (
-          <SidebarLink key={item.to} {...item} collapsed={collapsed} />
+          <SidebarLink key={item.to} {...item} collapsed={collapsed} onNavigate={onNavigate} />
         ))}
 
         {/* Admin section — only visible to admin role */}
@@ -141,7 +145,7 @@ const Sidebar = ({ collapsed, onCollapse }) => {
           <>
             <div className={cn('my-2 border-t border-[var(--border-color)]', collapsed && 'mx-1')} />
             {ADMIN_ITEMS.map((item) => (
-              <SidebarLink key={item.to} {...item} collapsed={collapsed} />
+              <SidebarLink key={item.to} {...item} collapsed={collapsed} onNavigate={onNavigate} />
             ))}
           </>
         )}
@@ -185,10 +189,11 @@ const Sidebar = ({ collapsed, onCollapse }) => {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={handleLogout}
+                aria-label="Sign out"
                 title="Sign out"
-                className="shrink-0 rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-red-500/10 hover:text-red-400"
+                className="shrink-0 inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-red-500/10 hover:text-red-400"
               >
-                <LogOut size={15} />
+                <LogOut size={16} />
               </motion.button>
             )}
           </AnimatePresence>
@@ -198,21 +203,22 @@ const Sidebar = ({ collapsed, onCollapse }) => {
         {collapsed && (
           <button
             onClick={handleLogout}
+            aria-label="Sign out"
             title="Sign out"
-            className="mt-2 flex w-full items-center justify-center rounded-xl p-2 text-[var(--text-muted)] transition-colors hover:bg-red-500/10 hover:text-red-400"
+            className="mt-2 flex min-h-11 w-full items-center justify-center rounded-xl text-[var(--text-muted)] transition-colors hover:bg-red-500/10 hover:text-red-400"
           >
             <LogOut size={16} />
           </button>
         )}
       </div>
 
-      {/* ── Collapse toggle ──────────────────────────────────────── */}
+      {/* ── Collapse toggle (desktop rail) ───────────────────────── */}
       <button
         onClick={onCollapse}
-        className="absolute -right-3 top-20 flex h-6 w-6 items-center justify-center rounded-full border border-[var(--border-color)] bg-[var(--surface-1)] text-[var(--text-muted)] shadow-sm transition-colors hover:border-brand-500 hover:text-brand-400"
+        className="absolute -right-4 top-20 hidden h-9 w-9 items-center justify-center rounded-full border border-[var(--border-color)] bg-[var(--surface-1)] text-[var(--text-muted)] shadow-sm transition-colors hover:border-brand-500 hover:text-brand-400 lg:flex"
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       >
-        {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
+        {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
       </button>
     </motion.aside>
   );

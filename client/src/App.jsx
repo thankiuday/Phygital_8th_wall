@@ -10,7 +10,7 @@ import DashboardLayout from './layouts/DashboardLayout';
 
 // Guards + shared loaders
 import { ProtectedRoute, AdminRoute } from './components/ui/ProtectedRoute';
-import PageLoader from './components/ui/PageLoader';
+import RouteSkeleton from './components/ui/RouteSkeleton';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 
 // ── Eagerly-loaded pages (small, needed on first paint) ──────────────────────
@@ -35,8 +35,12 @@ const AdminUsersPage         = lazy(() => import('./pages/admin/AdminUsersPage')
 const AdminCampaignsPage     = lazy(() => import('./pages/admin/AdminCampaignsPage'));
 
 // ── Route-level Suspense wrapper ──────────────────────────────────────────────
+// Inner routes use a lightweight, layout-shaped skeleton so the dashboard /
+// admin shell stays visible while a code-split chunk loads. PageLoader (a
+// full-screen brand splash) is still used by the auth guards for the very
+// first render (auth hydrate).
 const RouteLoader = ({ children }) => (
-  <Suspense fallback={<PageLoader />}>
+  <Suspense fallback={<RouteSkeleton />}>
     {children}
   </Suspense>
 );
