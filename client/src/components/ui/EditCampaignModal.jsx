@@ -83,9 +83,10 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
             <h2 className="text-base font-semibold text-[var(--text-primary)]">Edit Campaign</h2>
             <button
               onClick={onClose}
-              className="rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
+              aria-label="Close"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
             >
-              <X size={16} />
+              <X size={18} />
             </button>
           </div>
 
@@ -116,7 +117,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
                     key={opt.value}
                     type="button"
                     onClick={() => setStatus(opt.value)}
-                    className={`flex flex-1 items-center justify-center gap-2 rounded-xl border py-2 text-sm font-semibold transition-all ${
+                    className={`inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl border py-2 text-sm font-semibold transition-all ${
                       status === opt.value
                         ? `${opt.bg} ${opt.color}`
                         : 'border-[var(--border-color)] text-[var(--text-muted)] hover:border-[var(--border-color-hover)]'
@@ -139,14 +140,14 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 rounded-xl border border-[var(--border-color)] py-2.5 text-sm font-semibold text-[var(--text-muted)] transition-colors hover:border-[var(--border-color-hover)] hover:text-[var(--text-primary)]"
+                className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-xl border border-[var(--border-color)] py-2.5 text-sm font-semibold text-[var(--text-muted)] transition-colors hover:border-[var(--border-color-hover)] hover:text-[var(--text-primary)]"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={saving}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white shadow-glow transition-all hover:bg-brand-500 disabled:opacity-60"
+                className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white shadow-glow transition-all hover:bg-brand-500 disabled:opacity-60"
               >
                 {saving ? <><Loader2 size={14} className="animate-spin" /> Saving…</> : 'Save Changes'}
               </button>

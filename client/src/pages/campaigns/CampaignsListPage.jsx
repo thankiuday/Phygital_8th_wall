@@ -35,10 +35,10 @@ const CardMenu = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete }) =
     <div className="relative">
       <button
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        className="rounded-lg p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
+        className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
         aria-label="More options"
       >
-        <MoreVertical size={15} />
+        <MoreVertical size={18} />
       </button>
 
       <AnimatePresence>
@@ -95,18 +95,19 @@ const CampaignCard = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete 
       href={`/ar/${campaign._id}`}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex items-center justify-center gap-1 rounded-lg border border-[var(--border-color)] px-2 py-1.5 text-xs text-[var(--text-muted)] transition-colors hover:border-brand-500/50 hover:text-brand-400"
+      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-lg border border-[var(--border-color)] px-2 py-1.5 text-xs text-[var(--text-muted)] transition-colors hover:border-brand-500/50 hover:text-brand-400"
+      aria-label="Preview AR experience"
       title="Preview AR"
     >
-      <ExternalLink size={12} />
+      <ExternalLink size={14} />
       <span className="hidden sm:inline">AR</span>
     </a>
   ) : (
     <span
-      className="flex cursor-not-allowed items-center justify-center rounded-lg border border-[var(--border-color)] px-2 py-1.5 text-xs text-[var(--text-muted)] opacity-40"
+      className="inline-flex min-h-[44px] min-w-[44px] cursor-not-allowed items-center justify-center rounded-lg border border-[var(--border-color)] px-2 py-1.5 text-xs text-[var(--text-muted)] opacity-40"
       title="Activate the campaign to preview AR"
     >
-      <ExternalLink size={12} />
+      <ExternalLink size={14} />
     </span>
   );
 
@@ -171,13 +172,13 @@ const CampaignCard = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete 
         <div className="mt-auto flex gap-2 border-t border-[var(--border-color)] pt-3">
           <Link
             to={`/dashboard/campaigns/${campaign._id}`}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[var(--border-color)] py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 hover:text-brand-400"
+            className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-lg border border-[var(--border-color)] px-2 py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 hover:text-brand-400"
           >
             <QrCode size={12} /> View
           </Link>
           <Link
             to={`/dashboard/campaigns/${campaign._id}/analytics`}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[var(--border-color)] py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 hover:text-brand-400"
+            className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-lg border border-[var(--border-color)] px-2 py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 hover:text-brand-400"
           >
             <BarChart3 size={12} /> Stats
           </Link>
@@ -327,14 +328,15 @@ const CampaignsListPage = () => {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search campaigns…"
-            className="w-full rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] py-2.5 pl-9 pr-9 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30"
+            className="w-full rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] py-2.5 pl-9 pr-12 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30"
           />
           {search && (
             <button
               onClick={() => setSearch('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              aria-label="Clear search"
+              className="absolute right-1 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             >
-              <X size={14} />
+              <X size={16} />
             </button>
           )}
         </div>
@@ -345,7 +347,7 @@ const CampaignsListPage = () => {
             <button
               key={tab.value}
               onClick={() => setStatusFilter(tab.value)}
-              className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+              className={`inline-flex min-h-[40px] shrink-0 items-center rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
                 statusFilter === tab.value
                   ? 'bg-brand-600 text-white shadow-glow'
                   : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'

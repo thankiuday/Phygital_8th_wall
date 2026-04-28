@@ -17,7 +17,7 @@ const ThemeToggle = ({ className = '' }) => {
       whileHover={{ scale: 1.05 }}
       aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
       className={`
-        relative flex h-9 w-9 items-center justify-center rounded-xl
+        relative flex h-11 w-11 items-center justify-center rounded-xl
         border transition-all duration-300
         ${
           isDark

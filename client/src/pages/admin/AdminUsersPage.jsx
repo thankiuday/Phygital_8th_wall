@@ -49,29 +49,31 @@ const UserActions = ({ user, onUpdate, currentUserId }) => {
       <button
         onClick={() => act({ isActive: !user.isActive })}
         disabled={busy || isSelf}
+        aria-label={user.isActive ? 'Suspend user' : 'Activate user'}
         title={user.isActive ? 'Suspend user' : 'Activate user'}
-        className={`rounded-lg p-1.5 text-xs transition-colors disabled:opacity-40 ${
+        className={`inline-flex h-11 w-11 items-center justify-center rounded-lg text-xs transition-colors disabled:opacity-40 ${
           user.isActive
             ? 'text-red-400 hover:bg-red-500/10'
             : 'text-green-400 hover:bg-green-500/10'
         }`}
       >
-        {busy ? <Loader2 size={13} className="animate-spin" />
-               : user.isActive ? <UserX size={13} /> : <UserCheck size={13} />}
+        {busy ? <Loader2 size={16} className="animate-spin" />
+               : user.isActive ? <UserX size={16} /> : <UserCheck size={16} />}
       </button>
 
       {/* Promote / Demote */}
       <button
         onClick={() => act({ role: user.role === 'admin' ? 'user' : 'admin' })}
         disabled={busy || isSelf}
+        aria-label={user.role === 'admin' ? 'Remove admin' : 'Make admin'}
         title={user.role === 'admin' ? 'Remove admin' : 'Make admin'}
-        className={`rounded-lg p-1.5 text-xs transition-colors disabled:opacity-40 ${
+        className={`inline-flex h-11 w-11 items-center justify-center rounded-lg text-xs transition-colors disabled:opacity-40 ${
           user.role === 'admin'
             ? 'text-yellow-400 hover:bg-yellow-500/10'
             : 'text-brand-400 hover:bg-brand-500/10'
         }`}
       >
-        {user.role === 'admin' ? <ShieldOff size={13} /> : <Shield size={13} />}
+        {user.role === 'admin' ? <ShieldOff size={16} /> : <Shield size={16} />}
       </button>
     </div>
   );
@@ -160,7 +162,7 @@ const AdminUsersPage = () => {
             <button
               key={tab.value}
               onClick={() => setStatusFilter(tab.value)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+              className={`inline-flex min-h-[44px] items-center rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
                 statusFilter === tab.value
                   ? 'bg-brand-600 text-white shadow-glow'
                   : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
@@ -251,16 +253,18 @@ const AdminUsersPage = () => {
               <button
                 onClick={() => handlePage(page - 1)}
                 disabled={page === 1}
-                className="rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
+                aria-label="Previous page"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
               >
-                <ChevronLeft size={14} />
+                <ChevronLeft size={18} />
               </button>
               <button
                 onClick={() => handlePage(page + 1)}
                 disabled={page === pagination.pages}
-                className="rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
+                aria-label="Next page"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
               >
-                <ChevronRight size={14} />
+                <ChevronRight size={18} />
               </button>
             </div>
           </div>

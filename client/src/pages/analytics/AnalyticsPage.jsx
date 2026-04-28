@@ -66,7 +66,7 @@ const PeriodSelector = ({ value, onChange }) => (
       <button
         key={p.value}
         onClick={() => onChange(p.value)}
-        className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+        className={`inline-flex min-h-[44px] items-center rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
           value === p.value
             ? 'bg-brand-600 text-white shadow-glow'
             : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
@@ -442,9 +442,10 @@ const AnalyticsPage = () => {
                     <td className="py-3 text-right">
                       <Link
                         to={`/dashboard/campaigns/${c._id}/analytics`}
-                        className="inline-flex items-center gap-1 text-xs text-brand-400 opacity-0 transition-opacity group-hover:opacity-100 hover:underline"
+                        className="inline-flex min-h-[44px] items-center gap-1 text-xs text-brand-400 opacity-100 transition-opacity hover:underline md:opacity-0 md:group-hover:opacity-100"
+                        aria-label={`View analytics for ${c.campaignName}`}
                       >
-                        Details <ExternalLink size={10} />
+                        Details <ExternalLink size={12} />
                       </Link>
                     </td>
                   </tr>

@@ -163,7 +163,7 @@ const CampaignAnalyticsPage = () => {
               <button
                 key={p.value}
                 onClick={() => handlePeriod(p.value)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                className={`inline-flex min-h-[44px] items-center rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
                   period === p.value
                     ? 'bg-brand-600 text-white shadow-glow'
                     : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'

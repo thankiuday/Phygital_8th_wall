@@ -48,9 +48,9 @@ const ForgotPasswordPage = () => {
           </p>
           <Link
             to="/login"
-            className="mt-2 flex items-center gap-1.5 text-sm font-medium text-brand-400 hover:text-brand-300 hover:underline"
+            className="mt-2 inline-flex min-h-[44px] items-center gap-1.5 text-sm font-medium text-brand-400 hover:text-brand-300 hover:underline"
           >
-            <ArrowLeft size={14} />
+            <ArrowLeft size={16} />
             Back to Sign In
           </Link>
         </motion.div>

@@ -43,10 +43,10 @@ const ActionMenu = ({ campaign, actionLoading, onEdit, onDuplicate, onToggleStat
     <div className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border-color)] text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 hover:text-brand-400 sm:hidden"
+        className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--border-color)] text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 hover:text-brand-400 sm:hidden"
         aria-label="More actions"
       >
-        <MoreVertical size={16} />
+        <MoreVertical size={18} />
       </button>
 
       <AnimatePresence>
@@ -192,23 +192,6 @@ const CampaignDetailPage = () => {
     );
   }
 
-  /* ── Icon button helper ─────────────────────────────────────────── */
-  const ActionBtn = ({ onClick, disabled, icon: Icon, label, danger }) => (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      title={label}
-      className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-2 text-xs font-medium transition-colors disabled:opacity-50 sm:px-3 ${
-        danger
-          ? 'border-red-500/30 text-red-400 hover:bg-red-500/10'
-          : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:border-brand-500/50 hover:text-brand-400'
-      }`}
-    >
-      <Icon size={14} />
-      <span className="hidden sm:inline">{label}</span>
-    </button>
-  );
-
   return (
     <div className="mx-auto max-w-4xl space-y-4 p-4 sm:space-y-5 sm:p-6">
       {/* ── Header ──────────────────────────────────────────────────── */}
@@ -286,18 +269,20 @@ const CampaignDetailPage = () => {
         <div className="ml-auto flex items-center gap-1.5 sm:hidden">
           <Link
             to={`/dashboard/campaigns/${campaign._id}/analytics`}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-brand-500/50 hover:text-brand-400"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-brand-500/50 hover:text-brand-400"
+            aria-label="View analytics"
             title="Analytics"
           >
-            <BarChart3 size={15} />
+            <BarChart3 size={18} />
           </Link>
           <button
             onClick={toggleStatus}
             disabled={actionLoading}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-brand-500/50 disabled:opacity-50"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-brand-500/50 disabled:opacity-50"
+            aria-label={campaign.status === 'active' ? 'Pause campaign' : 'Activate campaign'}
             title={campaign.status === 'active' ? 'Pause' : 'Activate'}
           >
-            {campaign.status === 'active' ? <Pause size={15} /> : <Play size={15} />}
+            {campaign.status === 'active' ? <Pause size={18} /> : <Play size={18} />}
           </button>
           <ActionMenu
             campaign={campaign}

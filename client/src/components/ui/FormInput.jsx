@@ -44,7 +44,7 @@ const FormInput = forwardRef(
             type={inputType}
             className={cn(
               'input-base pr-4',
-              isPassword && 'pr-10',
+              isPassword && 'pr-12',
               error && 'border-red-500 focus:!border-red-500 focus:!shadow-[0_0_0_3px_rgba(239,68,68,0.15)]',
               className
             )}
@@ -57,11 +57,11 @@ const FormInput = forwardRef(
             <button
               type="button"
               onClick={() => setShowPassword((p) => !p)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] transition-colors hover:text-[var(--text-secondary)]"
+              className="absolute right-1 top-1/2 inline-flex min-h-[44px] min-w-[44px] -translate-y-1/2 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:text-[var(--text-secondary)]"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
-              tabIndex={-1}
+              aria-pressed={showPassword}
             >
-              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           )}
         </div>

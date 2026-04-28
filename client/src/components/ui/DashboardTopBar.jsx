@@ -15,15 +15,16 @@ const DashboardTopBar = ({ title = 'Dashboard', onMobileMenuOpen }) => {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
-  // Close user menu on outside click
+  // Close user menu on outside click. Uses pointerdown so iOS Safari taps
+  // (which sometimes never fire mousedown) reliably dismiss the menu.
   useEffect(() => {
     const handler = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
         setUserMenuOpen(false);
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('pointerdown', handler);
+    return () => document.removeEventListener('pointerdown', handler);
   }, []);
 
   const handleLogout = async () => {
@@ -39,15 +40,15 @@ const DashboardTopBar = ({ title = 'Dashboard', onMobileMenuOpen }) => {
   return (
     <header className="flex h-16 items-center justify-between border-b border-[var(--border-color)] bg-[var(--surface-1)] px-4 md:px-6">
       {/* Left — mobile menu + page title */}
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-3">
         <button
           onClick={onMobileMenuOpen}
-          className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] text-[var(--text-secondary)] lg:hidden"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] text-[var(--text-secondary)] lg:hidden"
           aria-label="Open menu"
         >
           <Menu size={18} />
         </button>
-        <h1 className="text-base font-semibold text-[var(--text-primary)]">{title}</h1>
+        <h1 className="truncate text-base font-semibold text-[var(--text-primary)]">{title}</h1>
       </div>
 
       {/* Right — actions */}
@@ -56,19 +57,19 @@ const DashboardTopBar = ({ title = 'Dashboard', onMobileMenuOpen }) => {
 
         {/* Notifications bell — full feature Module 7 */}
         <button
-          className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 hover:text-brand-400"
+          className="relative inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 hover:text-brand-400"
           aria-label="Notifications"
         >
           <Bell size={16} />
           {/* Unread dot */}
-          <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-brand-500" />
+          <span className="absolute right-2.5 top-2.5 h-1.5 w-1.5 rounded-full bg-brand-500" />
         </button>
 
         {/* User menu */}
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setUserMenuOpen((p) => !p)}
-            className="flex items-center gap-2 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-3 py-2 transition-colors hover:border-brand-500/50"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-3 py-2 transition-colors hover:border-brand-500/50"
             aria-label="User menu"
             aria-expanded={userMenuOpen}
           >

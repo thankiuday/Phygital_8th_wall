@@ -31,9 +31,9 @@ const Footer = () => {
                   key={label}
                   href={href}
                   aria-label={label}
-                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border-color)] text-[var(--text-muted)] transition-colors hover:border-brand-500 hover:text-brand-400"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--border-color)] text-[var(--text-muted)] transition-colors hover:border-brand-500 hover:text-brand-400"
                 >
-                  <Icon size={16} />
+                  <Icon size={18} />
                 </a>
               ))}
             </div>

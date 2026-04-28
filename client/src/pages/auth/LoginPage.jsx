@@ -92,7 +92,7 @@ const LoginPage = () => {
         <div className="flex items-center justify-end">
           <Link
             to="/forgot-password"
-            className="text-xs text-brand-400 hover:text-brand-300 hover:underline"
+            className="inline-flex min-h-[44px] items-center text-sm text-brand-400 hover:text-brand-300 hover:underline"
           >
             Forgot password?
           </Link>

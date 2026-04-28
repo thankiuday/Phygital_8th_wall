@@ -36,15 +36,16 @@ const ModerationBtn = ({ campaign, onUpdate }) => {
     <button
       onClick={toggle}
       disabled={busy}
+      aria-label={campaign.status === 'active' ? 'Pause campaign' : 'Activate campaign'}
       title={campaign.status === 'active' ? 'Pause campaign' : 'Activate campaign'}
-      className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-40 ${
+      className={`inline-flex min-h-[40px] items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-40 ${
         campaign.status === 'active'
           ? 'text-yellow-400 hover:bg-yellow-500/10'
           : 'text-green-400 hover:bg-green-500/10'
       }`}
     >
-      {busy ? <Loader2 size={12} className="animate-spin" />
-             : campaign.status === 'active' ? <Pause size={12} /> : <Play size={12} />}
+      {busy ? <Loader2 size={14} className="animate-spin" />
+             : campaign.status === 'active' ? <Pause size={14} /> : <Play size={14} />}
       {campaign.status === 'active' ? 'Pause' : 'Activate'}
     </button>
   );
@@ -128,7 +129,7 @@ const AdminCampaignsPage = () => {
             <button
               key={tab.value}
               onClick={() => setStatusFilter(tab.value)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+              className={`inline-flex min-h-[44px] items-center rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
                 statusFilter === tab.value
                   ? 'bg-brand-600 text-white shadow-glow'
                   : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
@@ -210,17 +211,18 @@ const AdminCampaignsPage = () => {
                             href={`/ar/${c._id}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:text-brand-400"
+                            aria-label="Preview AR experience"
+                            className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:text-brand-400"
                             title="Preview AR"
                           >
-                            <ExternalLink size={13} />
+                            <ExternalLink size={16} />
                           </a>
                         ) : (
                           <span
-                            className="cursor-not-allowed rounded-lg p-1.5 text-[var(--text-muted)] opacity-40"
+                            className="inline-flex h-11 w-11 cursor-not-allowed items-center justify-center rounded-lg text-[var(--text-muted)] opacity-40"
                             title="Campaign must be active to preview AR"
                           >
-                            <ExternalLink size={13} />
+                            <ExternalLink size={16} />
                           </span>
                         )}
                       </div>
@@ -242,16 +244,18 @@ const AdminCampaignsPage = () => {
               <button
                 onClick={() => handlePage(page - 1)}
                 disabled={page === 1}
-                className="rounded-lg p-1.5 text-[var(--text-muted)] disabled:opacity-40 hover:text-[var(--text-primary)]"
+                aria-label="Previous page"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-muted)] disabled:opacity-40 hover:text-[var(--text-primary)]"
               >
-                <ChevronLeft size={14} />
+                <ChevronLeft size={18} />
               </button>
               <button
                 onClick={() => handlePage(page + 1)}
                 disabled={page === pagination.pages}
-                className="rounded-lg p-1.5 text-[var(--text-muted)] disabled:opacity-40 hover:text-[var(--text-primary)]"
+                aria-label="Next page"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-muted)] disabled:opacity-40 hover:text-[var(--text-primary)]"
               >
-                <ChevronRight size={14} />
+                <ChevronRight size={18} />
               </button>
             </div>
           </div>

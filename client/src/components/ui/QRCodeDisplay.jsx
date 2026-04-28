@@ -116,7 +116,7 @@ const QRCodeDisplay = ({ campaignId, campaignName, initialQrUrl = null, campaign
         <button
           onClick={handleDownload}
           disabled={!qrUrl}
-          className="flex items-center gap-2 rounded-xl border border-[var(--border-color)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 hover:text-brand-400 disabled:opacity-40"
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-[var(--border-color)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 hover:text-brand-400 disabled:opacity-40"
         >
           <Download size={14} /> Download PNG
         </button>
@@ -124,24 +124,24 @@ const QRCodeDisplay = ({ campaignId, campaignName, initialQrUrl = null, campaign
         <button
           onClick={handleShare}
           disabled={!qrUrl}
-          className="flex items-center gap-2 rounded-xl border border-[var(--border-color)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 hover:text-brand-400 disabled:opacity-40"
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-[var(--border-color)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 hover:text-brand-400 disabled:opacity-40"
         >
           <Share2 size={14} /> Share
         </button>
       </div>
 
       {/* Copy AR link */}
-      <div className="flex w-full max-w-sm items-center gap-2 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-3 py-2">
+      <div className="flex w-full max-w-sm items-center gap-2 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] py-1.5 pl-3 pr-1.5">
         <span className="flex-1 truncate text-xs text-[var(--text-muted)]">{arPageUrl}</span>
         <button
           onClick={handleCopy}
-          className="shrink-0 rounded-lg p-1.5 transition-colors hover:bg-[var(--surface-3)]"
-          aria-label="Copy link"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-[var(--surface-3)]"
+          aria-label={copied ? 'Link copied' : 'Copy AR link'}
         >
           {copied ? (
-            <Check size={14} className="text-green-400" />
+            <Check size={16} className="text-green-400" />
           ) : (
-            <Copy size={14} className="text-[var(--text-muted)]" />
+            <Copy size={16} className="text-[var(--text-muted)]" />
           )}
         </button>
       </div>

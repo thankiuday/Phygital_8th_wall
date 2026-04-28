@@ -84,10 +84,10 @@ const FileDropZone = ({
             <button
               type="button"
               onClick={onClear}
-              className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm transition-opacity hover:bg-black/80"
+              className="absolute right-2 top-2 inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm transition-opacity hover:bg-black/80"
               aria-label="Remove file"
             >
-              <X size={14} />
+              <X size={16} />
             </button>
           </motion.div>
         ) : (
@@ -142,6 +142,10 @@ const FileDropZone = ({
         ref={inputRef}
         type="file"
         accept={accept}
+        // For image dropzones, hint phones to use the rear camera so users
+        // can shoot the card directly. Browsers ignore `capture` if accept
+        // doesn't include image MIME types — safe to leave on.
+        capture={accept?.includes('image/') ? 'environment' : undefined}
         className="hidden"
         onChange={(e) => handleFile(e.target.files?.[0])}
       />
