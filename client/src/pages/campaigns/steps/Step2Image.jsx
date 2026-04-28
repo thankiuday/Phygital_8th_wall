@@ -132,13 +132,14 @@ const Step2Image = () => {
         </p>
       )}
 
-      {/* Nav buttons */}
-      <div className="flex items-center justify-between">
+      {/* Nav buttons — stacks on phones so the primary "Next" button is full
+          width and easy to tap; restores side-by-side from sm: up. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <button
           type="button"
           onClick={() => setWizardStep(1)}
           disabled={isUploading}
-          className="flex items-center gap-2 rounded-xl border border-[var(--border-color)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 disabled:opacity-50"
+          className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-[var(--border-color)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 disabled:opacity-50"
         >
           <ArrowLeft size={15} /> Back
         </button>
@@ -147,7 +148,7 @@ const Step2Image = () => {
           type="button"
           onClick={handleNext}
           disabled={isUploading || (!wizardData.targetImageFile && !wizardData.targetImageUrl)}
-          className="flex items-center gap-2 rounded-xl bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white shadow-glow hover:bg-brand-500 hover:shadow-glow-lg disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white shadow-glow hover:bg-brand-500 hover:shadow-glow-lg disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isUploading ? (
             <><Loader2 size={15} className="animate-spin" /> Uploading…</>

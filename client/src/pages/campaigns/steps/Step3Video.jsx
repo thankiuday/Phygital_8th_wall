@@ -115,15 +115,18 @@ const Step3Video = () => {
           <AspectBadge label="Max 100 MB" />
         </div>
 
-        {/* Visual ratio reference */}
-        <div className="flex items-center gap-4 pt-1">
-          <div className="flex flex-col items-center gap-1">
-            <div className="h-16 w-9 rounded-md border-2 border-brand-500/50 bg-brand-500/10" />
-            <span className="text-xs text-brand-400">9:16 ✓</span>
-          </div>
-          <div className="flex flex-col items-center gap-1">
-            <div className="h-9 w-16 rounded-md border-2 border-[var(--border-color)] bg-[var(--surface-3)]" />
-            <span className="text-xs text-[var(--text-muted)]">16:9 ✗</span>
+        {/* Visual ratio reference — boxes stack above the explanation on
+            phones so they don't squeeze the copy. */}
+        <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:gap-4">
+          <div className="flex items-center gap-3 sm:contents">
+            <div className="flex flex-col items-center gap-1">
+              <div className="h-16 w-9 rounded-md border-2 border-brand-500/50 bg-brand-500/10" />
+              <span className="text-xs text-brand-400">9:16 ✓</span>
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <div className="h-9 w-16 rounded-md border-2 border-[var(--border-color)] bg-[var(--surface-3)]" />
+              <span className="text-xs text-[var(--text-muted)]">16:9 ✗</span>
+            </div>
           </div>
           <p className="flex-1 text-xs text-[var(--text-muted)]">
             Vertical (portrait) video looks best as a hologram above the card. Record in portrait mode on your phone.
@@ -158,13 +161,13 @@ const Step3Video = () => {
         </p>
       )}
 
-      {/* Nav buttons */}
-      <div className="flex items-center justify-between">
+      {/* Nav buttons — stacks on phones */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <button
           type="button"
           onClick={() => setWizardStep(2)}
           disabled={isUploading}
-          className="flex items-center gap-2 rounded-xl border border-[var(--border-color)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 disabled:opacity-50"
+          className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-[var(--border-color)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 disabled:opacity-50"
         >
           <ArrowLeft size={15} /> Back
         </button>
@@ -173,7 +176,7 @@ const Step3Video = () => {
           type="button"
           onClick={handleNext}
           disabled={isUploading || (!wizardData.videoFile && !wizardData.videoUrl)}
-          className="flex items-center gap-2 rounded-xl bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white shadow-glow hover:bg-brand-500 hover:shadow-glow-lg disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white shadow-glow hover:bg-brand-500 hover:shadow-glow-lg disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isUploading ? (
             <><Loader2 size={15} className="animate-spin" /> Uploading…</>

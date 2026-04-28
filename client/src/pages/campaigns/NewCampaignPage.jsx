@@ -11,12 +11,13 @@ import Step2Image from './steps/Step2Image';
 import Step3Video from './steps/Step3Video';
 import Step4Review from './steps/Step4Review';
 
-/* ── Step metadata ───────────────────────────────────────────────── */
+/* ── Step metadata. Short labels render on mobile so users can see where
+       they are in the flow without truncation; full labels on sm+ ───────── */
 const STEPS = [
-  { number: 1, label: 'Name' },
-  { number: 2, label: 'Card Image' },
-  { number: 3, label: 'Video' },
-  { number: 4, label: 'Review' },
+  { number: 1, shortLabel: 'Name',   label: 'Name' },
+  { number: 2, shortLabel: 'Image',  label: 'Card Image' },
+  { number: 3, shortLabel: 'Video',  label: 'Video' },
+  { number: 4, shortLabel: 'Review', label: 'Review' },
 ];
 
 /* ── Step indicator node ─────────────────────────────────────────── */
@@ -38,19 +39,21 @@ const StepNode = ({ step, currentStep }) => {
         {done ? <Check size={14} /> : step.number}
       </div>
       <span
-        className={`hidden text-xs font-medium sm:block ${
+        className={`text-[11px] font-medium sm:text-xs ${
           active ? 'text-brand-400' : done ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]'
         }`}
       >
-        {step.label}
+        <span className="sm:hidden">{step.shortLabel}</span>
+        <span className="hidden sm:inline">{step.label}</span>
       </span>
     </div>
   );
 };
 
-/* ── Connector line between steps ───────────────────────────────── */
+/* ── Connector line between steps. Tighter top-margin on mobile so the
+       short labels don't push the line down. ──────────────────────────── */
 const StepConnector = ({ filled }) => (
-  <div className="mb-4 h-0.5 flex-1 rounded-full transition-all duration-500 sm:mb-5"
+  <div className="mb-7 h-0.5 flex-1 rounded-full transition-all duration-500 sm:mb-7"
     style={{ background: filled ? 'var(--brand)' : 'var(--border-color)' }}
   />
 );

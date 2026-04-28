@@ -66,21 +66,25 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm"
+        className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-sm sm:items-center"
         onClick={onClose}
       >
-        {/* Panel */}
+        {/* Panel — capped to viewport height with internal scroll so the
+            Save button stays reachable when the keyboard is up on phones. */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 12 }}
           transition={{ duration: 0.2, ease: 'easeOut' }}
-          className="w-full max-w-md rounded-2xl border border-[var(--border-color)] bg-[var(--surface-1)] p-6 shadow-2xl"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="edit-campaign-title"
+          className="flex max-h-[min(100dvh-2rem,42rem)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-[var(--border-color)] bg-[var(--surface-solid)] shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-base font-semibold text-[var(--text-primary)]">Edit Campaign</h2>
+          <div className="flex items-center justify-between border-b border-[var(--border-color)] px-6 py-4">
+            <h2 id="edit-campaign-title" className="text-base font-semibold text-[var(--text-primary)]">Edit Campaign</h2>
             <button
               onClick={onClose}
               aria-label="Close"
@@ -90,7 +94,10 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form
+            onSubmit={handleSubmit}
+            className="flex-1 space-y-5 overflow-y-auto px-6 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-5"
+          >
             {/* Campaign name */}
             <div className="space-y-1.5">
               <label className="block text-xs font-medium text-[var(--text-secondary)]">
