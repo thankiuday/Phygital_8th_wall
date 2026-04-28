@@ -1,42 +1,42 @@
 /**
- * ARExperience.js — Main WebAR orchestrator
+ * ARExperience.js — Main WebAR orchestrator (production polish build)
  *
- * STABILITY & 360° VIEWING APPROACH
- * ───────────────────────────────────
- * Three layers cooperate to give a hologram that is steady at rest AND
- * smooth on motion, while staying robust against the "invisible plane on
- * detection" bug an earlier scene-space EMA wrapper kept hitting:
+ * STABILITY PIPELINE
+ * ──────────────────
+ * Three layers cooperate so the hologram is steady at rest AND glides on motion:
  *
- *  1. MindAR One-Euro filter — smooths raw tracking output at the algorithm
- *     level (filterMinCF / filterBeta on MindARThree).  Tuned so the cutoff
- *     stays low when the card is still (kills shimmer) but opens aggressively
- *     when it actually moves (no swimming / lag).
+ *  1. MindAR One-Euro filter — algorithm-level smoothing of raw tracking
+ *     (filterMinCF / filterBeta on MindARThree).  Tight cutoff at rest kills
+ *     shimmer; high beta opens it on real motion → no swimming / lag.
  *
- *  2. Camera-facing billboard with EMA — the plane's facing direction is
- *     slerped each frame, so the billboard glides toward the viewer rather
- *     than snapping every frame.  This absorbs residual quaternion noise
- *     without adding visible positional lag.
+ *  2. Post-MindAR anchor-matrix EMA — every render frame we read the matrix
+ *     MindAR just wrote into anchor.group, lerp/slerp our cached "smoothed"
+ *     pose toward it (with a sub-millimetre dead-zone), and write the
+ *     smoothed pose BACK to anchor.group.matrix.  All children inherit the
+ *     smoothed transform for free; no scene-space re-parenting needed (which
+ *     historically broke first-frame visibility).
  *
- *  3. Soft idle animations — small-amplitude scale/opacity breathing that
- *     never visually competes with tracking jitter.
+ *  3. Camera-facing billboard with EMA — the plane's facing direction is
+ *     also slerped each frame, so it glides toward the viewer.
  *
- * SCENE HIERARCHY
- * ───────────────
- * anchor.group  (MindAR — XY = card surface, +Z toward camera)
- *   ├─ _rimGlow   ← edge bloom; renderOrder 0; billboard
- *   ├─ _plane     ← video; billboard quaternion; renderOrder 1
- *   ├─ _glow      ← flat base ellipse on card
- *   └─ _scanRing  ← sonar-ping ring on card
+ * SCENE HIERARCHY (minimalist)
+ * ────────────────────────────
+ * anchor.group  (MindAR — smoothed in-place each frame)
+ *   └─ _plane   (video; billboard quaternion)
  *
- * WHY EVERYTHING LIVES IN anchor.group
- * ─────────────────────────────────────
- * MindAR keeps anchor.group at the exact tracked card pose every frame.
- * Earlier designs put the floating meshes in a scene-space EMA group, but
- * that group started at world (0,0,0) and the snap-on-detect kept missing
- * MindAR's first-frame matrix update — leaving the plane invisible while
- * the video element kept playing audio.  Parenting all meshes to anchor.group
- * removes that race entirely: position is correct on frame 1.  Stability is
- * achieved through the One-Euro tuning and billboard EMA below.
+ * No rim glow, no base glow, no scan ring — pure video on the card.
+ *
+ * UX OVERLAY (DOM, sibling of #ar-root)
+ * ──────────────────────────────────────
+ *   #ar-controls  — bottom-center pill: play/pause, mute, fullscreen
+ *   #ar-buffer    — centered ring spinner shown while video stalls
+ *   #ar-watermark — bottom-right "Powered by Phygital8thWall" (auto-fades)
+ *
+ * AUTO-QUALITY
+ * ────────────
+ * Render loop tracks a 60-frame FPS average.  If sustained < 30 fps we drop
+ * pixelRatio to 1; if it recovers above 50 fps we restore it to
+ * min(devicePixelRatio, 2).  Keeps the video smooth on low-end phones.
  *
  * GLOBAL DEPENDENCIES (loaded via CDN in index.html):
  *   window.MINDAR.IMAGE  — MindARThree + Compiler  (mind-ar@1.1.5 UMD)
@@ -57,22 +57,29 @@ import { updateSession } from '../services/campaignLoader.js';
 const PLANE_WIDTH  = 0.65;
 const PLANE_HEIGHT = PLANE_WIDTH * (16 / 9);   // ≈ 1.156
 
-// PLANE_REST_Z: plane centre offset from card surface when fully emerged.
-// In anchor space, +Z = toward camera.
+// Plane centre offset from card surface when fully emerged (anchor-local +Z).
 export const PLANE_REST_Z = PLANE_HEIGHT / 2;  // ≈ 0.578
 
-// Base glow ellipse dimensions (flat on card)
-const GLOW_W = PLANE_WIDTH * 1.5;
-const GLOW_H = 0.06;
-
 // ─────────────────────────────────────────────────────────────────────────────
-// Smoothing levers — tune these to dial responsiveness vs stability.
+// Smoothing levers — tune to dial responsiveness vs stability.
 // Higher α = snappier; lower α = smoother but laggier.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// EMA factor for billboard facing-direction quaternion (slerp per frame).
-// 0.18 ≈ 5-frame half-life at 60 fps: smooth face-to-camera with no shimmer.
+// Anchor-matrix EMA factors (per-frame lerp/slerp toward the raw MindAR pose).
+// 0.25 ≈ 4-frame half-life at 60 fps: smooth, but tracks real motion within ~70 ms.
+const ANCHOR_SMOOTH_ALPHA    = 0.25;
+
+// Sub-millimetre positional dead-zone (squared, in MindAR units ≈ metres²).
+// (0.0004 m)² — kills the last shimmer when the card is perfectly still.
+const ANCHOR_POS_DEADZONE_SQ = 1.6e-7;
+
+// Billboard facing-direction quaternion EMA.  0.18 → 5-frame half-life.
 const BILLBOARD_ALPHA = 0.18;
+
+// FPS-aware auto-quality
+const FPS_DROP_THRESHOLD    = 30;
+const FPS_RESTORE_THRESHOLD = 50;
+const FPS_SAMPLE_FRAMES     = 60;
 
 // ─────────────────────────────────────────────────────────────────────────────
 export class ARExperience {
@@ -86,14 +93,34 @@ export class ARExperience {
     this._videoEl      = null;
     this._videoTexture = null;
 
-    // Scene meshes (all children of anchor.group)
+    // Scene meshes
     this._plane        = null;   // video quad (billboard quaternion each frame)
-    this._rimGlow      = null;   // edge bloom behind plane
-    this._glow         = null;   // flat base ellipse on card surface
-    this._scanRing     = null;   // sonar-ping ring on card surface
 
-    // Pre-allocated render-loop scratch objects (avoids per-frame GC pressure)
+    // Pre-allocated render-loop scratch objects
     this._scratch      = null;
+
+    // Anchor-EMA state
+    this._anchorPrimed = false;  // false → next frame snaps; true → lerp/slerp
+
+    // FPS-aware quality state
+    this._fpsLastTs        = 0;
+    this._fpsAccum         = 0;
+    this._fpsFrames        = 0;
+    this._fpsLowStreak     = 0;
+    this._fpsHighStreak    = 0;
+    this._lowQualityActive = false;
+    this._defaultPixelRatio = 1;
+
+    // UX DOM overlays (created in _buildUx)
+    this._ui = {
+      controls:    null,
+      btnPlay:     null,
+      btnMute:     null,
+      btnFs:       null,
+      buffer:      null,
+      watermark:   null,
+      _videoListeners: null,
+    };
 
     this._started      = false;
     this._sessionStart = null;
@@ -136,9 +163,7 @@ export class ARExperience {
       uiScanning:     'yes',
       uiError:        'no',
 
-      // One-Euro filter — tuned for "stable when still, responsive on motion".
-      // filterMinCF very low → cutoff stays tight at rest (kills shimmer).
-      // filterBeta higher    → cutoff opens fast on real motion (no lag).
+      // One-Euro: tight cutoff at rest, opens on motion
       filterMinCF:    0.0001,
       filterBeta:     0.01,
 
@@ -148,33 +173,28 @@ export class ARExperience {
 
     const { renderer, scene, camera } = this._mindarThree;
 
-    // Transparent WebGL canvas — camera feed shows through
+    // Transparent canvas — camera feed shows through
     renderer.setClearColor(0x000000, 0);
     scene.background = null;
     renderer.outputEncoding = THREE.sRGBEncoding;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this._defaultPixelRatio = Math.min(window.devicePixelRatio, 2);
+    renderer.setPixelRatio(this._defaultPixelRatio);
     renderer.physicallyCorrectLights = true;
 
-    // 3 — Build scene objects
+    // 3 — Build scene + UX overlay
     this._buildScene(THREE, renderer);
+    this._buildUx();
 
-    // 4 — Wire anchor events and add ALL meshes to anchor.group
-    //     anchor.group is positioned by MindAR every frame at the exact
-    //     tracked card pose — keeping meshes here guarantees they are always
-    //     at the correct world position (no startup drift from (0,0,0)).
+    // 4 — Wire anchor events; plane lives on anchor.group (always at the card)
     const anchor = this._mindarThree.addAnchor(0);
     this._anchor = anchor;
     anchor.onTargetFound = () => this._onTargetFound();
     anchor.onTargetLost  = () => this._onTargetLost();
-
-    anchor.group.add(this._rimGlow);   // rimGlow behind plane (renderOrder 0)
-    anchor.group.add(this._plane);     // video plane on top (renderOrder 1)
-    anchor.group.add(this._glow);      // flat base glow
-    anchor.group.add(this._scanRing);  // sonar-ping ring
+    anchor.group.add(this._plane);
 
     scene.add(new THREE.AmbientLight(0xffffff, 1));
 
-    // 5 — Start MindAR (opens camera + begins tracking)
+    // 5 — Start MindAR
     try {
       await this._mindarThree.start();
       this._started = true;
@@ -190,40 +210,53 @@ export class ARExperience {
     // ── Render loop ──────────────────────────────────────────────────────────
     const sc = this._scratch;
 
-    this._renderLoop = () => {
-      // Billboard: make _plane (and _rimGlow) always face the camera, with
-      // an EMA on the facing-direction quaternion so the rotation glides
-      // (no per-frame shimmer).  Only active while the plane is visible.
+    this._renderLoop = (now) => {
+      // 0. Anchor-matrix EMA (in-place rewrite of anchor.group.matrix).
+      //    Reading MindAR's matrix directly (instead of getWorldPosition)
+      //    bypasses updateMatrix(), which would otherwise recompose the matrix
+      //    from identity p/q/s and wipe the pose MindAR just wrote.
+      this._anchor.group.matrix.decompose(sc.rawPos, sc.rawQuat, sc.scl);
+
+      const isLive =
+        sc.rawPos.lengthSq() > 1e-8 ||
+        Math.abs(1 - sc.rawQuat.w) > 1e-6;
+
+      if (isLive) {
+        if (!this._anchorPrimed) {
+          sc.smoothPos.copy(sc.rawPos);
+          sc.smoothQuat.copy(sc.rawQuat);
+          this._anchorPrimed = true;
+        } else {
+          sc.posDelta.subVectors(sc.rawPos, sc.smoothPos);
+          if (sc.posDelta.lengthSq() > ANCHOR_POS_DEADZONE_SQ) {
+            sc.smoothPos.lerp(sc.rawPos, ANCHOR_SMOOTH_ALPHA);
+          }
+          sc.smoothQuat.slerp(sc.rawQuat, ANCHOR_SMOOTH_ALPHA);
+        }
+        this._anchor.group.matrix.compose(sc.smoothPos, sc.smoothQuat, sc.unitScale);
+      }
+
+      // 1. Billboard: plane (+ rim future siblings) always faces the camera.
+      //    EMA-smoothed quaternion → calmer face-to-camera.
       if (this._plane.visible) {
         camera.getWorldPosition(sc.camPos);
-        this._anchor.group.getWorldPosition(sc.anchorPos);
+        this._anchor.group.getWorldPosition(sc.anchorWorldPos);
 
-        sc.towardCam.subVectors(sc.camPos, sc.anchorPos);
-
+        sc.towardCam.subVectors(sc.camPos, sc.anchorWorldPos);
         if (sc.towardCam.lengthSq() > 0.0001) {
           sc.towardCam.normalize();
-
-          // Desired world quaternion: rotate plane's +Z toward the camera
           sc.billboardWorldQuat.setFromUnitVectors(sc.FWD, sc.towardCam);
-
-          // EMA-smooth the world billboard quaternion → calmer face-to-camera.
           sc.smoothBillboardQuat.slerp(sc.billboardWorldQuat, BILLBOARD_ALPHA);
 
-          // Convert the smoothed world quaternion to anchor.group local space:
-          //   q_local = q_parent^-1 * q_world
+          // Convert smoothed world quaternion to anchor.group local space
           this._anchor.group.getWorldQuaternion(sc.parentQuatInv);
           sc.parentQuatInv.invert();
           sc.parentQuatInv.multiply(sc.smoothBillboardQuat);
-
           this._plane.quaternion.copy(sc.parentQuatInv);
-
-          // rimGlow mirrors the plane's orientation and position
-          this._rimGlow.quaternion.copy(sc.parentQuatInv);
-          this._rimGlow.position.copy(this._plane.position);
         }
       }
 
-      // Upload latest decoded video frame to GPU texture
+      // 2. Upload latest decoded video frame to GPU texture
       if (
         this._videoTexture &&
         this._videoEl?.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
@@ -231,25 +264,35 @@ export class ARExperience {
         this._videoTexture.needsUpdate = true;
       }
 
+      // 3. Render
       renderer.render(scene, camera);
+
+      // 4. FPS-aware auto-quality (after render, so dt reflects real GPU work)
+      this._sampleFps(now ?? performance.now(), renderer);
     };
 
     renderer.setAnimationLoop(this._renderLoop);
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // _buildScene — creates all meshes; boot() adds them to anchor.group
+  // _buildScene — creates the video plane only; boot() adds it to anchor.group
   // ───────────────────────────────────────────────────────────────────────────
   _buildScene(THREE, renderer) {
-    // Pre-allocate scratch objects used every render frame (avoids GC at 60fps)
     this._scratch = {
+      // Anchor-matrix EMA
+      rawPos:              new THREE.Vector3(),
+      rawQuat:             new THREE.Quaternion(),
+      scl:                 new THREE.Vector3(),
+      smoothPos:           new THREE.Vector3(),
+      smoothQuat:          new THREE.Quaternion(),
+      posDelta:            new THREE.Vector3(),
+      unitScale:           new THREE.Vector3(1, 1, 1),
+
+      // Billboard
       camPos:              new THREE.Vector3(),
-      anchorPos:           new THREE.Vector3(),
+      anchorWorldPos:      new THREE.Vector3(),
       towardCam:           new THREE.Vector3(),
       billboardWorldQuat:  new THREE.Quaternion(),
-      // Smoothed billboard quaternion — slerps toward billboardWorldQuat each
-      // frame.  Initialised to identity; converges to correct facing within
-      // ~10 frames after detection.
       smoothBillboardQuat: new THREE.Quaternion(),
       parentQuatInv:       new THREE.Quaternion(),
       FWD:                 new THREE.Vector3(0, 0, 1),
@@ -281,9 +324,6 @@ export class ARExperience {
     this._videoTexture.anisotropy = maxAniso;
 
     // ── Video plane (billboard — render loop sets quaternion each frame) ─────
-    // No static rotation.x = Math.PI/2.  The billboard computation in the
-    // render loop sets the plane's local quaternion so its +Z faces the camera.
-    // Starts collapsed (scale.y = 0); entrance animation grows it.
     const planeGeo = new THREE.PlaneGeometry(PLANE_WIDTH, PLANE_HEIGHT);
     const planeMat = new THREE.MeshBasicMaterial({
       map:         this._videoTexture,
@@ -297,88 +337,157 @@ export class ARExperience {
     this._plane.position.set(0, 0, 0);
     this._plane.renderOrder = 1;
     this._plane.visible = false;
+  }
 
-    // ── Rim glow (edge bloom around the video plane) ─────────────────────────
-    // 10 % larger than the video plane; additive purple blend; renderOrder 0
-    // (draws before the video plane so the edges protrude as a glow ring).
-    const rimGeo = new THREE.PlaneGeometry(PLANE_WIDTH * 1.1, PLANE_HEIGHT * 1.1);
-    const rimMat = new THREE.MeshBasicMaterial({
-      color:       0x7c3aed,
-      transparent: true,
-      opacity:     0,
-      side:        THREE.DoubleSide,
-      depthWrite:  false,
-      blending:    THREE.AdditiveBlending,
-    });
-    this._rimGlow = new THREE.Mesh(rimGeo, rimMat);
-    this._rimGlow.renderOrder = 0;
-    this._rimGlow.visible = false;
+  // ───────────────────────────────────────────────────────────────────────────
+  // _buildUx — DOM overlays (controls, buffer spinner, watermark)
+  // ───────────────────────────────────────────────────────────────────────────
+  _buildUx() {
+    // Controls pill (hidden until target is found for the first time)
+    const controls = document.createElement('div');
+    controls.id = 'ar-controls';
+    controls.innerHTML = `
+      <button class="ar-ctrl" data-action="play"  aria-label="Play / pause">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path class="icon-pause" fill="currentColor" d="M6 5h4v14H6zM14 5h4v14h-4z"/>
+          <path class="icon-play"  fill="currentColor" d="M8 5v14l11-7z" style="display:none"/>
+        </svg>
+      </button>
+      <button class="ar-ctrl" data-action="mute" aria-label="Mute / unmute">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path class="icon-vol"  fill="currentColor" d="M3 10v4h4l5 5V5L7 10H3zm13.5 2A4.5 4.5 0 0 0 14 7.97v8.05A4.5 4.5 0 0 0 16.5 12zM14 3.23v2.06A7 7 0 0 1 14 18.7v2.06A9 9 0 0 0 14 3.23z"/>
+          <path class="icon-mute" fill="currentColor" d="M3 10v4h4l5 5V5L7 10H3zm15.59 2L21 9.59 19.59 8.17 17.17 10.59 14.76 8.17 13.34 9.59 15.76 12l-2.42 2.41 1.42 1.42 2.41-2.42 2.42 2.42L21 14.41z" style="display:none"/>
+        </svg>
+      </button>
+      <button class="ar-ctrl" data-action="fullscreen" aria-label="Fullscreen">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path fill="currentColor" d="M5 5h5V3H3v7h2zm9-2v2h5v5h2V3zM5 19v-5H3v7h7v-2zm14 0h-5v2h7v-7h-2z"/>
+        </svg>
+      </button>
+    `;
+    document.body.appendChild(controls);
 
-    // ── Base glow ellipse (flat on card) ─────────────────────────────────────
-    const glowGeo = new THREE.PlaneGeometry(GLOW_W, GLOW_H);
-    const glowMat = new THREE.MeshBasicMaterial({
-      color:       0x7c3aed,
-      transparent: true,
-      opacity:     0,
-      depthWrite:  false,
-      blending:    THREE.AdditiveBlending,
-    });
-    this._glow = new THREE.Mesh(glowGeo, glowMat);
-    this._glow.position.set(0, 0, 0.003);
-    this._glow.scale.set(0, 1, 1);
-    this._glow.visible = false;
+    const btnPlay = controls.querySelector('[data-action="play"]');
+    const btnMute = controls.querySelector('[data-action="mute"]');
+    const btnFs   = controls.querySelector('[data-action="fullscreen"]');
 
-    // ── Scan ring (sonar-ping on card surface) ───────────────────────────────
-    // RingGeometry lies in the XY plane by default — in anchor.group space
-    // that means it sits flat on the card facing the camera (+Z = toward camera).
-    const ringGeo = new THREE.RingGeometry(0.28, 0.34, 48);
-    const ringMat = new THREE.MeshBasicMaterial({
-      color:       0xa855f7,
-      transparent: true,
-      opacity:     0,
-      side:        THREE.DoubleSide,
-      depthWrite:  false,
-      blending:    THREE.AdditiveBlending,
-    });
-    this._scanRing = new THREE.Mesh(ringGeo, ringMat);
-    this._scanRing.position.set(0, 0, 0.004);
-    this._scanRing.scale.set(0, 0, 1);
-    this._scanRing.visible = false;
+    btnPlay.addEventListener('click', () => this._togglePlayPause());
+    btnMute.addEventListener('click', () => this._toggleMute());
+    btnFs.addEventListener('click',   () => this._toggleFullscreen());
+
+    // Buffer spinner (hidden by default)
+    const buffer = document.createElement('div');
+    buffer.id = 'ar-buffer';
+    buffer.innerHTML = '<div class="ar-buffer-ring"></div>';
+    document.body.appendChild(buffer);
+
+    // Watermark (auto-fades via CSS keyframes)
+    const watermark = document.createElement('div');
+    watermark.id = 'ar-watermark';
+    watermark.textContent = 'Powered by Phygital8thWall';
+    document.body.appendChild(watermark);
+
+    this._ui.controls  = controls;
+    this._ui.btnPlay   = btnPlay;
+    this._ui.btnMute   = btnMute;
+    this._ui.btnFs     = btnFs;
+    this._ui.buffer    = buffer;
+    this._ui.watermark = watermark;
+
+    // Buffer state listeners on the video element
+    const onWaiting = () => this._ui.buffer.classList.add('visible');
+    const onPlaying = () => this._ui.buffer.classList.remove('visible');
+    const onCanPlay = () => this._ui.buffer.classList.remove('visible');
+    const onStalled = () => this._ui.buffer.classList.add('visible');
+    this._videoEl.addEventListener('waiting', onWaiting);
+    this._videoEl.addEventListener('playing', onPlaying);
+    this._videoEl.addEventListener('canplay', onCanPlay);
+    this._videoEl.addEventListener('stalled', onStalled);
+    this._videoEl.addEventListener('play',    () => this._refreshPlayIcon());
+    this._videoEl.addEventListener('pause',   () => this._refreshPlayIcon());
+    this._videoEl.addEventListener('volumechange', () => this._refreshMuteIcon());
+
+    this._ui._videoListeners = { onWaiting, onPlaying, onCanPlay, onStalled };
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // FPS sampling for auto-quality
+  // ───────────────────────────────────────────────────────────────────────────
+  _sampleFps(nowMs, renderer) {
+    if (!this._fpsLastTs) {
+      this._fpsLastTs = nowMs;
+      return;
+    }
+    const dt = nowMs - this._fpsLastTs;
+    this._fpsLastTs = nowMs;
+    if (dt <= 0 || dt > 1000) return;   // ignore tab-switch spikes
+
+    this._fpsAccum  += dt;
+    this._fpsFrames += 1;
+
+    if (this._fpsFrames < FPS_SAMPLE_FRAMES) return;
+
+    const avgDt = this._fpsAccum / this._fpsFrames;
+    const fps   = 1000 / avgDt;
+    this._fpsAccum = 0;
+    this._fpsFrames = 0;
+
+    if (fps < FPS_DROP_THRESHOLD) {
+      this._fpsLowStreak  += 1;
+      this._fpsHighStreak  = 0;
+    } else if (fps > FPS_RESTORE_THRESHOLD) {
+      this._fpsHighStreak += 1;
+      this._fpsLowStreak   = 0;
+    } else {
+      this._fpsLowStreak   = 0;
+      this._fpsHighStreak  = 0;
+    }
+
+    if (!this._lowQualityActive && this._fpsLowStreak >= 1) {
+      renderer.setPixelRatio(1);
+      this._lowQualityActive = true;
+    } else if (this._lowQualityActive && this._fpsHighStreak >= 1) {
+      renderer.setPixelRatio(this._defaultPixelRatio);
+      this._lowQualityActive = false;
+    }
   }
 
   // ───────────────────────────────────────────────────────────────────────────
   // Event handlers
   // ───────────────────────────────────────────────────────────────────────────
   _onTargetFound() {
-    // Reset the smoothed billboard quaternion so it doesn't carry stale
-    // rotation from a previous detection (would cause a sweep on re-detect).
+    // Snap the EMA on (re-)detection so we don't carry stale pose
+    this._anchorPrimed = false;
+
+    // Prime the smoothed billboard quaternion toward the camera
     const sc = this._scratch;
     const camera = this._mindarThree.camera;
-
-    this._anchor.group.getWorldPosition(sc.anchorPos);
+    this._anchor.group.getWorldPosition(sc.anchorWorldPos);
     camera.getWorldPosition(sc.camPos);
-    sc.towardCam.subVectors(sc.camPos, sc.anchorPos);
+    sc.towardCam.subVectors(sc.camPos, sc.anchorWorldPos);
     if (sc.towardCam.lengthSq() > 0.0001) {
       sc.towardCam.normalize();
       sc.smoothBillboardQuat.setFromUnitVectors(sc.FWD, sc.towardCam);
     }
 
     this._playWithAudio();
-    animateTargetFound(
-      this._plane, this._glow, this._scanRing, this._rimGlow, PLANE_REST_Z
-    );
+    animateTargetFound(this._plane, PLANE_REST_Z);
+
+    // Reveal the controls overlay (after the entrance has started)
+    this._ui.controls?.classList.add('visible');
   }
 
   _onTargetLost() {
-    animateTargetLost(
-      this._plane, this._glow, this._scanRing, this._rimGlow, PLANE_REST_Z
-    );
+    this._anchorPrimed = false;
+    animateTargetLost(this._plane, PLANE_REST_Z);
     this._videoEl?.pause();
+    // Keep controls visible — user may want to keep using them; spinner hides
+    this._ui.buffer?.classList.remove('visible');
   }
 
   /**
-   * Attempts to play the video unmuted.  Falls back to muted on iOS Safari
-   * and shows a persistent tap-to-unmute button.
+   * Attempts to play the video unmuted.  Falls back to muted on iOS Safari;
+   * the user can tap the mute button in the controls pill to enable audio.
    */
   _playWithAudio() {
     const v = this._videoEl;
@@ -386,45 +495,57 @@ export class ARExperience {
 
     v.muted = false;
     v.play().then(() => {
-      document.getElementById('ar-audio-btn')?.remove();
+      this._refreshMuteIcon();
     }).catch(() => {
       v.muted = true;
       v.play().catch(() => {});
-      this._showAudioButton();
+      this._refreshMuteIcon();
     });
   }
 
-  _showAudioButton() {
-    if (document.getElementById('ar-audio-btn')) return;
+  _togglePlayPause() {
+    const v = this._videoEl;
+    if (!v) return;
+    if (v.paused) {
+      v.play().catch(() => {});
+    } else {
+      v.pause();
+    }
+  }
 
-    const btn = document.createElement('button');
-    btn.id = 'ar-audio-btn';
-    btn.textContent = '🔊 Tap for audio';
-    Object.assign(btn.style, {
-      position:       'fixed',
-      bottom:         '28px',
-      left:           '50%',
-      transform:      'translateX(-50%)',
-      zIndex:         '9998',
-      padding:        '10px 22px',
-      borderRadius:   '99px',
-      border:         'none',
-      background:     'rgba(124,58,237,0.85)',
-      color:          '#fff',
-      fontSize:       '14px',
-      fontWeight:     '600',
-      cursor:         'pointer',
-      backdropFilter: 'blur(8px)',
-    });
-    btn.addEventListener('click', () => {
-      if (this._videoEl) {
-        this._videoEl.muted = false;
-        this._videoEl.play().catch(() => {});
-      }
-      btn.remove();
-    }, { once: true });
+  _toggleMute() {
+    const v = this._videoEl;
+    if (!v) return;
+    v.muted = !v.muted;
+    if (!v.muted && v.paused) v.play().catch(() => {});
+  }
 
-    document.body.appendChild(btn);
+  _toggleFullscreen() {
+    const root = this._container || document.documentElement;
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.();
+    } else if (root.requestFullscreen) {
+      root.requestFullscreen().catch(() => {});
+    } else if (root.webkitRequestFullscreen) {
+      root.webkitRequestFullscreen();
+    }
+  }
+
+  _refreshPlayIcon() {
+    const v = this._videoEl;
+    const btn = this._ui.btnPlay;
+    if (!v || !btn) return;
+    const playing = !v.paused && !v.ended;
+    btn.querySelector('.icon-pause').style.display = playing ? '' : 'none';
+    btn.querySelector('.icon-play').style.display  = playing ? 'none' : '';
+  }
+
+  _refreshMuteIcon() {
+    const v = this._videoEl;
+    const btn = this._ui.btnMute;
+    if (!v || !btn) return;
+    btn.querySelector('.icon-vol').style.display  = v.muted ? 'none' : '';
+    btn.querySelector('.icon-mute').style.display = v.muted ? '' : 'none';
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -444,12 +565,27 @@ export class ARExperience {
     if (this._started && this._mindarThree) {
       await this._mindarThree.stop();
     }
-    if (this._videoEl) {
-      this._videoEl.pause();
-      this._videoEl.remove();
+
+    // Detach video listeners
+    const v = this._videoEl;
+    const ls = this._ui._videoListeners;
+    if (v && ls) {
+      v.removeEventListener('waiting', ls.onWaiting);
+      v.removeEventListener('playing', ls.onPlaying);
+      v.removeEventListener('canplay', ls.onCanPlay);
+      v.removeEventListener('stalled', ls.onStalled);
     }
+    if (v) {
+      v.pause();
+      v.remove();
+    }
+
     this._videoTexture?.dispose();
-    document.getElementById('ar-audio-btn')?.remove();
+
+    // Remove DOM overlays
+    this._ui.controls?.remove();
+    this._ui.buffer?.remove();
+    this._ui.watermark?.remove();
   }
 
   _getVideoWatchPercent() {

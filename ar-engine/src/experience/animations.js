@@ -1,35 +1,27 @@
 /**
  * animations.js — GSAP animations for the AR hologram
  *
- * FOUR-PHASE ENTRANCE ("animateTargetFound")
- * ───────────────────────────────────────────
- *  Phase 1 (0 – 0.3 s)   Card activation
- *    • _scanRing expands like a sonar ping (scale 0 → 1.8, opacity flashes then fades)
- *    • _glow base ellipse grows at the card edge
- *
- *  Phase 2 (0.25 – 0.95 s)  Breaking through
- *    • proxy scalar k drives both plane.scale.y AND plane.position.z
- *      so the bottom edge stays at the card surface as the plane rises:
+ * CINEMATIC ENTRANCE ("animateTargetFound")
+ * ──────────────────────────────────────────
+ *  Phase 1 (0 – 0.6 s)  Plane rises out of the card surface
+ *    • proxy scalar k drives both plane.scale.y AND plane.position.z so the
+ *      bottom edge stays at the card surface as the plane rises:
  *        bottom_z = position.z − k*(H/2) = k*(H/2) − k*(H/2) = 0  ✓
- *    • elastic.out(1, 0.6) easing gives the "punch through" overshoot
- *    • video opacity fades in behind the scale to avoid first-frame flash
+ *    • power3.out easing — snappy at start, soft at end, no overshoot
+ *      (replaces the old elastic.out bounce; reads as cinematic, not toy-like)
  *
- *  Phase 3 (0.95 – 1.35 s)  Settle
- *    • _rimGlow (the edge bloom plane) fades in → purple halo around video
- *    • _glow settles to a softer opacity / slightly wider scale
+ *  Phase 1' (0.05 – 0.55 s)  Opacity trails the rise
+ *    • Avoids seeing a flat first frame before the plane has meaningfully grown.
  *
- *  Phase 4 (1.35 s +)  Idle loops
- *    • Soft scale breathing on the plane (0.97 ↔ 1.03, sine.inOut, no jitter)
- *    • _rimGlow opacity breathes in sync
- *    • _glow width pulses gently
- *    • NO position animation — avoids compounding tracking noise
+ *  Phase 2 (0.6 s +)  Idle loops
+ *    • Very subtle screen-space scale breathing (1.000 ↔ 1.010 over 4 s).
+ *    • NO position animation on top of live tracking — preserves the smoothing
+ *      we apply at the anchor-matrix level.
  *
  * EXIT ("animateTargetLost")
  * ───────────────────────────
- *    • _rimGlow opacity drops immediately
- *    • _scanRing does a brief "closing portal" reverse flash
- *    • plane collapses with power3.in (fast at end — snappy, no overshoot)
- *    • _glow fades and shrinks simultaneously
+ *    • Plane collapses with power2.in (fast at end, no overshoot) over 0.25 s.
+ *    • Opacity fades simultaneously.
  *
  * GLOBAL DEPENDENCY: window.gsap — set in main.js from the gsap npm package.
  */
@@ -37,7 +29,7 @@
 const g = () => window.gsap;
 
 // Handles for active idle tweens so they can be killed cleanly on exit
-const _active = { scale: null, rim: null, glow: null };
+const _active = { scale: null };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Entrance — target found
@@ -46,105 +38,47 @@ const _active = { scale: null, rim: null, glow: null };
 /**
  * animateTargetFound
  *
- * @param {THREE.Mesh} plane     Video plane (billboard; scale.y starts at 0)
- * @param {THREE.Mesh} glow      Flat base ellipse at card surface
- * @param {THREE.Mesh} scanRing  Sonar-ping ring at card surface
- * @param {THREE.Mesh} rimGlow   Edge-bloom plane behind video plane
- * @param {number}     restZ     plane.position.z when fully emerged (= PLANE_HEIGHT/2)
+ * @param {THREE.Mesh} plane  Video plane (billboard; scale.y starts at 0)
+ * @param {number}     restZ  plane.position.z when fully emerged (= PLANE_HEIGHT/2)
  */
-export const animateTargetFound = (plane, glow, scanRing, rimGlow, restZ) => {
+export const animateTargetFound = (plane, restZ) => {
   const gsap = g();
   if (!gsap) return;
 
   // Kill any tweens that may still be in flight (e.g. rapid re-detection)
-  gsap.killTweensOf([
-    plane.scale, plane.position, plane.material,
-    glow.scale,  glow.material,
-    rimGlow.material,
-    scanRing.scale, scanRing.material,
-  ]);
+  gsap.killTweensOf([plane.scale, plane.position, plane.material]);
   _stopFloat();
 
-  // ── Reset every mesh to the "collapsed / invisible" start state ──────────
-  plane.visible     = true;
-  glow.visible      = true;
-  scanRing.visible  = true;
-  rimGlow.visible   = true;
-
-  plane.material.opacity    = 0;
-  glow.material.opacity     = 0;
-  rimGlow.material.opacity  = 0;
-  scanRing.material.opacity = 0;
-
+  // ── Reset to the "collapsed / invisible" start state ─────────────────────
+  plane.visible          = true;
+  plane.material.opacity = 0;
   plane.scale.set(1, 0, 1);
   plane.position.set(0, 0, 0);
-  glow.scale.set(0, 1, 1);
-  scanRing.scale.set(0, 0, 1);
 
   const tl = gsap.timeline();
 
-  // ── Phase 1 (0 – 0.3 s): Card surface activation ─────────────────────────
-
-  // Scan ring expands as a sonar ping — brief flash, then fades out
-  tl.to(scanRing.scale, {
-    x: 1.8, y: 1.8,
-    duration: 0.55,
-    ease: 'power2.out',
-  }, 0);
-  // Quick opacity flash at ring birth
-  tl.to(scanRing.material, { opacity: 0.9, duration: 0.07 }, 0);
-  // Fade out as ring expands
-  tl.to(scanRing.material, {
-    opacity: 0,
-    duration: 0.45,
-    ease: 'power2.in',
-  }, 0.1);
-
-  // Base glow expands at the card edge (stays visible through idle)
-  tl.to(glow.scale,    { x: 1, duration: 0.3, ease: 'power2.out' }, 0.05);
-  tl.to(glow.material, { opacity: 0.7, duration: 0.25 }, 0.05);
-
-  // ── Phase 2 (0.25 – 0.95 s): Video breaks through surface ────────────────
-  // Single proxy scalar k drives BOTH scale.y and position.z so the
-  // bottom edge stays glued to z = 0 (card surface) throughout:
-  //   position.z = k * restZ
-  //   scale.y    = k
-  //   bottom_z   = position.z − k * (PLANE_HEIGHT/2) = k*restZ − k*restZ = 0
+  // Phase 1: plane rises out of the card surface (cinematic ease-out, no bounce)
   const proxy = { k: 0 };
   tl.to(proxy, {
     k: 1,
-    duration: 0.7,
-    ease: 'elastic.out(1, 0.6)',
+    duration: 0.6,
+    ease: 'power3.out',
     onUpdate() {
       const k = proxy.k;
       plane.scale.y    = k;
       plane.position.z = k * restZ;
     },
-  }, 0.25);
+  }, 0);
 
-  // Fade video in slightly behind the scale to avoid seeing the first frame
-  // before the plane has meaningfully risen
+  // Phase 1': opacity trails the rise
   tl.to(plane.material, {
     opacity: 1,
     duration: 0.5,
     ease: 'power2.out',
-  }, 0.35);
+  }, 0.05);
 
-  // ── Phase 3 (0.95 – 1.35 s): Settle ─────────────────────────────────────
-
-  // Rim glow fades in to create the purple edge bloom around the video
-  tl.to(rimGlow.material, {
-    opacity: 0.35,
-    duration: 0.45,
-    ease: 'power2.out',
-  }, 0.95);
-
-  // Base glow settles to a softer / wider idle state
-  tl.to(glow.material, { opacity: 0.3, duration: 0.35 }, 0.95);
-  tl.to(glow.scale,    { x: 1.1,  duration: 0.3, ease: 'power1.inOut' }, 0.95);
-
-  // ── Phase 4 (1.35 s +): Start idle loops ─────────────────────────────────
-  tl.call(() => _startFloat(plane, glow, rimGlow, restZ), null, 1.35);
+  // Phase 2: idle loops start once the plane has settled
+  tl.call(() => _startFloat(plane), null, 0.6);
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -155,93 +89,60 @@ export const animateTargetFound = (plane, glow, scanRing, rimGlow, restZ) => {
  * animateTargetLost
  *
  * @param {THREE.Mesh} plane
- * @param {THREE.Mesh} glow
- * @param {THREE.Mesh} scanRing
- * @param {THREE.Mesh} rimGlow
  * @param {number}     restZ
  */
-export const animateTargetLost = (plane, glow, scanRing, rimGlow, restZ) => {
+export const animateTargetLost = (plane, restZ) => {
   const gsap = g();
   if (!gsap) return;
 
-  gsap.killTweensOf([
-    plane.scale, plane.position, plane.material,
-    glow.scale,  glow.material,
-    rimGlow.material,
-    scanRing.scale, scanRing.material,
-  ]);
+  gsap.killTweensOf([plane.scale, plane.position, plane.material]);
   _stopFloat();
-
-  // Rim glow drops immediately (visually "the energy is absorbed back")
-  gsap.to(rimGlow.material, { opacity: 0, duration: 0.12 });
-
-  // Scan ring: brief reverse flash → "closing portal" feel
-  scanRing.visible = true;
-  gsap.set(scanRing.scale, { x: 0.4, y: 0.4 });
-  gsap.to(scanRing.material, { opacity: 0.5, duration: 0.07 });
-  gsap.to(scanRing.material, {
-    opacity: 0,
-    duration: 0.22,
-    delay: 0.07,
-    ease: 'power2.in',
-  });
 
   // proxy k: 1 = fully risen, 0 = collapsed at card surface
   const proxy = { k: 1 };
 
   const tl = gsap.timeline({
     onComplete: () => {
-      // Hide all meshes and reset to initial state for a clean next entrance
-      plane.visible    = false;
-      glow.visible     = false;
-      rimGlow.visible  = false;
-      scanRing.visible = false;
-
+      // Hide and reset to initial state for a clean next entrance
+      plane.visible = false;
       plane.scale.set(1, 0, 1);
       plane.position.set(0, 0, 0);
-      glow.scale.set(0, 1, 1);
-      scanRing.scale.set(0, 0, 1);
     },
   });
 
-  // Snappy collapse — power3.in accelerates toward the end (no bounce)
+  // Smooth collapse — power2.in accelerates toward the end (no bounce)
   tl.to(proxy, {
     k: 0,
     duration: 0.25,
-    ease: 'power3.in',
+    ease: 'power2.in',
     onUpdate() {
       plane.scale.y    = proxy.k;
       plane.position.z = proxy.k * restZ;
     },
   }, 0);
-  tl.to(plane.material, { opacity: 0, duration: 0.18 }, 0);
-  tl.to(glow.material,  { opacity: 0, duration: 0.18 }, 0);
-  tl.to(glow.scale,     { x: 0,      duration: 0.2, ease: 'power2.in' }, 0);
+  tl.to(plane.material, { opacity: 0, duration: 0.22 }, 0);
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Idle loops — run while target is tracked
+// Idle loop — runs while target is tracked
 // ─────────────────────────────────────────────────────────────────────────────
 // Design rule: NEVER animate plane.position here.
 // Any position tween on top of live tracking adds to inherent filter jitter.
-// Only scale (which is in screen space with billboard) and opacity are safe.
+// Only screen-space scale (with billboard) is safe.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const _startFloat = (plane, glow, rimGlow, restZ) => {
+const _startFloat = (plane) => {
   const gsap = g();
   if (!gsap) return;
 
-  // Lock plane at its exact rest position before starting idle
-  plane.position.z = restZ;
+  // Lock plane at exactly its rest pose before starting idle
   plane.scale.set(1, 1, 1);
 
-  // Scale breathing — very subtle "alive" pulse in screen space.
-  // Smaller amplitude (1.012) and slower period (3.6 s) so the breathing
-  // never visually competes with tracking jitter.
+  // Very subtle "alive" breathing pulse — small amplitude, slow period.
   const scalePx = { v: 1 };
   _active.scale = gsap.to(scalePx, {
-    v: 1.012,
-    duration: 3.6,
+    v: 1.010,
+    duration: 4.0,
     ease: 'sine.inOut',
     yoyo: true,
     repeat: -1,
@@ -250,30 +151,8 @@ const _startFloat = (plane, glow, rimGlow, restZ) => {
       plane.scale.y = scalePx.v;
     },
   });
-
-  // rimGlow opacity breathes in sync with scale (0.35 ↔ 0.45) — gentler
-  _active.rim = gsap.to(rimGlow.material, {
-    opacity: 0.45,
-    duration: 3.6,
-    ease: 'sine.inOut',
-    yoyo: true,
-    repeat: -1,
-  });
-
-  // Base glow width pulses gently (1.10 ↔ 1.16, 2.4 s) — smaller, slower
-  const glowPx = { x: glow.scale.x };
-  _active.glow = gsap.to(glowPx, {
-    x: 1.16,
-    duration: 2.4,
-    ease: 'sine.inOut',
-    yoyo: true,
-    repeat: -1,
-    onUpdate: () => { glow.scale.x = glowPx.x; },
-  });
 };
 
 const _stopFloat = () => {
   if (_active.scale) { _active.scale.kill(); _active.scale = null; }
-  if (_active.rim)   { _active.rim.kill();   _active.rim   = null; }
-  if (_active.glow)  { _active.glow.kill();  _active.glow  = null; }
 };

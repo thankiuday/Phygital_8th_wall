@@ -243,6 +243,105 @@
       .mindar-ui-overlay .mindar-ui-scanning > .scanline {
         background: linear-gradient(180deg, transparent, #7c3aed88) !important;
       }
+
+      /* ------------------------------------------------------------------ */
+      /* AR UX overlays (controls, buffer spinner, watermark)                */
+      /* Sit above MindAR canvases (z-index 1-2), below loading (10000).    */
+      /* ------------------------------------------------------------------ */
+
+      /* Glass pill with play/pause, mute, fullscreen (hidden by default) */
+      #ar-controls {
+        position: fixed;
+        left: 50%;
+        bottom: max(28px, env(safe-area-inset-bottom, 12px) + 16px);
+        transform: translate(-50%, 8px);
+        z-index: 50;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px;
+        border-radius: 999px;
+        background: rgba(15, 10, 30, 0.55);
+        backdrop-filter: blur(14px) saturate(180%);
+        -webkit-backdrop-filter: blur(14px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.35s ease, transform 0.35s ease;
+      }
+      #ar-controls.visible {
+        opacity: 1;
+        transform: translate(-50%, 0);
+        pointer-events: auto;
+      }
+      #ar-controls .ar-ctrl {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        border: none;
+        background: transparent;
+        color: #fff;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: background-color 0.15s ease, transform 0.1s ease;
+      }
+      #ar-controls .ar-ctrl:hover,
+      #ar-controls .ar-ctrl:focus-visible {
+        background: rgba(255, 255, 255, 0.08);
+        outline: none;
+      }
+      #ar-controls .ar-ctrl:active {
+        transform: scale(0.94);
+      }
+
+      /* Centered buffering spinner (hidden by default) */
+      #ar-buffer {
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+      }
+      #ar-buffer.visible {
+        opacity: 1;
+      }
+      .ar-buffer-ring {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        border: 3px solid rgba(255, 255, 255, 0.12);
+        border-top-color: rgba(255, 255, 255, 0.85);
+        animation: ar-spin 0.9s linear infinite;
+        filter: drop-shadow(0 4px 18px rgba(0, 0, 0, 0.45));
+      }
+      @keyframes ar-spin { to { transform: rotate(360deg); } }
+
+      /* "Powered by" watermark — fades to a faint label after 3 s */
+      #ar-watermark {
+        position: fixed;
+        right: 14px;
+        bottom: max(12px, env(safe-area-inset-bottom, 6px));
+        z-index: 30;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        color: rgba(255, 255, 255, 0.85);
+        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
+        pointer-events: none;
+        animation: ar-fade-watermark 3s ease-out forwards;
+      }
+      @keyframes ar-fade-watermark {
+        0%   { opacity: 1; }
+        70%  { opacity: 1; }
+        100% { opacity: 0.4; }
+      }
     </style>
   </head>
 
