@@ -8,14 +8,26 @@ import DashboardTopBar from '../components/ui/DashboardTopBar';
 const PAGE_TITLES = {
   '/dashboard': 'Dashboard',
   '/dashboard/campaigns': 'Campaigns',
-  '/dashboard/campaigns/new': 'New Campaign',
+  '/dashboard/campaigns/new': 'Phygitalize',
+  '/dashboard/campaigns/new/phygital-qr/links-video': 'Links + Video QR',
+  '/dashboard/campaigns/new/phygital-qr/links-doc-video': 'Links, Doc & Video QR',
+  '/dashboard/campaigns/new/dynamic-qr/single-link': 'Single Link QR',
+  '/dashboard/campaigns/new/dynamic-qr/multiple-links': 'Multiple Links QR',
+  '/dashboard/campaigns/new/digital-business-card/personalized-identity': 'Personalized Identity Card',
+  '/dashboard/campaigns/new/digital-business-card/ar': 'AR Digital Business Card',
   '/dashboard/analytics': 'Analytics',
   '/dashboard/settings': 'Settings',
 };
 
 // Order matters: longest, most specific prefix first.
 const TITLE_PREFIXES = [
-  ['/dashboard/campaigns/new', 'New Campaign'],
+  ['/dashboard/campaigns/new/phygital-qr/links-video', 'Links + Video QR'],
+  ['/dashboard/campaigns/new/phygital-qr/links-doc-video', 'Links, Doc & Video QR'],
+  ['/dashboard/campaigns/new/dynamic-qr/single-link', 'Single Link QR'],
+  ['/dashboard/campaigns/new/dynamic-qr/multiple-links', 'Multiple Links QR'],
+  ['/dashboard/campaigns/new/digital-business-card/ar', 'AR Digital Business Card'],
+  ['/dashboard/campaigns/new/digital-business-card/personalized-identity', 'Personalized Identity Card'],
+  ['/dashboard/campaigns/new', 'Phygitalize'],
   ['/dashboard/campaigns/', 'Campaign Detail'],
   ['/dashboard/analytics/', 'Campaign Analytics'],
   ['/dashboard/campaigns', 'Campaigns'],

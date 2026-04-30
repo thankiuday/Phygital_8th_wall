@@ -106,7 +106,7 @@ const Sidebar = ({ collapsed, onCollapse, onNavigate }) => {
         </Link>
       </div>
 
-      {/* ── New Campaign CTA ─────────────────────────────────────── */}
+      {/* ── Phygitalize now CTA — opens the picker page ──────────── */}
       <div className={cn('p-3', collapsed && 'px-2')}>
         <Link
           to="/dashboard/campaigns/new"
@@ -115,7 +115,7 @@ const Sidebar = ({ collapsed, onCollapse, onNavigate }) => {
             'flex min-h-[44px] items-center gap-2 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white shadow-glow transition-all hover:bg-brand-500 hover:shadow-glow-lg',
             collapsed ? 'justify-center px-0' : 'px-3'
           )}
-          title={collapsed ? 'New Campaign' : undefined}
+          title={collapsed ? 'Phygitalize now' : undefined}
         >
           <PlusCircle size={16} className="shrink-0" />
           <AnimatePresence>
@@ -127,7 +127,7 @@ const Sidebar = ({ collapsed, onCollapse, onNavigate }) => {
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden whitespace-nowrap"
               >
-                New Campaign
+                Phygitalize now
               </motion.span>
             )}
           </AnimatePresence>

@@ -170,7 +170,7 @@ const DashboardPage = () => {
             className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-brand-700 shadow-lg transition-all hover:shadow-xl"
           >
             <PlusCircle size={16} />
-            New Campaign
+            Phygitalize now
           </Link>
         </div>
 
@@ -277,7 +277,7 @@ const DashboardPage = () => {
                 to="/dashboard/campaigns/new"
                 className="text-xs font-medium text-brand-400 hover:text-brand-300 hover:underline"
               >
-                Create your first →
+                Phygitalize now →
               </Link>
             </div>
           ) : (

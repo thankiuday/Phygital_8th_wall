@@ -229,7 +229,7 @@ const EmptyState = ({ filtered }) => (
         to="/dashboard/campaigns/new"
         className="flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-glow transition-all hover:bg-brand-500 hover:shadow-glow-lg"
       >
-        <PlusCircle size={15} /> Create Campaign
+        <PlusCircle size={15} /> Phygitalize now
       </Link>
     )}
   </motion.div>
@@ -314,7 +314,7 @@ const CampaignsListPage = () => {
           to="/dashboard/campaigns/new"
           className="flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-glow transition-all hover:bg-brand-500 hover:shadow-glow-lg"
         >
-          <PlusCircle size={15} /> New Campaign
+          <PlusCircle size={15} /> Phygitalize now
         </Link>
       </div>
 

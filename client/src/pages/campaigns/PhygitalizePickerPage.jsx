@@ -1,0 +1,192 @@
+import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import {
+  QrCode,
+  RefreshCw,
+  IdCard,
+  Video,
+  FileText,
+  Link2,
+  Layers,
+  User,
+  Sparkles,
+  ArrowRight,
+} from 'lucide-react';
+
+/* ── Section + card data ─────────────────────────────────────────── */
+// `available: true` is the only type with a real wizard right now (AR).
+// Everything else renders the "Coming soon" placeholder via its route.
+const SECTIONS = [
+  {
+    id: 'phygital-qr',
+    title: 'Phygital QR',
+    subtitle: 'Bridge physical prints with rich digital experiences.',
+    icon: QrCode,
+    cards: [
+      {
+        id: 'links-video',
+        title: 'Links + Video QR',
+        description: 'A single QR that surfaces curated links alongside a hero video.',
+        icon: Video,
+        to: '/dashboard/campaigns/new/phygital-qr/links-video',
+      },
+      {
+        id: 'links-doc-video',
+        title: 'Links, Doc & Video QR',
+        description: 'Bundle links, downloadable documents and video into one scan.',
+        icon: FileText,
+        to: '/dashboard/campaigns/new/phygital-qr/links-doc-video',
+      },
+    ],
+  },
+  {
+    id: 'dynamic-qr',
+    title: 'Dynamic QR',
+    subtitle: 'Editable destinations you can update anytime — the QR stays the same.',
+    icon: RefreshCw,
+    cards: [
+      {
+        id: 'single-link',
+        title: 'Single Link QR',
+        description: 'Point one QR at a single destination and rewrite it whenever you need.',
+        icon: Link2,
+        to: '/dashboard/campaigns/new/dynamic-qr/single-link',
+      },
+      {
+        id: 'multiple-links',
+        title: 'Multiple Links QR',
+        description: 'Serve a curated list of links from one QR — perfect for bios and menus.',
+        icon: Layers,
+        to: '/dashboard/campaigns/new/dynamic-qr/multiple-links',
+      },
+    ],
+  },
+  {
+    id: 'digital-business-cards',
+    title: 'Digital Business Cards',
+    subtitle: 'Modern, shareable cards that replace paper for good.',
+    icon: IdCard,
+    cards: [
+      {
+        id: 'personalized-identity',
+        title: 'Personalized Identity',
+        description: 'A branded digital card with your photo, contacts, and social links.',
+        icon: User,
+        to: '/dashboard/campaigns/new/digital-business-card/personalized-identity',
+      },
+      {
+        id: 'ar-business-card',
+        title: 'AR Digital Business Card',
+        description: 'Holographic AR experience that plays your video on top of your card.',
+        icon: Sparkles,
+        to: '/dashboard/campaigns/new/digital-business-card/ar',
+        available: true,
+      },
+    ],
+  },
+];
+
+/* ── Single campaign-type card ───────────────────────────────────── */
+const TypeCard = ({ card, index }) => {
+  const Icon = card.icon;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: 'easeOut', delay: index * 0.04 }}
+    >
+      <Link
+        to={card.to}
+        className="group glass-card relative flex h-full flex-col gap-3 p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-500/40 hover:shadow-glow"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-400 transition-colors group-hover:bg-brand-500/20">
+            <Icon size={20} />
+          </div>
+          {card.available ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-400">
+              Available
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border-color)] bg-[var(--surface-2)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              Coming soon
+            </span>
+          )}
+        </div>
+
+        <div className="space-y-1">
+          <h3 className="text-base font-semibold text-[var(--text-primary)] group-hover:text-brand-400">
+            {card.title}
+          </h3>
+          <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
+            {card.description}
+          </p>
+        </div>
+
+        <div className="mt-auto flex items-center gap-1.5 pt-1 text-xs font-medium text-brand-400 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+          {card.available ? 'Start creating' : 'Preview'}
+          <ArrowRight size={12} className="transition-transform duration-200 group-hover:translate-x-0.5" />
+        </div>
+      </Link>
+    </motion.div>
+  );
+};
+
+/* ── Section header ──────────────────────────────────────────────── */
+const SectionHeader = ({ icon: Icon, title, subtitle }) => (
+  <div className="flex items-start gap-3">
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-white shadow-glow">
+      <Icon size={18} />
+    </div>
+    <div className="min-w-0">
+      <h2 className="text-lg font-bold text-[var(--text-primary)] sm:text-xl">{title}</h2>
+      <p className="text-sm text-[var(--text-muted)]">{subtitle}</p>
+    </div>
+  </div>
+);
+
+/* ── Main page ───────────────────────────────────────────────────── */
+const PhygitalizePickerPage = () => (
+  <div className="mx-auto max-w-6xl space-y-8 p-4 sm:p-6">
+    {/* Page header */}
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: 'easeOut' }}
+      className="space-y-1"
+    >
+      <h1 className="text-2xl font-bold text-[var(--text-primary)] sm:text-3xl">
+        Phygitalize now
+      </h1>
+      <p className="text-sm text-[var(--text-secondary)] sm:text-base">
+        Pick the campaign type you want to launch. Every option is one scan away from real-world engagement.
+      </p>
+    </motion.div>
+
+    {/* Sections */}
+    <div className="space-y-10">
+      {SECTIONS.map((section, sIdx) => (
+        <motion.section
+          key={section.id}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: 'easeOut', delay: 0.05 + sIdx * 0.05 }}
+          className="space-y-4"
+        >
+          <SectionHeader
+            icon={section.icon}
+            title={section.title}
+            subtitle={section.subtitle}
+          />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {section.cards.map((card, idx) => (
+              <TypeCard key={card.id} card={card} index={idx} />
+            ))}
+          </div>
+        </motion.section>
+      ))}
+    </div>
+  </div>
+);
+
+export default PhygitalizePickerPage;
