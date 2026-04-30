@@ -94,7 +94,14 @@ const globalLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders:   false,
   message: { success: false, message: 'Too many requests. Please try again later.' },
-  skip: (req) => req.path === '/health',
+  // The redirect endpoint has its own per-IP + per-slug limiter — exempt it
+  // from the (much stricter) auth-API limiter so a popular QR doesn't get
+  // throttled.  /health is also exempted so the platform's health probes don't
+  // burn the budget.
+  skip: (req) =>
+    process.env.NODE_ENV !== 'production' ||
+    req.path === '/health' ||
+    req.path.startsWith('/r/'),
 });
 app.use(globalLimiter);
 
@@ -132,6 +139,9 @@ app.use(
 /* ─────────────────────────────────────────
    Health Check
    ───────────────────────────────────────── */
+const redirectCache = require('./src/utils/redirectCache');
+const scanQueue     = require('./src/utils/scanQueue');
+
 app.get('/health', (req, res) => {
   res.json({
     status:    'ok',
@@ -141,6 +151,10 @@ app.get('/health', (req, res) => {
     uptime:    Math.round(process.uptime()),
     corsMode:  'reflect-all-origins',
     origin:    req.headers.origin || '(none)',
+    backends:  {
+      cache: redirectCache.backend,
+      queue: scanQueue.backend,
+    },
   });
 });
 
@@ -157,12 +171,37 @@ app.get('/cors-debug', (req, res) => {
 /* ─────────────────────────────────────────
    API Routes
    ───────────────────────────────────────── */
+const { protect } = require('./src/middleware/auth');
+const { validate } = require('./src/middleware/validate');
+const { createSingleLinkOnlySchema } = require('./src/validators/campaignValidators');
+const { createSingleLinkCampaign } = require('./src/controllers/campaignController');
+
+/**
+ * Single Link QR — registered on the root app *before* the `/api/campaigns`
+ * router so `POST …/single-link` always resolves (some deployments were still
+ * serving an older `campaignRoutes` bundle without this path).
+ */
+app.post(
+  '/api/campaigns/single-link',
+  protect,
+  validate(createSingleLinkOnlySchema),
+  createSingleLinkCampaign
+);
+
 app.use('/api/auth',      require('./src/routes/authRoutes'));
 app.use('/api/dashboard', require('./src/routes/dashboardRoutes'));
 app.use('/api/campaigns', require('./src/routes/campaignRoutes'));
 app.use('/api/public',    require('./src/routes/publicRoutes'));
 app.use('/api/analytics', require('./src/routes/analyticsRoutes'));
 app.use('/api/admin',     require('./src/routes/adminRoutes'));
+
+/* ─────────────────────────────────────────
+   Public Dynamic-QR Redirect
+   Mounted at the app root (NOT under /api) so the encoded URL is short:
+       https://api.example.com/r/abcd1234
+   Every byte saved here matters because the slug travels inside a printed QR.
+   ───────────────────────────────────────── */
+app.use('/r', require('./src/routes/redirectRoutes'));
 
 /* ─────────────────────────────────────────
    Error Handling (must be last)
@@ -173,13 +212,23 @@ app.use(errorHandler);
 /* ─────────────────────────────────────────
    Start Server
    ───────────────────────────────────────── */
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   logger.info('Server started', {
     port: PORT,
     env:  process.env.NODE_ENV || 'development',
     url:  `http://localhost:${PORT}`,
   });
 });
+
+/* ─────────────────────────────────────────
+   HTTP keep-alive tuning for reverse proxies
+   (Render / Fly / ALB hold sockets open ~60 s by default).  Node's defaults
+   are too tight, which causes intermittent ECONNRESET on busy /r/:slug
+   traffic.  headersTimeout MUST be > keepAliveTimeout to satisfy the Node
+   contract introduced after CVE-2018-0739.
+   ───────────────────────────────────────── */
+server.keepAliveTimeout = 65_000;
+server.headersTimeout   = 66_000;
 
 /* ─────────────────────────────────────────
    Safety net

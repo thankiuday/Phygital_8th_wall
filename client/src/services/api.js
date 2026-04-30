@@ -8,8 +8,15 @@ import { getToken, doLogout, setToken } from './tokenBridge';
  * On 401, the interceptor silently calls /auth/refresh, updates the store
  * via the bridge, then retries the original request once.
  */
+const configuredApiUrl = import.meta.env.VITE_API_URL;
+const shouldForceRemoteInDev = import.meta.env.VITE_USE_REMOTE_API === 'true';
+const baseURL =
+  import.meta.env.DEV && !shouldForceRemoteInDev
+    ? '/api'
+    : (configuredApiUrl || '/api');
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL,
   timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true, // sends httpOnly refresh cookie automatically

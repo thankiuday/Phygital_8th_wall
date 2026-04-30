@@ -3,6 +3,11 @@
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
+const { validate } = require('../middleware/validate');
+const {
+  createCampaignSchema,
+  updateCampaignSchema,
+} = require('../validators/campaignValidators');
 const {
   getUploadSignature,
   createCampaign,
@@ -14,21 +19,20 @@ const {
   getCampaignQR,
 } = require('../controllers/campaignController');
 
-// All campaign routes are protected
 router.use(protect);
 
 router.get('/upload-signature', getUploadSignature);
 
 router.route('/')
   .get(getCampaigns)
-  .post(createCampaign);
+  .post(validate(createCampaignSchema), createCampaign);
 
 router.get('/:id/qr', getCampaignQR);
 router.post('/:id/duplicate', duplicateCampaign);
 
 router.route('/:id')
   .get(getCampaign)
-  .patch(updateCampaign)
+  .patch(validate(updateCampaignSchema), updateCampaign)
   .delete(deleteCampaign);
 
 module.exports = router;

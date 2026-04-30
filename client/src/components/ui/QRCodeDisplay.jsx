@@ -8,20 +8,43 @@ import api from '../../services/api';
  *
  * Polls GET /api/campaigns/:id/qr until the QR is ready (async generation may take ~2s).
  */
-const QRCodeDisplay = ({ campaignId, campaignName, initialQrUrl = null, campaignActive = true }) => {
+const QRCodeDisplay = ({
+  campaignId,
+  campaignName,
+  initialQrUrl = null,
+  campaignActive = true,
+  campaignType = 'ar-card',
+  redirectSlug = null,
+}) => {
   const [qrUrl, setQrUrl] = useState(initialQrUrl);
   const [polling, setPolling] = useState(!initialQrUrl);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
 
   const arPageUrl = `${window.location.origin}/ar/${campaignId}`;
+  const localRedirectUrl = redirectSlug ? `${window.location.origin}/r/${redirectSlug}` : null;
+  const [shareUrl, setShareUrl] = useState(
+    campaignType === 'single-link-qr'
+      ? (localRedirectUrl || arPageUrl)
+      : arPageUrl
+  );
 
   /* ── Poll until QR is generated ───────────────────────────── */
   const fetchQR = useCallback(async () => {
     try {
       const res = await api.get(`/campaigns/${campaignId}/qr`);
-      const { qrCodeUrl, ready } = res.data.data;
-      if (ready && qrCodeUrl) {
+      const { campaignType: type, qrCodeUrl, redirectUrl, ready } = res.data.data;
+      if (!ready) return;
+
+      if (type === 'single-link-qr' && redirectUrl) {
+        setShareUrl(redirectUrl);
+        setQrUrl(`https://api.qrserver.com/v1/create-qr-code/?size=640x640&data=${encodeURIComponent(redirectUrl)}`);
+        setPolling(false);
+        return;
+      }
+
+      if (qrCodeUrl) {
+        setShareUrl(arPageUrl);
         setQrUrl(qrCodeUrl);
         setPolling(false);
       }
@@ -62,7 +85,7 @@ const QRCodeDisplay = ({ campaignId, campaignName, initialQrUrl = null, campaign
 
   /* ── Copy AR link to clipboard ─────────────────────────────── */
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(arPageUrl);
+    await navigator.clipboard.writeText(shareUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -72,8 +95,10 @@ const QRCodeDisplay = ({ campaignId, campaignName, initialQrUrl = null, campaign
     if (navigator.share) {
       await navigator.share({
         title: campaignName || 'AR Business Card',
-        text: 'Scan this QR code to see my AR business card!',
-        url: arPageUrl,
+        text: campaignType === 'single-link-qr'
+          ? 'Scan this QR code to open the link.'
+          : 'Scan this QR code to see my AR business card!',
+        url: shareUrl,
       });
     } else {
       handleCopy();
@@ -132,7 +157,7 @@ const QRCodeDisplay = ({ campaignId, campaignName, initialQrUrl = null, campaign
 
       {/* Copy AR link */}
       <div className="flex w-full max-w-sm items-center gap-2 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] py-1.5 pl-3 pr-1.5">
-        <span className="flex-1 truncate text-xs text-[var(--text-muted)]">{arPageUrl}</span>
+        <span className="flex-1 truncate text-xs text-[var(--text-muted)]">{shareUrl}</span>
         <button
           onClick={handleCopy}
           className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-[var(--surface-3)]"
@@ -146,14 +171,16 @@ const QRCodeDisplay = ({ campaignId, campaignName, initialQrUrl = null, campaign
         </button>
       </div>
 
-      {!campaignActive && (
+      {!campaignActive && campaignType !== 'single-link-qr' && (
         <p className="text-center text-xs text-amber-500/90">
           Activate this campaign so the QR and link open the AR experience for everyone.
         </p>
       )}
 
       <p className="text-center text-xs text-[var(--text-muted)]">
-        Print this QR on your business card or share the link. When scanned, it opens your AR experience instantly — no app download needed.
+        {campaignType === 'single-link-qr'
+          ? 'Print this QR or share the link. When scanned, it redirects to your destination URL.'
+          : 'Print this QR on your business card or share the link. When scanned, it opens your AR experience instantly — no app download needed.'}
       </p>
     </div>
   );

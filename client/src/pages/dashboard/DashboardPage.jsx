@@ -63,7 +63,10 @@ const StatCard = ({ icon: Icon, label, value, sub, color, delay }) => (
 
 /* ── Inline skeleton ─────────────────────────────────────────────── */
 const Skeleton = ({ w = 'w-24', h = 'h-4' }) => (
-  <div className={`${w} ${h} animate-shimmer rounded bg-[var(--surface-3)]`} />
+  <span
+    aria-hidden="true"
+    className={`inline-block ${w} ${h} animate-shimmer rounded bg-[var(--surface-3)]`}
+  />
 );
 
 /* ── Status badge ────────────────────────────────────────────────── */

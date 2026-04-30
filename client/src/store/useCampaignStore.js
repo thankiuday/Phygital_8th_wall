@@ -121,6 +121,7 @@ const useCampaignStore = create((set, get) => ({
     set({ isSubmitting: true, wizardError: null });
     try {
       const campaign = await campaignService.createCampaign({
+        campaignType: 'ar-card',
         campaignName: wizardData.campaignName,
         targetImageUrl: wizardData.targetImageUrl,
         targetImagePublicId: wizardData.targetImagePublicId,

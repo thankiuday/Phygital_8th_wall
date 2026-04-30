@@ -54,6 +54,21 @@ export const campaignService = {
     return res.data.data.campaign;
   },
 
+  /**
+   * createSingleLinkCampaign — single-step create for the dynamic-redirect QR
+   * flow.  Server returns the persisted campaign including the assigned
+   * `redirectSlug` which the client can use to encode the printed QR.
+   */
+  createSingleLinkCampaign: async ({ campaignName, destinationUrl, qrDesign }) => {
+    // Dedicated route — never relies on `campaignType` surviving proxies / caching.
+    const res = await api.post('/campaigns/single-link', {
+      campaignName,
+      destinationUrl,
+      qrDesign: qrDesign ?? null,
+    });
+    return res.data.data.campaign;
+  },
+
   getCampaigns: async (params = {}) => {
     const res = await api.get('/campaigns', { params });
     return res.data.data;

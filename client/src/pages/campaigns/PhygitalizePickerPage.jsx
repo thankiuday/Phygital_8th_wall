@@ -51,6 +51,7 @@ const SECTIONS = [
         description: 'Point one QR at a single destination and rewrite it whenever you need.',
         icon: Link2,
         to: '/dashboard/campaigns/new/dynamic-qr/single-link',
+        available: true,
       },
       {
         id: 'multiple-links',

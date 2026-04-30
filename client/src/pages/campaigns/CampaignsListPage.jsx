@@ -9,6 +9,16 @@ import {
 import useCampaignStore from '../../store/useCampaignStore';
 import EditCampaignModal from '../../components/ui/EditCampaignModal';
 
+const resolveRedirectBase = () => {
+  if (import.meta.env.VITE_REDIRECT_BASE) {
+    return String(import.meta.env.VITE_REDIRECT_BASE).replace(/\/$/, '');
+  }
+  if (import.meta.env.VITE_API_URL) {
+    return String(import.meta.env.VITE_API_URL).replace(/\/api\/?$/, '').replace(/\/$/, '');
+  }
+  return typeof window !== 'undefined' ? window.location.origin : '';
+};
+
 // ---------------------------------------------------------------------------
 // Status badge
 // ---------------------------------------------------------------------------
@@ -90,26 +100,51 @@ const CardMenu = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete }) =
 // Individual campaign card
 // ---------------------------------------------------------------------------
 const CampaignCard = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete }) => {
-  const arPreview = campaign.status === 'active' ? (
-    <a
-      href={`/ar/${campaign._id}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-lg border border-[var(--border-color)] px-2 py-1.5 text-xs text-[var(--text-muted)] transition-colors hover:border-brand-500/50 hover:text-brand-400"
-      aria-label="Preview AR experience"
-      title="Preview AR"
-    >
-      <ExternalLink size={14} />
-      <span className="hidden sm:inline">AR</span>
-    </a>
-  ) : (
-    <span
-      className="inline-flex min-h-[44px] min-w-[44px] cursor-not-allowed items-center justify-center rounded-lg border border-[var(--border-color)] px-2 py-1.5 text-xs text-[var(--text-muted)] opacity-40"
-      title="Activate the campaign to preview AR"
-    >
-      <ExternalLink size={14} />
-    </span>
-  );
+  const isSingleLinkQr = campaign.campaignType === 'single-link-qr';
+  const trackedRedirectUrl = campaign.redirectSlug
+    ? `${resolveRedirectBase()}/r/${campaign.redirectSlug}`
+    : null;
+  const quickAction = isSingleLinkQr
+    ? (trackedRedirectUrl ? (
+      <a
+        href={trackedRedirectUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-lg border border-[var(--border-color)] px-2 py-1.5 text-xs text-[var(--text-muted)] transition-colors hover:border-brand-500/50 hover:text-brand-400"
+        aria-label="Open tracked redirect link"
+        title="Open Link"
+      >
+        <ExternalLink size={14} />
+        <span className="hidden sm:inline">Link</span>
+      </a>
+    ) : (
+      <span
+        className="inline-flex min-h-[44px] min-w-[44px] cursor-not-allowed items-center justify-center rounded-lg border border-[var(--border-color)] px-2 py-1.5 text-xs text-[var(--text-muted)] opacity-40"
+        title="No destination URL configured"
+      >
+        <ExternalLink size={14} />
+      </span>
+    ))
+    : (campaign.status === 'active' ? (
+      <a
+        href={`/ar/${campaign._id}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-lg border border-[var(--border-color)] px-2 py-1.5 text-xs text-[var(--text-muted)] transition-colors hover:border-brand-500/50 hover:text-brand-400"
+        aria-label="Preview AR experience"
+        title="Preview AR"
+      >
+        <ExternalLink size={14} />
+        <span className="hidden sm:inline">AR</span>
+      </a>
+    ) : (
+      <span
+        className="inline-flex min-h-[44px] min-w-[44px] cursor-not-allowed items-center justify-center rounded-lg border border-[var(--border-color)] px-2 py-1.5 text-xs text-[var(--text-muted)] opacity-40"
+        title="Activate the campaign to preview AR"
+      >
+        <ExternalLink size={14} />
+      </span>
+    ));
 
   return (
     <motion.div
@@ -182,7 +217,7 @@ const CampaignCard = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete 
           >
             <BarChart3 size={12} /> Stats
           </Link>
-          {arPreview}
+          {quickAction}
         </div>
       </div>
     </motion.div>

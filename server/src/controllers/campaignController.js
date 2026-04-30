@@ -5,11 +5,42 @@ const { AppError } = require('../middleware/errorHandler');
 const { success, created } = require('../utils/apiResponse');
 const { generateUploadSignature, deleteCloudinaryAsset } = require('../services/cloudinaryService');
 const { generateQRCode } = require('../services/qrService');
+const redirectCache = require('../utils/redirectCache');
+const logger = require('../config/logger');
+
+/* ── Defense-in-depth: cap on stringified qrDesign size.  Zod already bounds
+   the logo `image` field to 180 KB; this is a belt-and-braces guard against a
+   schema regression that lets through a giant nested gradient or similar. ── */
+const MAX_QR_DESIGN_BYTES = 32_768;
+
+/* ── nanoid is ESM-only as of v4 — we lazy-import once and cache the binding.
+   Doing this once at module load (before any request hits us) keeps the create
+   handler synchronous-feeling for callers. ── */
+let nanoidPromise = null;
+const getNanoid = () => {
+  if (!nanoidPromise) {
+    nanoidPromise = import('nanoid').then((m) => m.customAlphabet(
+      // URL-safe, no look-alikes (0/O, 1/l/I), 8 chars → ~218 trillion combos
+      '23456789abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ',
+      8
+    ));
+  }
+  return nanoidPromise;
+};
+
+const generateUniqueSlug = async () => {
+  const nanoid = await getNanoid();
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const slug = nanoid();
+    const exists = await Campaign.exists({ redirectSlug: slug });
+    if (!exists) return slug;
+    logger.warn('redirectSlug collision — retrying', { slug, attempt });
+  }
+  throw new AppError('Could not allocate a unique short URL — please retry', 500);
+};
 
 /* ─────────────────────────────────────────
    GET /api/campaigns/upload-signature
-   Returns a Cloudinary signed-upload payload.
-   Called by the client before each direct upload.
    ───────────────────────────────────────── */
 const getUploadSignature = (req, res) => {
   const { resourceType = 'image' } = req.query;
@@ -26,10 +57,18 @@ const getUploadSignature = (req, res) => {
 
 /* ─────────────────────────────────────────
    POST /api/campaigns
-   Creates a new campaign record in MongoDB after
-   the client has uploaded the files to Cloudinary.
+   Branches on req.body.campaignType (validated upstream by Zod):
+     • 'ar-card'        → existing AR flow (Cloudinary assets + async QR)
+     • 'single-link-qr' → new dynamic-redirect flow (slug + qrDesign, no Cloudinary)
    ───────────────────────────────────────── */
 const createCampaign = async (req, res) => {
+  if (req.body.campaignType === 'single-link-qr') {
+    return createSingleLinkCampaign(req, res);
+  }
+  return createArCardCampaign(req, res);
+};
+
+const createArCardCampaign = async (req, res) => {
   const {
     campaignName,
     targetImageUrl,
@@ -39,12 +78,9 @@ const createCampaign = async (req, res) => {
     thumbnailUrl,
   } = req.body;
 
-  if (!campaignName || !targetImageUrl || !videoUrl) {
-    throw new AppError('campaignName, targetImageUrl, and videoUrl are required', 400);
-  }
-
   const campaign = await Campaign.create({
     userId: req.user._id,
+    campaignType: 'ar-card',
     campaignName: campaignName.trim(),
     targetImageUrl,
     targetImagePublicId,
@@ -54,8 +90,6 @@ const createCampaign = async (req, res) => {
     status: 'active',
   });
 
-  // Generate QR code asynchronously — update campaign once done
-  // We return the campaign immediately so the client isn't blocked waiting for Cloudinary
   generateQRCode(campaign._id.toString(), req.user._id.toString())
     .then(({ qrCodeUrl, qrPublicId }) => {
       campaign.qrCodeUrl = qrCodeUrl;
@@ -63,22 +97,49 @@ const createCampaign = async (req, res) => {
       return campaign.save({ validateModifiedOnly: true });
     })
     .catch((err) => {
-      console.error(`QR generation failed for campaign ${campaign._id}:`, err.message);
+      logger.warn('AR QR generation failed', { campaignId: String(campaign._id), error: err.message });
     });
 
   return created(res, { campaign }, 'Campaign created successfully');
 };
 
+const createSingleLinkCampaign = async (req, res) => {
+  const { campaignName, destinationUrl, qrDesign } = req.body;
+
+  if (qrDesign && JSON.stringify(qrDesign).length > MAX_QR_DESIGN_BYTES) {
+    throw new AppError(
+      `qrDesign payload exceeds ${MAX_QR_DESIGN_BYTES} bytes`,
+      413
+    );
+  }
+
+  const redirectSlug = await generateUniqueSlug();
+
+  const campaign = await Campaign.create({
+    userId: req.user._id,
+    campaignType: 'single-link-qr',
+    campaignName: campaignName.trim(),
+    destinationUrl, // already normalized + SSRF-checked by Zod transform
+    qrDesign: qrDesign || null,
+    redirectSlug,
+    status: 'active',
+  });
+
+  return created(res, { campaign }, 'Single Link QR campaign created successfully');
+};
+
 /* ─────────────────────────────────────────
    GET /api/campaigns
-   Returns all campaigns for the authenticated user.
    ───────────────────────────────────────── */
 const getCampaigns = async (req, res) => {
-  const { status, page = 1, limit = 12 } = req.query;
+  const { status, campaignType, page = 1, limit = 12 } = req.query;
 
   const filter = { userId: req.user._id };
   if (status && ['draft', 'active', 'paused'].includes(status)) {
     filter.status = status;
+  }
+  if (campaignType && ['ar-card', 'single-link-qr'].includes(campaignType)) {
+    filter.campaignType = campaignType;
   }
 
   const skip = (Number(page) - 1) * Number(limit);
@@ -105,7 +166,6 @@ const getCampaigns = async (req, res) => {
 
 /* ─────────────────────────────────────────
    GET /api/campaigns/:id
-   Returns a single campaign (owner only).
    ───────────────────────────────────────── */
 const getCampaign = async (req, res) => {
   const campaign = await Campaign.findOne({
@@ -120,12 +180,35 @@ const getCampaign = async (req, res) => {
 
 /* ─────────────────────────────────────────
    PATCH /api/campaigns/:id
-   Update campaign name or status.
+   Body shape validated by updateCampaignSchema (Zod).
    ───────────────────────────────────────── */
 const updateCampaign = async (req, res) => {
-  const allowed = ['campaignName', 'status'];
+  const existing = await Campaign.findOne(
+    { _id: req.params.id, userId: req.user._id },
+    'campaignType redirectSlug status'
+  );
+  if (!existing) throw new AppError('Campaign not found', 404);
+
+  const { campaignName, status, destinationUrl, qrDesign } = req.body;
   const updates = {};
-  allowed.forEach((k) => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
+
+  if (campaignName !== undefined) updates.campaignName = campaignName;
+  if (status !== undefined) updates.status = status;
+
+  // Type-gated fields — silently ignored on the wrong type to keep the contract
+  // forgiving (the frontend re-uses one PATCH for all campaign types).
+  if (existing.campaignType === 'single-link-qr') {
+    if (destinationUrl !== undefined) updates.destinationUrl = destinationUrl;
+    if (qrDesign !== undefined) {
+      if (qrDesign && JSON.stringify(qrDesign).length > MAX_QR_DESIGN_BYTES) {
+        throw new AppError(
+          `qrDesign payload exceeds ${MAX_QR_DESIGN_BYTES} bytes`,
+          413
+        );
+      }
+      updates.qrDesign = qrDesign;
+    }
+  }
 
   if (Object.keys(updates).length === 0) {
     throw new AppError('No valid fields to update', 400);
@@ -137,24 +220,33 @@ const updateCampaign = async (req, res) => {
     { new: true, runValidators: true }
   );
 
-  if (!campaign) throw new AppError('Campaign not found', 404);
+  // Evict cache after a successful write so the next scan picks up the new
+  // destinationUrl / status.  Only single-link campaigns are ever cached.
+  if (existing.campaignType === 'single-link-qr' && existing.redirectSlug) {
+    redirectCache.evict(existing.redirectSlug).catch(() => {});
+  }
 
   return success(res, { campaign }, 'Campaign updated');
 };
 
 /* ─────────────────────────────────────────
    DELETE /api/campaigns/:id
-   Deletes campaign + Cloudinary assets.
    ───────────────────────────────────────── */
 const deleteCampaign = async (req, res) => {
   const campaign = await Campaign.findOne({ _id: req.params.id, userId: req.user._id });
   if (!campaign) throw new AppError('Campaign not found', 404);
 
-  // Remove Cloudinary assets (non-blocking — don't fail delete if CDN call fails)
-  await Promise.allSettled([
-    deleteCloudinaryAsset(campaign.targetImagePublicId, 'image'),
-    deleteCloudinaryAsset(campaign.videoPublicId, 'video'),
-  ]);
+  // Cloudinary cleanup only applies to AR campaigns.
+  if (campaign.campaignType === 'ar-card') {
+    await Promise.allSettled([
+      deleteCloudinaryAsset(campaign.targetImagePublicId, 'image'),
+      deleteCloudinaryAsset(campaign.videoPublicId, 'video'),
+    ]);
+  }
+
+  if (campaign.redirectSlug) {
+    redirectCache.evict(campaign.redirectSlug).catch(() => {});
+  }
 
   await campaign.deleteOne();
 
@@ -163,7 +255,6 @@ const deleteCampaign = async (req, res) => {
 
 /* ─────────────────────────────────────────
    POST /api/campaigns/:id/duplicate
-   Clones a campaign (same assets, new name, new QR code).
    ───────────────────────────────────────── */
 const duplicateCampaign = async (req, res) => {
   const original = await Campaign.findOne({
@@ -173,19 +264,32 @@ const duplicateCampaign = async (req, res) => {
 
   if (!original) throw new AppError('Campaign not found', 404);
 
+  if (original.campaignType === 'single-link-qr') {
+    const redirectSlug = await generateUniqueSlug();
+    const copy = await Campaign.create({
+      userId: original.userId,
+      campaignType: 'single-link-qr',
+      campaignName: `Copy of ${original.campaignName}`,
+      destinationUrl: original.destinationUrl,
+      qrDesign: original.qrDesign,
+      redirectSlug,
+      status: 'active',
+    });
+    return created(res, { campaign: copy }, 'Campaign duplicated successfully');
+  }
+
   const copy = await Campaign.create({
     userId: original.userId,
+    campaignType: 'ar-card',
     campaignName: `Copy of ${original.campaignName}`,
     targetImageUrl:       original.targetImageUrl,
     targetImagePublicId:  original.targetImagePublicId,
     videoUrl:             original.videoUrl,
     videoPublicId:        original.videoPublicId,
     thumbnailUrl:         original.thumbnailUrl,
-    // Match createCampaign — go live immediately; user can Pause from the dashboard.
     status: 'active',
   });
 
-  // Generate a new QR code for the duplicate asynchronously
   generateQRCode(copy._id.toString(), req.user._id.toString())
     .then(({ qrCodeUrl, qrPublicId }) => {
       copy.qrCodeUrl  = qrCodeUrl;
@@ -193,7 +297,10 @@ const duplicateCampaign = async (req, res) => {
       return copy.save({ validateModifiedOnly: true });
     })
     .catch((err) => {
-      console.error(`QR generation failed for duplicate ${copy._id}:`, err.message);
+      logger.warn('AR QR generation failed for duplicate', {
+        campaignId: String(copy._id),
+        error: err.message,
+      });
     });
 
   return created(res, { campaign: copy }, 'Campaign duplicated successfully');
@@ -201,18 +308,33 @@ const duplicateCampaign = async (req, res) => {
 
 /* ─────────────────────────────────────────
    GET /api/campaigns/:id/qr
-   Returns the QR code URL for a campaign.
-   Polls until the async QR generation completes.
+   AR campaigns: returns the Cloudinary-hosted PNG once async generation finishes.
+   Single-link campaigns: returns the encoded redirect URL so the client can
+   render the QR locally via qr-code-styling.
    ───────────────────────────────────────── */
 const getCampaignQR = async (req, res) => {
   const campaign = await Campaign.findOne(
     { _id: req.params.id, userId: req.user._id },
-    'qrCodeUrl qrPublicId campaignName'
+    'qrCodeUrl qrPublicId campaignName campaignType redirectSlug qrDesign'
   ).lean();
 
   if (!campaign) throw new AppError('Campaign not found', 404);
 
+  if (campaign.campaignType === 'single-link-qr') {
+    const base = process.env.PUBLIC_REDIRECT_BASE
+      || process.env.API_URL
+      || `${req.protocol}://${req.get('host')}`;
+    return success(res, {
+      campaignType: 'single-link-qr',
+      redirectUrl: `${base.replace(/\/$/, '')}/r/${campaign.redirectSlug}`,
+      redirectSlug: campaign.redirectSlug,
+      qrDesign: campaign.qrDesign,
+      ready: true,
+    });
+  }
+
   return success(res, {
+    campaignType: 'ar-card',
     qrCodeUrl: campaign.qrCodeUrl,
     qrPublicId: campaign.qrPublicId,
     ready: !!campaign.qrCodeUrl,
@@ -222,6 +344,7 @@ const getCampaignQR = async (req, res) => {
 module.exports = {
   getUploadSignature,
   createCampaign,
+  createSingleLinkCampaign,
   getCampaigns,
   getCampaign,
   updateCampaign,

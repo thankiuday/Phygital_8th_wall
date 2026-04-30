@@ -22,6 +22,16 @@ import QRCodeDisplay from '../../components/ui/QRCodeDisplay';
 import { campaignService } from '../../services/campaignService';
 import EditCampaignModal from '../../components/ui/EditCampaignModal';
 
+const resolveRedirectBase = () => {
+  if (import.meta.env.VITE_REDIRECT_BASE) {
+    return String(import.meta.env.VITE_REDIRECT_BASE).replace(/\/$/, '');
+  }
+  if (import.meta.env.VITE_API_URL) {
+    return String(import.meta.env.VITE_API_URL).replace(/\/api\/?$/, '').replace(/\/$/, '');
+  }
+  return typeof window !== 'undefined' ? window.location.origin : '';
+};
+
 const StatusBadge = ({ status }) => {
   const map = {
     active: 'bg-green-500/15 text-green-400 border-green-500/30',
@@ -36,8 +46,12 @@ const StatusBadge = ({ status }) => {
 };
 
 /* ── Mobile action sheet (collapsed into three-dot menu on small screens) ── */
-const ActionMenu = ({ campaign, actionLoading, onEdit, onDuplicate, onToggleStatus, onDelete, onPreviewAR }) => {
+const ActionMenu = ({ campaign, actionLoading, onEdit, onDuplicate, onToggleStatus, onDelete }) => {
   const [open, setOpen] = useState(false);
+  const isSingleLinkQr = campaign.campaignType === 'single-link-qr';
+  const trackedRedirectUrl = campaign.redirectSlug
+    ? `${resolveRedirectBase()}/r/${campaign.redirectSlug}`
+    : null;
 
   return (
     <div className="relative">
@@ -81,16 +95,30 @@ const ActionMenu = ({ campaign, actionLoading, onEdit, onDuplicate, onToggleStat
                 {campaign.status === 'active' ? <Pause size={14} /> : <Play size={14} />}
                 {campaign.status === 'active' ? 'Pause' : 'Activate'}
               </button>
-              {campaign.status === 'active' && (
-                <a
-                  href={`/ar/${campaign._id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => setOpen(false)}
-                  className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-3)]"
-                >
-                  <ExternalLink size={14} /> Preview AR
-                </a>
+              {isSingleLinkQr ? (
+                trackedRedirectUrl ? (
+                  <a
+                    href={trackedRedirectUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setOpen(false)}
+                    className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-3)]"
+                  >
+                    <ExternalLink size={14} /> Open Link
+                  </a>
+                ) : null
+              ) : (
+                campaign.status === 'active' && (
+                  <a
+                    href={`/ar/${campaign._id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setOpen(false)}
+                    className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-3)]"
+                  >
+                    <ExternalLink size={14} /> Preview AR
+                  </a>
+                )
               )}
               <div className="mx-2 my-1 border-t border-[var(--border-color)]" />
               <button
@@ -231,6 +259,11 @@ const CampaignDetailPage = () => {
     );
   }
 
+  const isSingleLinkQr = campaign.campaignType === 'single-link-qr';
+  const trackedRedirectUrl = campaign.redirectSlug
+    ? `${resolveRedirectBase()}/r/${campaign.redirectSlug}`
+    : null;
+
   return (
     <div className="mx-auto max-w-4xl space-y-4 p-4 sm:space-y-5 sm:p-6">
       {/* ── Header ──────────────────────────────────────────────────── */}
@@ -256,22 +289,35 @@ const CampaignDetailPage = () => {
           >
             <BarChart3 size={14} /> Analytics
           </Link>
-          {campaign.status === 'active' ? (
-            <a
-              href={`/ar/${campaign._id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-xl border border-[var(--border-color)] px-3 py-2 text-sm text-[var(--text-secondary)] hover:border-brand-500/50 hover:text-brand-400"
-            >
-              <ExternalLink size={14} /> Preview AR
-            </a>
+          {isSingleLinkQr ? (
+            trackedRedirectUrl ? (
+              <a
+                href={trackedRedirectUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 rounded-xl border border-[var(--border-color)] px-3 py-2 text-sm text-[var(--text-secondary)] hover:border-brand-500/50 hover:text-brand-400"
+              >
+                <ExternalLink size={14} /> Open Link
+              </a>
+            ) : null
           ) : (
-            <span
-              title="Activate this campaign to open the public AR page."
-              className="flex cursor-not-allowed items-center gap-1.5 rounded-xl border border-[var(--border-color)] px-3 py-2 text-sm text-[var(--text-muted)] opacity-50"
-            >
-              <ExternalLink size={14} /> Preview AR
-            </span>
+            campaign.status === 'active' ? (
+              <a
+                href={`/ar/${campaign._id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 rounded-xl border border-[var(--border-color)] px-3 py-2 text-sm text-[var(--text-secondary)] hover:border-brand-500/50 hover:text-brand-400"
+              >
+                <ExternalLink size={14} /> Preview AR
+              </a>
+            ) : (
+              <span
+                title="Activate this campaign to open the public AR page."
+                className="flex cursor-not-allowed items-center gap-1.5 rounded-xl border border-[var(--border-color)] px-3 py-2 text-sm text-[var(--text-muted)] opacity-50"
+              >
+                <ExternalLink size={14} /> Preview AR
+              </span>
+            )
           )}
           <button
             onClick={() => setShowEdit(true)}
@@ -351,6 +397,8 @@ const CampaignDetailPage = () => {
             campaignName={campaign.campaignName}
             initialQrUrl={campaign.qrCodeUrl}
             campaignActive={campaign.status === 'active'}
+            campaignType={campaign.campaignType}
+            redirectSlug={campaign.redirectSlug}
           />
         </motion.div>
 
@@ -417,6 +465,29 @@ const CampaignDetailPage = () => {
                 playsInline
                 className="max-h-64 w-full rounded-xl border border-[var(--border-color)] object-contain"
               />
+            </motion.div>
+          )}
+
+          {isSingleLinkQr && campaign.destinationUrl && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="glass-card p-4 sm:p-5"
+            >
+              <div className="mb-3 flex items-center gap-2">
+                <ExternalLink size={16} className="text-brand-400" />
+                <h4 className="text-sm font-semibold text-[var(--text-primary)]">Destination Link</h4>
+              </div>
+              <a
+                href={campaign.destinationUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block truncate rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-3 py-2 text-sm text-brand-400 hover:underline"
+                title={campaign.destinationUrl}
+              >
+                {campaign.destinationUrl}
+              </a>
             </motion.div>
           )}
         </div>
