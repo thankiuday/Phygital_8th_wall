@@ -23,6 +23,14 @@ const QRCodeDisplay = ({
   const [error, setError] = useState('');
   const [qrDesign, setQrDesign] = useState(null);
   const downloadRef = useRef(null);
+
+  const arPageUrl = `${window.location.origin}/ar/${campaignId}`;
+  const localRedirectUrl = redirectSlug ? `${window.location.origin}/r/${redirectSlug}` : null;
+  const [shareUrl, setShareUrl] = useState(
+    campaignType === 'single-link-qr'
+      ? (localRedirectUrl || arPageUrl)
+      : arPageUrl
+  );
   const styledOptions = useMemo(() => {
     if (campaignType !== 'single-link-qr' || !shareUrl) return null;
     const design = qrDesign || {};
@@ -46,15 +54,6 @@ const QRCodeDisplay = ({
       },
     };
   }, [campaignType, qrDesign, shareUrl]);
-
-
-  const arPageUrl = `${window.location.origin}/ar/${campaignId}`;
-  const localRedirectUrl = redirectSlug ? `${window.location.origin}/r/${redirectSlug}` : null;
-  const [shareUrl, setShareUrl] = useState(
-    campaignType === 'single-link-qr'
-      ? (localRedirectUrl || arPageUrl)
-      : arPageUrl
-  );
 
   /* ── Poll until QR is generated ───────────────────────────── */
   const fetchQR = useCallback(async () => {
@@ -86,7 +85,7 @@ const QRCodeDisplay = ({
       setError('Could not load QR code. Please refresh.');
       setPolling(false);
     }
-  }, [campaignId]);
+  }, [campaignId, arPageUrl]);
 
   useEffect(() => {
     if (qrUrl) return;
