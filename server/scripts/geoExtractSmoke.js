@@ -38,6 +38,41 @@ const fixtures = [
     payload: { success: false, message: 'bad' },
     expect: null,
   },
+  {
+    name: 'snake_case region_code + string coords',
+    payload: {
+      success: true,
+      country: 'India',
+      region_code: 'MH',
+      city: 'Mumbai',
+      latitude: '19.076',
+      longitude: '72.8777',
+    },
+    expect: {
+      country: 'India',
+      region: 'MH',
+      city: 'Mumbai',
+      latitude: 19.076,
+      longitude: 72.8777,
+    },
+  },
+  {
+    name: 'country_code only + geoLocation merge',
+    payload: {
+      success: true,
+      data: {
+        geoLocation: { regionCode: 'CA', city: 'San Jose' },
+        country: 'United States',
+      },
+    },
+    expect: {
+      country: 'United States',
+      region: 'CA',
+      city: 'San Jose',
+      latitude: null,
+      longitude: null,
+    },
+  },
 ];
 
 for (const { name, payload, expect } of fixtures) {

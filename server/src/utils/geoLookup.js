@@ -54,6 +54,47 @@ const isoCountryCodeToName = (code) => {
   }
 };
 
+const trimStr = (v) => {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s === '' ? null : s;
+};
+
+const firstStringAcrossLayers = (layers, keys) => {
+  for (const layer of layers) {
+    if (!layer || typeof layer !== 'object') continue;
+    for (const key of keys) {
+      const t = trimStr(layer[key]);
+      if (t) return t;
+    }
+  }
+  return null;
+};
+
+const firstCoordAcrossLayers = (layers, keys) => {
+  for (const layer of layers) {
+    if (!layer || typeof layer !== 'object') continue;
+    for (const key of keys) {
+      const raw = layer[key];
+      if (raw == null || raw === '') continue;
+      const n = typeof raw === 'number' ? raw : Number.parseFloat(String(raw));
+      if (Number.isFinite(n)) return n;
+    }
+  }
+  return null;
+};
+
+/** Prefer nested geo, then `data.*`, then root (covers ipwho.org + ipwho.is + ipwhois.io shapes). */
+const buildProviderLayers = (payload) => {
+  const layers = [];
+  if (!payload || typeof payload !== 'object') return layers;
+  const { data } = payload;
+  if (data?.geoLocation && typeof data.geoLocation === 'object') layers.push(data.geoLocation);
+  if (data && typeof data === 'object') layers.push(data);
+  layers.push(payload);
+  return layers;
+};
+
 /**
  * Normalize HTTP geo provider JSON (flat ipwhois.io, nested ipwho.org/ipwho.is `data`, etc.)
  * Exported for smoke tests.
@@ -62,20 +103,33 @@ const extractGeoFieldsFromProviderJson = (payload) => {
   if (!payload || typeof payload !== 'object') return null;
   if (payload.success === false) return null;
 
-  let src = payload;
-  if (payload.data && typeof payload.data === 'object') {
-    if (payload.data.geoLocation && typeof payload.data.geoLocation === 'object') {
-      src = payload.data.geoLocation;
-    } else {
-      src = payload.data;
+  const layers = buildProviderLayers(payload);
+
+  let country = firstStringAcrossLayers(layers, ['country', 'country_name', 'countryName']);
+  if (!country) {
+    const code = firstStringAcrossLayers(layers, ['countryCode', 'country_code']);
+    if (code && /^[A-Za-z]{2}$/.test(code)) {
+      country = isoCountryCodeToName(code.toUpperCase()) || code.toUpperCase();
     }
   }
 
-  const country = src.country != null && src.country !== '' ? String(src.country) : null;
-  const region = src.region != null && src.region !== '' ? String(src.region) : null;
-  const city = src.city != null && src.city !== '' ? String(src.city) : null;
-  const latitude = typeof src.latitude === 'number' ? src.latitude : null;
-  const longitude = typeof src.longitude === 'number' ? src.longitude : null;
+  let region = firstStringAcrossLayers(layers, [
+    'region',
+    'state',
+    'province',
+    'state_prov',
+    'subdivision',
+    'region_name',
+    'regionName',
+  ]);
+  if (!region) {
+    region = firstStringAcrossLayers(layers, ['regionCode', 'region_code']);
+  }
+
+  const city = firstStringAcrossLayers(layers, ['city', 'town', 'district']);
+
+  const latitude = firstCoordAcrossLayers(layers, ['latitude', 'lat']);
+  const longitude = firstCoordAcrossLayers(layers, ['longitude', 'lng', 'lon']);
 
   if (!country && !region && !city && latitude == null && longitude == null) return null;
 
@@ -147,6 +201,11 @@ const ensureMmdbReader = async () => {
   return mmdbLoadPromise;
 };
 
+const pickLocalizedName = (namesObj) => {
+  if (!namesObj || typeof namesObj !== 'object') return null;
+  return trimStr(namesObj.en) || trimStr(namesObj[Object.keys(namesObj)[0]]);
+};
+
 const lookupGeoFromMmdb = async (ip) => {
   const reader = await ensureMmdbReader();
   if (!reader) return null;
@@ -160,11 +219,14 @@ const lookupGeoFromMmdb = async (ip) => {
   if (!rec) return null;
 
   const country =
-    rec.country?.names?.en
-    || rec.country?.iso_code
+    pickLocalizedName(rec.country?.names)
+    || trimStr(rec.country?.iso_code)
     || null;
-  const region = rec.subdivisions?.[0]?.names?.en || rec.subdivisions?.[0]?.iso_code || null;
-  const city = rec.city?.names?.en || null;
+  const region =
+    pickLocalizedName(rec.subdivisions?.[0]?.names)
+    || trimStr(rec.subdivisions?.[0]?.iso_code)
+    || null;
+  const city = pickLocalizedName(rec.city?.names);
   const latitude = typeof rec.location?.latitude === 'number' ? rec.location.latitude : null;
   const longitude = typeof rec.location?.longitude === 'number' ? rec.location.longitude : null;
 
@@ -197,6 +259,21 @@ const lookupGeoFromHttp = async (ip) => {
   }
 };
 
+const mergeGeoRecords = (a, b) => {
+  if (!a) return b;
+  if (!b) return a;
+  return {
+    country: trimStr(a.country) || trimStr(b.country) || null,
+    region: trimStr(a.region) || trimStr(b.region) || null,
+    city: trimStr(a.city) || trimStr(b.city) || null,
+    latitude: a.latitude != null && Number.isFinite(a.latitude) ? a.latitude : b.latitude,
+    longitude: a.longitude != null && Number.isFinite(a.longitude) ? a.longitude : b.longitude,
+  };
+};
+
+/** GeoLite2 often returns country-only rows; fill city/region from HTTP when missing */
+const needsHttpEnrichment = (g) => !g || !(trimStr(g.city) || trimStr(g.region));
+
 const mergeCfCountry = (geo, cfCountryCode) => {
   const iso = cfCountryCode && String(cfCountryCode).trim().toUpperCase();
   if (!iso || !/^[A-Z]{2}$/.test(iso)) return geo;
@@ -221,7 +298,7 @@ const lookupGeo = async (rawIp, hints = {}) => {
     return null;
   }
 
-  const cacheKey = ip;
+  const cacheKey = `g2:${ip}`;
   const cached = cache.get(cacheKey);
   if (cached !== undefined) {
     return cached === null
@@ -230,7 +307,10 @@ const lookupGeo = async (rawIp, hints = {}) => {
   }
 
   let geo = await lookupGeoFromMmdb(ip);
-  if (!geo) geo = await lookupGeoFromHttp(ip);
+  if (needsHttpEnrichment(geo)) {
+    const httpGeo = await lookupGeoFromHttp(ip);
+    geo = mergeGeoRecords(geo, httpGeo);
+  }
 
   const hasSignal =
     geo
