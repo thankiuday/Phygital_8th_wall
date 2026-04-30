@@ -11,7 +11,7 @@ import {
 import {
   ScanLine, Users, Clock, PlayCircle,
   Smartphone, Monitor, BarChart3, ArrowLeft,
-  ChevronRight,
+  ChevronRight, MapPin,
 } from 'lucide-react';
 import useAnalyticsStore from '../../store/useAnalyticsStore';
 import useIsMobile from '../../hooks/useIsMobile';
@@ -122,6 +122,7 @@ const CampaignAnalyticsPage = () => {
   const devices     = campaignData?.deviceBreakdown  || [];
   const browsers    = campaignData?.browserBreakdown || [];
   const hourly      = campaignData?.hourlyHeatmap    || [];
+  const locations   = campaignData?.locationBreakdown || [];
   const campaign    = campaignData?.campaign;
 
   const fmtDuration = (ms) => {
@@ -363,6 +364,46 @@ const CampaignAnalyticsPage = () => {
           <h2 className="text-base font-semibold text-[var(--text-primary)]">Scans by Hour</h2>
         </div>
         {isLoadingCamp ? <ChartSkeleton h="h-16" /> : <HourlyHeatmap data={hourly} />}
+      </div>
+
+      {/* ── Top locations ─────────────────────────────────────────────── */}
+      <div className="glass-card p-5">
+        <div className="mb-4 flex items-center gap-2">
+          <MapPin size={16} className="text-brand-400" />
+          <h2 className="text-base font-semibold text-[var(--text-primary)]">Top Scan Locations</h2>
+        </div>
+        {isLoadingCamp ? (
+          <ChartSkeleton h="h-40" />
+        ) : !locations.length ? (
+          <p className="text-sm text-[var(--text-muted)]">
+            No location data available yet.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[520px] text-sm">
+              <thead>
+                <tr className="border-b border-[var(--border-color)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                  <th className="py-2 pr-3 font-medium">City</th>
+                  <th className="py-2 pr-3 font-medium">Region</th>
+                  <th className="py-2 pr-3 font-medium">Country</th>
+                  <th className="py-2 pr-3 font-medium">Scans</th>
+                  <th className="py-2 font-medium">Unique</th>
+                </tr>
+              </thead>
+              <tbody>
+                {locations.map((row, idx) => (
+                  <tr key={`${row.city}-${row.region}-${row.country}-${idx}`} className="border-b border-[var(--border-color)]/60">
+                    <td className="py-2 pr-3 text-[var(--text-primary)]">{row.city}</td>
+                    <td className="py-2 pr-3 text-[var(--text-secondary)]">{row.region}</td>
+                    <td className="py-2 pr-3 text-[var(--text-secondary)]">{row.country}</td>
+                    <td className="py-2 pr-3 font-semibold text-[var(--text-primary)]">{row.scans}</td>
+                    <td className="py-2 text-[var(--text-secondary)]">{row.uniqueVisitors}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* ── Back links ──────────────────────────────────────────────────── */}

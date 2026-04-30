@@ -30,9 +30,12 @@ const scanEventSchema = new mongoose.Schema(
     browser: { type: String, default: 'unknown' },
     os: { type: String, default: 'unknown' },
 
-    // Geo (approximate — from IP, filled in Module 7)
+    // Geo (approximate — from IP geolocation)
     country: { type: String, default: null },
+    region: { type: String, default: null },
     city: { type: String, default: null },
+    latitude: { type: Number, default: null },
+    longitude: { type: Number, default: null },
 
     // Engagement
     sessionDurationMs: { type: Number, default: 0 },

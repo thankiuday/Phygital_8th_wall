@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Download, Share2, Copy, Check, Loader2, RefreshCw } from 'lucide-react';
 import api from '../../services/api';
+import StyledQrPreview from '../qr/StyledQrPreview';
 
 /**
  * QRCodeDisplay — renders the campaign QR code with download + share + copy-link actions.
@@ -20,6 +21,32 @@ const QRCodeDisplay = ({
   const [polling, setPolling] = useState(!initialQrUrl);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
+  const [qrDesign, setQrDesign] = useState(null);
+  const downloadRef = useRef(null);
+  const styledOptions = useMemo(() => {
+    if (campaignType !== 'single-link-qr' || !shareUrl) return null;
+    const design = qrDesign || {};
+    return {
+      width: design.width || 256,
+      height: design.height || 256,
+      margin: design.margin ?? 6,
+      type: 'svg',
+      data: shareUrl,
+      qrOptions: { errorCorrectionLevel: 'Q' },
+      dotsOptions: design.dotsOptions || { type: 'square', color: '#000000' },
+      cornersSquareOptions: design.cornersSquareOptions || { type: 'square', color: '#000000' },
+      cornersDotOptions: design.cornersDotOptions || { type: 'square', color: '#000000' },
+      backgroundOptions: design.backgroundOptions || { color: '#ffffff' },
+      image: design.image || undefined,
+      imageOptions: {
+        hideBackgroundDots: false,
+        imageSize: 0.4,
+        margin: 4,
+        ...(design.imageOptions || {}),
+      },
+    };
+  }, [campaignType, qrDesign, shareUrl]);
+
 
   const arPageUrl = `${window.location.origin}/ar/${campaignId}`;
   const localRedirectUrl = redirectSlug ? `${window.location.origin}/r/${redirectSlug}` : null;
@@ -33,12 +60,19 @@ const QRCodeDisplay = ({
   const fetchQR = useCallback(async () => {
     try {
       const res = await api.get(`/campaigns/${campaignId}/qr`);
-      const { campaignType: type, qrCodeUrl, redirectUrl, ready } = res.data.data;
+      const {
+        campaignType: type,
+        qrCodeUrl,
+        redirectUrl,
+        qrDesign: persistedDesign,
+        ready,
+      } = res.data.data;
       if (!ready) return;
 
       if (type === 'single-link-qr' && redirectUrl) {
         setShareUrl(redirectUrl);
-        setQrUrl(`https://api.qrserver.com/v1/create-qr-code/?size=640x640&data=${encodeURIComponent(redirectUrl)}`);
+        setQrDesign(persistedDesign || null);
+        setQrUrl(null);
         setPolling(false);
         return;
       }
@@ -72,6 +106,10 @@ const QRCodeDisplay = ({
 
   /* ── Download QR as PNG ────────────────────────────────────── */
   const handleDownload = async () => {
+    if (campaignType === 'single-link-qr') {
+      downloadRef.current?.({ name: campaignName || 'qr-code', extension: 'png' });
+      return;
+    }
     if (!qrUrl) return;
     const res = await fetch(qrUrl);
     const blob = await res.blob();
@@ -105,6 +143,8 @@ const QRCodeDisplay = ({
     }
   };
 
+  const qrReady = campaignType === 'single-link-qr' ? Boolean(styledOptions) : Boolean(qrUrl);
+
   return (
     <div className="flex flex-col items-center gap-5">
       {/* QR image container */}
@@ -124,6 +164,12 @@ const QRCodeDisplay = ({
               <RefreshCw size={12} /> Retry
             </button>
           </div>
+        ) : campaignType === 'single-link-qr' ? (
+          <StyledQrPreview
+            options={styledOptions}
+            downloadRef={downloadRef}
+            className="h-full w-full"
+          />
         ) : (
           <motion.img
             initial={{ opacity: 0, scale: 0.9 }}
@@ -140,7 +186,7 @@ const QRCodeDisplay = ({
       <div className="flex flex-wrap justify-center gap-2">
         <button
           onClick={handleDownload}
-          disabled={!qrUrl}
+          disabled={!qrReady}
           className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-[var(--border-color)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 hover:text-brand-400 disabled:opacity-40"
         >
           <Download size={14} /> Download PNG
@@ -148,7 +194,7 @@ const QRCodeDisplay = ({
 
         <button
           onClick={handleShare}
-          disabled={!qrUrl}
+          disabled={!qrReady}
           className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-[var(--border-color)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 hover:text-brand-400 disabled:opacity-40"
         >
           <Share2 size={14} /> Share

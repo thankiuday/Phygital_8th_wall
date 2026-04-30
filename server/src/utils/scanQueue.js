@@ -28,6 +28,7 @@ const crypto = require('crypto');
 const logger = require('../config/logger');
 const ScanEvent = require('../models/ScanEvent');
 const Campaign = require('../models/Campaign');
+const { lookupGeo } = require('./geoLookup');
 
 // ── PII guard ────────────────────────────────────────────────────────────
 // Hash IPs with a server-side salt before persisting.  We can still count
@@ -60,6 +61,8 @@ const normalizeAndPersist = async (event) => {
   const camp = await Campaign.findById(event.campaignId, '_id userId').lean();
   if (!camp) return; // Campaign deleted between scan and worker
 
+  const geo = await lookupGeo(event.ip);
+
   await ScanEvent.create({
     campaignId: camp._id,
     userId: camp.userId,
@@ -67,6 +70,11 @@ const normalizeAndPersist = async (event) => {
     deviceType: classifyDevice(event.ua),
     browser: 'unknown',
     os: 'unknown',
+    country: geo?.country || null,
+    region: geo?.region || null,
+    city: geo?.city || null,
+    latitude: geo?.latitude ?? null,
+    longitude: geo?.longitude ?? null,
     scannedAt: event.ts ? new Date(event.ts) : new Date(),
   });
 

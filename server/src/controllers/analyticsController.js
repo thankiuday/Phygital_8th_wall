@@ -275,6 +275,7 @@ exports.getCampaignAnalytics = async (req, res) => {
     browserBreakdown,
     scanTrend,
     hourlyHeatmap,
+    locationBreakdown,
   ] = await Promise.all([
     ScanEvent.aggregate([
       { $match: match },
@@ -357,6 +358,32 @@ exports.getCampaignAnalytics = async (req, res) => {
 
     buildScanTrend(match, since),
     buildHourlyHeatmap(match, since),
+    ScanEvent.aggregate([
+      { $match: { ...match, scannedAt: { $gte: since } } },
+      {
+        $group: {
+          _id: {
+            country: { $ifNull: ['$country', 'Unknown'] },
+            region: { $ifNull: ['$region', 'Unknown'] },
+            city: { $ifNull: ['$city', 'Unknown'] },
+          },
+          scans: { $sum: 1 },
+          uniqueVisitors: { $addToSet: '$visitorHash' },
+        },
+      },
+      { $sort: { scans: -1 } },
+      { $limit: 10 },
+      {
+        $project: {
+          _id: 0,
+          country: '$_id.country',
+          region: '$_id.region',
+          city: '$_id.city',
+          scans: 1,
+          uniqueVisitors: { $size: '$uniqueVisitors' },
+        },
+      },
+    ]),
   ]);
 
   const allTime = totals[0]?.allTime[0] || {
@@ -377,6 +404,7 @@ exports.getCampaignAnalytics = async (req, res) => {
     browserBreakdown,
     scanTrend,
     hourlyHeatmap,
+    locationBreakdown,
   });
 };
 
