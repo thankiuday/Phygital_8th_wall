@@ -104,7 +104,7 @@ const createArCardCampaign = async (req, res) => {
 };
 
 const createSingleLinkCampaign = async (req, res) => {
-  const { campaignName, destinationUrl, qrDesign } = req.body;
+  const { campaignName, destinationUrl, qrDesign, preciseGeoAnalytics } = req.body;
 
   if (qrDesign && JSON.stringify(qrDesign).length > MAX_QR_DESIGN_BYTES) {
     throw new AppError(
@@ -122,6 +122,7 @@ const createSingleLinkCampaign = async (req, res) => {
     destinationUrl, // already normalized + SSRF-checked by Zod transform
     qrDesign: qrDesign || null,
     redirectSlug,
+    preciseGeoAnalytics: !!preciseGeoAnalytics,
     status: 'active',
   });
 
@@ -189,7 +190,7 @@ const updateCampaign = async (req, res) => {
   );
   if (!existing) throw new AppError('Campaign not found', 404);
 
-  const { campaignName, status, destinationUrl, qrDesign } = req.body;
+  const { campaignName, status, destinationUrl, qrDesign, preciseGeoAnalytics } = req.body;
   const updates = {};
 
   if (campaignName !== undefined) updates.campaignName = campaignName;
@@ -199,6 +200,7 @@ const updateCampaign = async (req, res) => {
   // forgiving (the frontend re-uses one PATCH for all campaign types).
   if (existing.campaignType === 'single-link-qr') {
     if (destinationUrl !== undefined) updates.destinationUrl = destinationUrl;
+    if (preciseGeoAnalytics !== undefined) updates.preciseGeoAnalytics = !!preciseGeoAnalytics;
     if (qrDesign !== undefined) {
       if (qrDesign && JSON.stringify(qrDesign).length > MAX_QR_DESIGN_BYTES) {
         throw new AppError(
@@ -273,6 +275,7 @@ const duplicateCampaign = async (req, res) => {
       destinationUrl: original.destinationUrl,
       qrDesign: original.qrDesign,
       redirectSlug,
+      preciseGeoAnalytics: !!original.preciseGeoAnalytics,
       status: 'active',
     });
     return created(res, { campaign: copy }, 'Campaign duplicated successfully');
@@ -315,20 +318,31 @@ const duplicateCampaign = async (req, res) => {
 const getCampaignQR = async (req, res) => {
   const campaign = await Campaign.findOne(
     { _id: req.params.id, userId: req.user._id },
-    'qrCodeUrl qrPublicId campaignName campaignType redirectSlug qrDesign'
+    'qrCodeUrl qrPublicId campaignName campaignType redirectSlug qrDesign preciseGeoAnalytics'
   ).lean();
 
   if (!campaign) throw new AppError('Campaign not found', 404);
 
   if (campaign.campaignType === 'single-link-qr') {
-    const base = process.env.PUBLIC_REDIRECT_BASE
+    const apiBase = process.env.PUBLIC_REDIRECT_BASE
       || process.env.API_URL
       || `${req.protocol}://${req.get('host')}`;
+    const apiRoot = apiBase.replace(/\/$/, '');
+    const clientBase = (process.env.CLIENT_URL || '').replace(/\/$/, '');
+
+    let redirectUrl;
+    if (campaign.preciseGeoAnalytics && clientBase) {
+      redirectUrl = `${clientBase}/open/${campaign.redirectSlug}`;
+    } else {
+      redirectUrl = `${apiRoot}/r/${campaign.redirectSlug}`;
+    }
+
     return success(res, {
       campaignType: 'single-link-qr',
-      redirectUrl: `${base.replace(/\/$/, '')}/r/${campaign.redirectSlug}`,
+      redirectUrl,
       redirectSlug: campaign.redirectSlug,
       qrDesign: campaign.qrDesign,
+      preciseGeoAnalytics: !!campaign.preciseGeoAnalytics,
       ready: true,
     });
   }

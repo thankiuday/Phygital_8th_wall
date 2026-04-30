@@ -5,9 +5,10 @@ const router = express.Router();
 const rateLimit = require('express-rate-limit');
 
 const Campaign = require('../models/Campaign');
+const { SLUG_RE } = require('../constants/singleLinkSlug');
 const redirectCache = require('../utils/redirectCache');
 const scanQueue = require('../utils/scanQueue');
-const { getClientIpFromRequest } = require('../utils/geoLookup');
+const { getClientIpFromRequest, getCfIpCountry } = require('../utils/geoLookup');
 const logger = require('../config/logger');
 
 /**
@@ -25,8 +26,6 @@ const slugLimiter = rateLimit({
   keyGenerator: (req) => `${getClientIpFromRequest(req)}:${req.params.slug || ''}`,
   message: 'Too many scans of this code from your network. Please try again shortly.',
 });
-
-const SLUG_RE = /^[A-Za-z0-9_-]{6,16}$/;
 
 /**
  * GET /r/:slug
@@ -77,7 +76,9 @@ router.get('/:slug', slugLimiter, async (req, res) => {
     ip: clientIp,
     ua: req.get('user-agent'),
     referer: req.get('referer'),
+    cfCountry: getCfIpCountry(req),
     ts: Date.now(),
+    allowBrowserGeo: false,
   });
 
   res.set('Cache-Control', 'no-store, private');

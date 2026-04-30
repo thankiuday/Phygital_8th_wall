@@ -153,6 +153,7 @@ const singleLinkCreateSchema = z
     campaignName: campaignNameField,
     destinationUrl: destinationUrlField,
     qrDesign: qrDesignSchema.nullable().optional(),
+    preciseGeoAnalytics: z.boolean().optional(),
   })
   .strict();
 
@@ -165,6 +166,7 @@ const createSingleLinkOnlySchema = z
     campaignName: campaignNameField,
     destinationUrl: destinationUrlField,
     qrDesign: qrDesignSchema.nullable().optional(),
+    preciseGeoAnalytics: z.boolean().optional(),
   })
   .strict();
 
@@ -238,6 +240,7 @@ const updateCampaignSchema = z
   .object({
     campaignName: campaignNameField.optional(),
     status: z.enum(['draft', 'active', 'paused']).optional(),
+    preciseGeoAnalytics: z.boolean().optional(),
     destinationUrl: z
       .string()
       .min(1)

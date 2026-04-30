@@ -35,6 +35,8 @@ const Step1LinkDetails = ({
   onRegenerateName,
   destinationUrl,
   onDestinationUrlChange,
+  preciseGeoAnalytics,
+  onPreciseGeoAnalyticsChange,
   onContinue,
 }) => {
   const [nameError, setNameError] = useState('');
@@ -64,7 +66,11 @@ const Step1LinkDetails = ({
       return setUrlError(err.message);
     }
 
-    onContinue({ campaignName: trimmed, destinationUrl: normalized });
+    onContinue({
+      campaignName: trimmed,
+      destinationUrl: normalized,
+      preciseGeoAnalytics,
+    });
   };
 
   return (
@@ -123,6 +129,22 @@ const Step1LinkDetails = ({
         spellCheck={false}
         required
       />
+
+      <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-4 py-3">
+        <input
+          type="checkbox"
+          checked={preciseGeoAnalytics}
+          onChange={(e) => onPreciseGeoAnalyticsChange(e.target.checked)}
+          className="mt-1 h-4 w-4 shrink-0 rounded border-[var(--border-color)] text-brand-600 focus:ring-brand-500"
+        />
+        <span className="text-left text-xs text-[var(--text-secondary)]">
+          <span className="font-semibold text-[var(--text-primary)]">Precise location analytics (optional)</span>
+          {' '}
+          Encode a short landing page so visitors can opt in to one-time browser GPS for finer maps.
+          Requires your deployed app URL (<code className="text-[var(--text-muted)]">CLIENT_URL</code> /{' '}
+          <code className="text-[var(--text-muted)]">VITE_APP_URL</code>). Approximate IP geo is always collected when disabled.
+        </span>
+      </label>
 
       <div className="rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-5 py-4">
         <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">How it works</p>

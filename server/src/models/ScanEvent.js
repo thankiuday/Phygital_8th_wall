@@ -37,6 +37,17 @@ const scanEventSchema = new mongoose.Schema(
     latitude: { type: Number, default: null },
     longitude: { type: Number, default: null },
 
+    /** Approximate IP geo vs browser GPS vs both */
+    geoSource: {
+      type: String,
+      enum: ['ip', 'browser', 'hybrid'],
+      default: 'ip',
+    },
+    /** Meters — meaningful when geoSource is browser or hybrid */
+    locationAccuracyM: { type: Number, default: null },
+    /** Client-reported consent banner version when GPS coordinates are stored */
+    geoConsentVersion: { type: String, default: null, maxlength: 128 },
+
     // Engagement
     sessionDurationMs: { type: Number, default: 0 },
     videoWatchPercent: { type: Number, default: 0, min: 0, max: 100 },

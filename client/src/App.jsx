@@ -21,6 +21,7 @@ import RegisterPage       from './pages/auth/RegisterPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ResetPasswordPage  from './pages/auth/ResetPasswordPage';
 import ARExperiencePage   from './pages/ARExperiencePage';
+import OpenSingleLinkBridgePage from './pages/OpenSingleLinkBridgePage';
 
 // ── Lazily-loaded pages (split by route — dramatically reduces initial bundle) ─
 const DashboardPage          = lazy(() => import('./pages/dashboard/DashboardPage'));
@@ -120,6 +121,9 @@ function App() {
               <Route path="users"     element={<RouteLoader><AdminUsersPage /></RouteLoader>} />
               <Route path="campaigns" element={<RouteLoader><AdminCampaignsPage /></RouteLoader>} />
             </Route>
+
+            {/* ── Public single-link bridge (precise geo QR) ───────── */}
+            <Route path="/open/:slug" element={<OpenSingleLinkBridgePage />} />
 
             {/* ── Public AR experience ──────────────────────────────── */}
             <Route path="/ar/:campaignId" element={<ARExperiencePage />} />

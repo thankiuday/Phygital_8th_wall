@@ -107,6 +107,12 @@ const campaignSchema = new mongoose.Schema(
       immutable: true,
     },
 
+    /**
+     * When true, printed QR targets the SPA `/open/:slug` bridge so the visitor
+     * can opt in to navigator.geolocation before redirect (requires CLIENT_URL).
+     */
+    preciseGeoAnalytics: { type: Boolean, default: false },
+
     status: {
       type: String,
       enum: ['draft', 'active', 'paused'],

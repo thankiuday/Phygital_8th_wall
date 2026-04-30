@@ -34,6 +34,13 @@ const TOOLTIP_STYLE  = {
   fontSize: 12,
 };
 
+const geoSourceLabel = (raw) => {
+  const s = raw || 'ip';
+  if (s === 'browser') return 'Precise (GPS)';
+  if (s === 'hybrid') return 'Hybrid';
+  return 'Approx (IP)';
+};
+
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
@@ -380,22 +387,24 @@ const CampaignAnalyticsPage = () => {
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] text-sm">
+            <table className="w-full min-w-[620px] text-sm">
               <thead>
                 <tr className="border-b border-[var(--border-color)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
                   <th className="py-2 pr-3 font-medium">City</th>
                   <th className="py-2 pr-3 font-medium">Region</th>
                   <th className="py-2 pr-3 font-medium">Country</th>
+                  <th className="py-2 pr-3 font-medium">Source</th>
                   <th className="py-2 pr-3 font-medium">Scans</th>
                   <th className="py-2 font-medium">Unique</th>
                 </tr>
               </thead>
               <tbody>
                 {locations.map((row, idx) => (
-                  <tr key={`${row.city}-${row.region}-${row.country}-${idx}`} className="border-b border-[var(--border-color)]/60">
+                  <tr key={`${row.city}-${row.region}-${row.country}-${row.geoSource}-${idx}`} className="border-b border-[var(--border-color)]/60">
                     <td className="py-2 pr-3 text-[var(--text-primary)]">{row.city}</td>
                     <td className="py-2 pr-3 text-[var(--text-secondary)]">{row.region}</td>
                     <td className="py-2 pr-3 text-[var(--text-secondary)]">{row.country}</td>
+                    <td className="py-2 pr-3 text-xs text-[var(--text-muted)]">{geoSourceLabel(row.geoSource)}</td>
                     <td className="py-2 pr-3 font-semibold text-[var(--text-primary)]">{row.scans}</td>
                     <td className="py-2 text-[var(--text-secondary)]">{row.uniqueVisitors}</td>
                   </tr>

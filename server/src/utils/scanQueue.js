@@ -58,10 +58,50 @@ const normalizeAndPersist = async (event) => {
   // Resolve the campaign owner (we need userId on ScanEvent for the analytics
   // dashboard).  This adds one cheap indexed lookup, but we're already off the
   // hot path here.
-  const camp = await Campaign.findById(event.campaignId, '_id userId').lean();
+  const camp = await Campaign.findById(event.campaignId, '_id userId preciseGeoAnalytics').lean();
   if (!camp) return; // Campaign deleted between scan and worker
 
-  const geo = await lookupGeo(event.ip);
+  const geo = await lookupGeo(event.ip, {
+    cfCountryCode: event.cfCountry || event.cfCountryCode || null,
+  });
+
+  const country = geo?.country ?? null;
+  const region = geo?.region ?? null;
+  const city = geo?.city ?? null;
+  let latitude = geo?.latitude ?? null;
+  let longitude = geo?.longitude ?? null;
+
+  let geoSource = 'ip';
+  let locationAccuracyM = null;
+  let geoConsentVersion = null;
+
+  const allowGeo =
+    event.allowBrowserGeo === true
+    && camp.preciseGeoAnalytics === true;
+
+  const blat = event.browserLatitude;
+  const blng = event.browserLongitude;
+  if (
+    allowGeo
+    && typeof blat === 'number'
+    && typeof blng === 'number'
+    && Number.isFinite(blat)
+    && Number.isFinite(blng)
+    && blat >= -90
+    && blat <= 90
+    && blng >= -180
+    && blng <= 180
+  ) {
+    geoSource = country || region || city ? 'hybrid' : 'browser';
+    latitude = blat;
+    longitude = blng;
+    const acc = event.browserAccuracyM;
+    locationAccuracyM =
+      typeof acc === 'number' && Number.isFinite(acc) && acc >= 0 ? acc : null;
+    if (event.consentVersion) {
+      geoConsentVersion = String(event.consentVersion).slice(0, 128);
+    }
+  }
 
   await ScanEvent.create({
     campaignId: camp._id,
@@ -70,11 +110,14 @@ const normalizeAndPersist = async (event) => {
     deviceType: classifyDevice(event.ua),
     browser: 'unknown',
     os: 'unknown',
-    country: geo?.country || null,
-    region: geo?.region || null,
-    city: geo?.city || null,
-    latitude: geo?.latitude ?? null,
-    longitude: geo?.longitude ?? null,
+    country,
+    region,
+    city,
+    latitude,
+    longitude,
+    geoSource,
+    locationAccuracyM,
+    geoConsentVersion,
     scannedAt: event.ts ? new Date(event.ts) : new Date(),
   });
 
