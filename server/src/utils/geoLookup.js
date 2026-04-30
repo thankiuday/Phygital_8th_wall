@@ -32,6 +32,22 @@ const isLocalOrPrivate = (ip) => {
   );
 };
 
+const getClientIpFromRequest = (req) => {
+  const forwarded = req.get('x-forwarded-for');
+  if (forwarded) {
+    const chain = forwarded
+      .split(',')
+      .map((v) => normalizeIp(v.trim()))
+      .filter(Boolean);
+
+    const firstPublic = chain.find((ip) => !isLocalOrPrivate(ip));
+    if (firstPublic) return firstPublic;
+    if (chain[0]) return chain[0];
+  }
+
+  return normalizeIp(req.ip);
+};
+
 const lookupGeo = async (rawIp) => {
   if (!GEO_ENABLED) return null;
   const ip = normalizeIp(rawIp);
@@ -75,4 +91,4 @@ const lookupGeo = async (rawIp) => {
   }
 };
 
-module.exports = { lookupGeo };
+module.exports = { lookupGeo, getClientIpFromRequest };

@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 const Campaign = require('../models/Campaign');
 const redirectCache = require('../utils/redirectCache');
 const scanQueue = require('../utils/scanQueue');
+const { getClientIpFromRequest } = require('../utils/geoLookup');
 const logger = require('../config/logger');
 
 /**
@@ -21,7 +22,7 @@ const slugLimiter = rateLimit({
   max: 60, // per (ip, slug) per minute
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => `${req.ip}:${req.params.slug || ''}`,
+  keyGenerator: (req) => `${getClientIpFromRequest(req)}:${req.params.slug || ''}`,
   message: 'Too many scans of this code from your network. Please try again shortly.',
 });
 
@@ -43,6 +44,7 @@ const SLUG_RE = /^[A-Za-z0-9_-]{6,16}$/;
 router.get('/:slug', slugLimiter, async (req, res) => {
   const t0 = process.hrtime.bigint();
   const { slug } = req.params;
+  const clientIp = getClientIpFromRequest(req);
 
   if (!SLUG_RE.test(slug)) {
     return res.status(400).type('html').send('<h1>Invalid QR code</h1>');
@@ -62,7 +64,7 @@ router.get('/:slug', slugLimiter, async (req, res) => {
   }
 
   if (!camp) {
-    logger.warn('redirect.miss', { slug, ip: req.ip });
+    logger.warn('redirect.miss', { slug, ip: clientIp });
     return res
       .status(404)
       .type('html')
@@ -72,7 +74,7 @@ router.get('/:slug', slugLimiter, async (req, res) => {
   scanQueue.enqueue({
     campaignId: camp._id,
     slug,
-    ip: req.ip,
+    ip: clientIp,
     ua: req.get('user-agent'),
     referer: req.get('referer'),
     ts: Date.now(),
