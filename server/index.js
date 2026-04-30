@@ -81,9 +81,14 @@ app.use(
 app.use(compression({ level: 6, threshold: 1024 }));
 
 /* ─────────────────────────────────────────
-   Trust proxy (Render / Railway reverse proxy)
+   Trust proxy — Cloudflare → Render (and similar) often needs >1 hop so
+   req.ip / X-Forwarded-For stay usable when cf-connecting-ip is absent.
    ───────────────────────────────────────── */
-app.set('trust proxy', 1);
+const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS);
+app.set(
+  'trust proxy',
+  Number.isFinite(trustProxyHops) && trustProxyHops >= 0 ? trustProxyHops : 2
+);
 
 /* ─────────────────────────────────────────
    Global Rate Limiter — 100 req / 15 min per IP

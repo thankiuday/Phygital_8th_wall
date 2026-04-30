@@ -7,7 +7,8 @@ const logger = require('../config/logger');
 
 const GEO_ENDPOINT = process.env.GEOIP_ENDPOINT || 'https://ipwho.is/';
 const GEO_ENABLED = process.env.GEOIP_ENABLED !== 'false';
-const GEO_TIMEOUT_MS = Number(process.env.GEOIP_TIMEOUT_MS || 1500);
+const GEO_TIMEOUT_MS = Number(process.env.GEOIP_TIMEOUT_MS || 2800);
+const GEO_REVERSE_GEOCODE = process.env.GEO_REVERSE_GEOCODE !== 'false';
 const GEO_DEBUG = process.env.GEO_DEBUG === 'true';
 
 const maxmind = require('maxmind');
@@ -142,15 +143,28 @@ const getHeaderInsensitive = (req, name) => {
   return key ? req.headers[key] : undefined;
 };
 
+/** First IP/client id from a header (handles array headers + comma lists). */
+const headerFirstIpLike = (req, name) => {
+  const raw = getHeaderInsensitive(req, name);
+  if (raw == null) return null;
+  const first = Array.isArray(raw) ? raw[0] : String(raw).split(',')[0];
+  return normalizeIp(first);
+};
+
 /**
  * Client IP for geo + rate limiting. Prefer Cloudflare headers on Render.
  */
 const getClientIpFromRequest = (req) => {
-  const cfConnecting = normalizeIp(getHeaderInsensitive(req, 'cf-connecting-ip'));
-  if (cfConnecting && !isLocalOrPrivate(cfConnecting)) return cfConnecting;
+  const candidates = [
+    headerFirstIpLike(req, 'cf-connecting-ip'),
+    headerFirstIpLike(req, 'true-client-ip'),
+    headerFirstIpLike(req, 'fly-client-ip'),
+    headerFirstIpLike(req, 'x-real-ip'),
+  ];
 
-  const trueClient = normalizeIp(getHeaderInsensitive(req, 'true-client-ip'));
-  if (trueClient && !isLocalOrPrivate(trueClient)) return trueClient;
+  for (const ip of candidates) {
+    if (ip && !isLocalOrPrivate(ip)) return ip;
+  }
 
   const forwarded = req.get('x-forwarded-for');
   if (forwarded) {
@@ -164,11 +178,18 @@ const getClientIpFromRequest = (req) => {
     if (chain[0]) return chain[0];
   }
 
-  return normalizeIp(req.ip);
+  const expressIp = normalizeIp(req.ip);
+  if (expressIp && !isLocalOrPrivate(expressIp)) return expressIp;
+
+  const socketIp = normalizeIp(req.socket?.remoteAddress);
+  if (socketIp && !isLocalOrPrivate(socketIp)) return socketIp;
+
+  return null;
 };
 
 const getCfIpCountry = (req) => {
-  const raw = getHeaderInsensitive(req, 'cf-ipcountry');
+  let raw = getHeaderInsensitive(req, 'cf-ipcountry');
+  if (Array.isArray(raw)) raw = raw[0];
   if (!raw || typeof raw !== 'string') return null;
   const c = raw.trim().toUpperCase();
   if (!c || c === 'XX' || c === 'T1') return null;
@@ -274,6 +295,54 @@ const mergeGeoRecords = (a, b) => {
 /** GeoLite2 often returns country-only rows; fill city/region from HTTP when missing */
 const needsHttpEnrichment = (g) => !g || !(trimStr(g.city) || trimStr(g.region));
 
+/** MMDB/IP APIs sometimes only yield coordinates; derive labels from lat/lng */
+const needsMetroReverse = (g) =>
+  !!g
+  && Number.isFinite(g.latitude)
+  && Number.isFinite(g.longitude)
+  && !(trimStr(g.city) || trimStr(g.region));
+
+const reverseGeocodeFromCoords = async (latitude, longitude) => {
+  if (!GEO_REVERSE_GEOCODE) return null;
+
+  const url =
+    `https://api.bigdatacloud.net/data/reverse-geocode-client`
+    + `?latitude=${encodeURIComponent(latitude)}`
+    + `&longitude=${encodeURIComponent(longitude)}`
+    + '&localityLanguage=en';
+
+  try {
+    const controller = new AbortController();
+    const timeoutMs = Math.min(GEO_TIMEOUT_MS, 2800);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { Accept: 'application/json' },
+    });
+    clearTimeout(timeout);
+
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const city = trimStr(data.city || data.locality);
+    const region = trimStr(data.principalSubdivision || data.principalSubdivisionCode);
+    const country = trimStr(data.countryName);
+
+    if (!city && !region && !country) return null;
+
+    return {
+      country: country || null,
+      region: region || null,
+      city: city || null,
+      latitude,
+      longitude,
+    };
+  } catch (err) {
+    if (GEO_DEBUG) logger.debug('geoLookup reverse-geocode failed', { error: err.message });
+    return null;
+  }
+};
+
 const mergeCfCountry = (geo, cfCountryCode) => {
   const iso = cfCountryCode && String(cfCountryCode).trim().toUpperCase();
   if (!iso || !/^[A-Z]{2}$/.test(iso)) return geo;
@@ -298,7 +367,7 @@ const lookupGeo = async (rawIp, hints = {}) => {
     return null;
   }
 
-  const cacheKey = `g2:${ip}`;
+  const cacheKey = `g3:${ip}`;
   const cached = cache.get(cacheKey);
   if (cached !== undefined) {
     return cached === null
@@ -310,6 +379,10 @@ const lookupGeo = async (rawIp, hints = {}) => {
   if (needsHttpEnrichment(geo)) {
     const httpGeo = await lookupGeoFromHttp(ip);
     geo = mergeGeoRecords(geo, httpGeo);
+  }
+  if (needsMetroReverse(geo)) {
+    const rev = await reverseGeocodeFromCoords(geo.latitude, geo.longitude);
+    geo = mergeGeoRecords(geo, rev);
   }
 
   const hasSignal =
