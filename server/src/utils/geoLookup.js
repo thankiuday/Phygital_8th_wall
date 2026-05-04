@@ -18,6 +18,12 @@ const cache = new LRUCache({
   ttl: 1000 * 60 * 60 * 6, // 6h
 });
 
+/** Lat/lng reverse-geocode cache (BigDataCloud + Nominatim fallback). */
+const reverseCoordCache = new LRUCache({
+  max: 3000,
+  ttl: 1000 * 60 * 60 * 6,
+});
+
 /** Singleton MMDB reader — GeoLite2-City.mmdb */
 let mmdbReader = null;
 let mmdbLoadPromise = null;
@@ -343,6 +349,104 @@ const reverseGeocodeFromCoords = async (latitude, longitude) => {
   }
 };
 
+/**
+ * OpenStreetMap Nominatim — fallback when BigDataCloud returns nothing.
+ * https://operations.osmfoundation.org/policies/nominatim/ — identify app in User-Agent.
+ */
+const reverseGeocodeNominatim = async (latitude, longitude) => {
+  if (!GEO_REVERSE_GEOCODE) return null;
+
+  const url =
+    'https://nominatim.openstreetmap.org/reverse'
+    + `?lat=${encodeURIComponent(latitude)}`
+    + `&lon=${encodeURIComponent(longitude)}`
+    + '&format=json'
+    + '&addressdetails=1';
+
+  try {
+    const controller = new AbortController();
+    const timeoutMs = Math.min(GEO_TIMEOUT_MS, 3200);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'Phygital8ThWall/1.0 (+https://github.com/thankiuday/Phygital_8th_wall)',
+      },
+    });
+    clearTimeout(timeout);
+
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const addr = data.address || {};
+    const city = trimStr(
+      addr.city
+      || addr.town
+      || addr.village
+      || addr.municipality
+      || addr.county
+      || addr.hamlet
+    );
+    const region = trimStr(addr.state || addr.region || addr.province);
+    const country = trimStr(addr.country);
+
+    if (!city && !region && !country) return null;
+
+    return {
+      country: country || null,
+      region: region || null,
+      city: city || null,
+      latitude,
+      longitude,
+    };
+  } catch (err) {
+    if (GEO_DEBUG) logger.debug('geoLookup nominatim reverse failed', { error: err.message });
+    return null;
+  }
+};
+
+/**
+ * Cached reverse geocode (primary + Nominatim). Used for IP metro gaps and
+ * browser/hybrid GPS so city/region match the final coordinates.
+ */
+const reverseGeocodeCoordsWithFallback = async (latitude, longitude) => {
+  if (!GEO_REVERSE_GEOCODE) return null;
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+
+  const key = `${latitude.toFixed(4)},${longitude.toFixed(4)}`;
+  const cached = reverseCoordCache.get(key);
+  if (cached !== undefined) return cached;
+
+  let rev = await reverseGeocodeFromCoords(latitude, longitude);
+  if (!rev) rev = await reverseGeocodeNominatim(latitude, longitude);
+  if (rev) reverseCoordCache.set(key, rev);
+  return rev;
+};
+
+/**
+ * Fill missing city/region (and country if absent) from lat/lng after IP + browser merge.
+ * @param {number} latitude
+ * @param {number} longitude
+ * @param {{ country?: string|null, region?: string|null, city?: string|null }} partial
+ */
+const enrichLocationLabelsFromCoords = async (latitude, longitude, partial = {}) => {
+  const base = {
+    country: partial.country ?? null,
+    region: partial.region ?? null,
+    city: partial.city ?? null,
+    latitude,
+    longitude,
+  };
+  if (!GEO_REVERSE_GEOCODE) return base;
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return base;
+  if (trimStr(base.city) && trimStr(base.region)) return base;
+
+  const rev = await reverseGeocodeCoordsWithFallback(latitude, longitude);
+  if (!rev) return base;
+  return mergeGeoRecords(base, rev);
+};
+
 const mergeCfCountry = (geo, cfCountryCode) => {
   const iso = cfCountryCode && String(cfCountryCode).trim().toUpperCase();
   if (!iso || !/^[A-Z]{2}$/.test(iso)) return geo;
@@ -381,7 +485,7 @@ const lookupGeo = async (rawIp, hints = {}) => {
     geo = mergeGeoRecords(geo, httpGeo);
   }
   if (needsMetroReverse(geo)) {
-    const rev = await reverseGeocodeFromCoords(geo.latitude, geo.longitude);
+    const rev = await reverseGeocodeCoordsWithFallback(geo.latitude, geo.longitude);
     geo = mergeGeoRecords(geo, rev);
   }
 
@@ -401,6 +505,7 @@ const lookupGeo = async (rawIp, hints = {}) => {
 
 module.exports = {
   lookupGeo,
+  enrichLocationLabelsFromCoords,
   getClientIpFromRequest,
   getCfIpCountry,
   extractGeoFieldsFromProviderJson,

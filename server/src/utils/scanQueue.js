@@ -28,7 +28,7 @@ const crypto = require('crypto');
 const logger = require('../config/logger');
 const ScanEvent = require('../models/ScanEvent');
 const Campaign = require('../models/Campaign');
-const { lookupGeo } = require('./geoLookup');
+const { lookupGeo, enrichLocationLabelsFromCoords } = require('./geoLookup');
 
 // ── PII guard ────────────────────────────────────────────────────────────
 // Hash IPs with a server-side salt before persisting.  We can still count
@@ -65,9 +65,9 @@ const normalizeAndPersist = async (event) => {
     cfCountryCode: event.cfCountry || event.cfCountryCode || null,
   });
 
-  const country = geo?.country ?? null;
-  const region = geo?.region ?? null;
-  const city = geo?.city ?? null;
+  let country = geo?.country ?? null;
+  let region = geo?.region ?? null;
+  let city = geo?.city ?? null;
   let latitude = geo?.latitude ?? null;
   let longitude = geo?.longitude ?? null;
 
@@ -101,6 +101,23 @@ const normalizeAndPersist = async (event) => {
     if (event.consentVersion) {
       geoConsentVersion = String(event.consentVersion).slice(0, 128);
     }
+  }
+
+  if (
+    Number.isFinite(latitude)
+    && Number.isFinite(longitude)
+    && (!city || !String(city).trim() || !region || !String(region).trim())
+  ) {
+    const enriched = await enrichLocationLabelsFromCoords(latitude, longitude, {
+      country,
+      region,
+      city,
+    });
+    country = enriched.country ?? country;
+    region = enriched.region ?? region;
+    city = enriched.city ?? city;
+    if (Number.isFinite(enriched.latitude)) latitude = enriched.latitude;
+    if (Number.isFinite(enriched.longitude)) longitude = enriched.longitude;
   }
 
   const visitorHash =
