@@ -109,7 +109,7 @@ const CampaignAnalyticsPage = () => {
     isLoadingCamp,
     error,
     fetchCampaignAnalytics,
-    setPeriod,
+    setPeriodOnly,
     clearCampaignData,
   } = useAnalyticsStore();
 
@@ -119,7 +119,7 @@ const CampaignAnalyticsPage = () => {
   }, [id, fetchCampaignAnalytics, clearCampaignData]);
 
   const handlePeriod = (p) => {
-    setPeriod(p);
+    setPeriodOnly(p);
     fetchCampaignAnalytics(id, p);
   };
 

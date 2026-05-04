@@ -91,20 +91,30 @@ app.set(
 );
 
 /* ─────────────────────────────────────────
-   Global Rate Limiter — 100 req / 15 min per IP
+   Global Rate Limiter — safety net per IP (prod only)
+   Tunable: GLOBAL_RATE_LIMIT_MAX, GLOBAL_RATE_LIMIT_WINDOW_MS
    ───────────────────────────────────────── */
+const globalWindowMs = Number(process.env.GLOBAL_RATE_LIMIT_WINDOW_MS);
+const globalMax = Number(process.env.GLOBAL_RATE_LIMIT_MAX);
 const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
+  windowMs:
+    Number.isFinite(globalWindowMs) && globalWindowMs >= 1000
+      ? globalWindowMs
+      : 15 * 60 * 1000,
+  max:
+    Number.isFinite(globalMax) && globalMax >= 10
+      ? globalMax
+      : 1200,
   standardHeaders: true,
   legacyHeaders:   false,
   message: { success: false, message: 'Too many requests. Please try again later.' },
   // The redirect endpoint has its own per-IP + per-slug limiter — exempt it
   // from the (much stricter) auth-API limiter so a popular QR doesn't get
   // throttled.  /health is also exempted so the platform's health probes don't
-  // burn the budget.
+  // burn the budget.  OPTIONS skipped if it ever runs after CORS short-circuit.
   skip: (req) =>
     process.env.NODE_ENV !== 'production' ||
+    req.method === 'OPTIONS' ||
     req.path === '/health' ||
     req.path.startsWith('/r/'),
 });
