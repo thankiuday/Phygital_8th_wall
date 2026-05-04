@@ -14,8 +14,8 @@ import {
 } from 'lucide-react';
 
 /* ── Section + card data ─────────────────────────────────────────── */
-// `available: true` is the only type with a real wizard right now (AR).
-// Everything else renders the "Coming soon" placeholder via its route.
+// `available: true` drives the green badge + copy; routes may still point at
+// ComingSoonPage for types that are not built yet.
 const SECTIONS = [
   {
     id: 'phygital-qr',
@@ -59,6 +59,7 @@ const SECTIONS = [
         description: 'Serve a curated list of links from one QR — perfect for bios and menus.',
         icon: Layers,
         to: '/dashboard/campaigns/new/dynamic-qr/multiple-links',
+        available: true,
       },
     ],
   },

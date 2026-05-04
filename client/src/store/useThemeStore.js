@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 /**
  * useThemeStore — global dark/light mode state
@@ -31,7 +31,17 @@ const useThemeStore = create(
       },
     }),
     {
-      name: 'p8w-theme', // localStorage key
+      name: 'p8w-theme',
+      storage: createJSONStorage(() => localStorage),
+      onRehydrateStorage: () => (_state, error) => {
+        if (error) {
+          try {
+            localStorage.removeItem('p8w-theme');
+          } catch {
+            /* ignore */
+          }
+        }
+      },
     }
   )
 );
