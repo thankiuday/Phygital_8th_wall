@@ -1,13 +1,20 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2, MapPin, ExternalLink } from 'lucide-react';
 import publicApi from '../services/publicApi';
 
 const GEO_CONSENT_VERSION = 'browser-geolocation-v1';
 
+const deviceTypeGuess = () => {
+  const ua = navigator.userAgent || '';
+  if (/iPhone|Android.*Mobile|Mobile/i.test(ua)) return 'mobile';
+  if (/iPad|Tablet|Android(?!.*Mobile)/i.test(ua)) return 'tablet';
+  return 'desktop';
+};
+
 /**
- * Public landing page for single-link QR campaigns with precise geo enabled.
- * Records the scan (async queue) then redirects to the campaign destination.
+ * Bridge for dynamic QR with precise geo: single-link → external URL;
+ * multiple-links → /l/:slug (scan recorded here so the hub does not double-count).
  */
 const OpenSingleLinkBridgePage = () => {
   const { slug } = useParams();
@@ -15,14 +22,24 @@ const OpenSingleLinkBridgePage = () => {
   const [error, setError] = useState('');
   const [meta, setMeta] = useState(null);
   const [geoStatus, setGeoStatus] = useState('');
+  const visitorHashRef = useRef('');
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await publicApi.get(`/public/single-link/${encodeURIComponent(slug)}/meta`);
+        const res = await publicApi.get(
+          `/public/dynamic-qr/${encodeURIComponent(slug)}/meta`
+        );
         const data = res.data?.data;
-        if (!data?.destinationUrl) throw new Error('Invalid response');
+        if (!data?.campaignType) throw new Error('Invalid response');
+        if (data.campaignType === 'single-link-qr' && !data.destinationUrl) {
+          throw new Error('Invalid response');
+        }
+        if (!visitorHashRef.current) {
+          visitorHashRef.current =
+            crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        }
         if (!cancelled) {
           setMeta(data);
           setPhase('ready');
@@ -48,7 +65,7 @@ const OpenSingleLinkBridgePage = () => {
     window.location.assign(url);
   }, []);
 
-  const postScanAndRedirect = useCallback(
+  const postSingleScanAndRedirect = useCallback(
     async (body) => {
       setGeoStatus('');
       try {
@@ -70,7 +87,37 @@ const OpenSingleLinkBridgePage = () => {
     [slug, redirectTo]
   );
 
-  const handleSkipGeo = () => postScanAndRedirect({});
+  const postMultiScanAndGoHub = useCallback(
+    async (body) => {
+      setGeoStatus('');
+      try {
+        const vh = visitorHashRef.current;
+        await publicApi.post(`/public/multi-link/${encodeURIComponent(slug)}/scan`, {
+          visitorHash: vh,
+          deviceType: deviceTypeGuess(),
+          browser: /Chrome/i.test(navigator.userAgent) ? 'Chrome' : 'Other',
+          ...body,
+        });
+        sessionStorage.setItem(`p8w_vh_${slug}`, vh);
+        sessionStorage.setItem(`p8w_scan_done_${slug}`, '1');
+        redirectTo(`${window.location.origin}/l/${slug}`);
+      } catch (e) {
+        setGeoStatus(
+          e?.response?.data?.message
+          || e?.message
+          || 'Could not continue. Please try again.'
+        );
+      }
+    },
+    [slug, redirectTo]
+  );
+
+  const handleSkipGeo = () => {
+    if (meta?.campaignType === 'multiple-links-qr') {
+      return postMultiScanAndGoHub({});
+    }
+    return postSingleScanAndRedirect({});
+  };
 
   const handleShareGeo = () => {
     if (!navigator.geolocation) {
@@ -80,12 +127,17 @@ const OpenSingleLinkBridgePage = () => {
     setGeoStatus('Waiting for permission…');
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        postScanAndRedirect({
+        const body = {
           latitude: pos.coords.latitude,
           longitude: pos.coords.longitude,
           accuracyM: pos.coords.accuracy,
           consentVersion: GEO_CONSENT_VERSION,
-        });
+        };
+        if (meta?.campaignType === 'multiple-links-qr') {
+          postMultiScanAndGoHub(body);
+        } else {
+          postSingleScanAndRedirect(body);
+        }
       },
       (err) => {
         setGeoStatus(err?.message || 'Location permission denied.');
@@ -115,6 +167,7 @@ const OpenSingleLinkBridgePage = () => {
   }
 
   const precise = !!meta?.preciseGeoAnalytics;
+  const isMulti = meta?.campaignType === 'multiple-links-qr';
 
   return (
     <div className="mx-auto max-w-md px-6 py-12">
@@ -127,9 +180,13 @@ const OpenSingleLinkBridgePage = () => {
         {meta?.campaignName || 'Continue'}
       </h1>
       <p className="mt-3 text-center text-sm text-[var(--text-secondary)]">
-        {precise
-          ? 'You can continue immediately, or optionally share your device location once to improve scan analytics. Location is never required to open your link.'
-          : 'Tap below to open your link. We record approximate scan analytics from your network.'}
+        {isMulti
+          ? precise
+            ? 'Continue to your link page, or optionally share your device location once for richer analytics.'
+            : 'Tap below to open your link page. We record approximate scan analytics from your network.'
+          : precise
+            ? 'You can continue immediately, or optionally share your device location once to improve scan analytics. Location is never required to open your link.'
+            : 'Tap below to open your link. We record approximate scan analytics from your network.'}
       </p>
 
       <div className="mt-8 flex flex-col gap-3">
@@ -151,7 +208,7 @@ const OpenSingleLinkBridgePage = () => {
           }`}
         >
           <ExternalLink size={18} aria-hidden />
-          {precise ? 'Continue without location' : 'Continue'}
+          {precise ? 'Continue without location' : isMulti ? 'Open link page' : 'Continue'}
         </button>
       </div>
 

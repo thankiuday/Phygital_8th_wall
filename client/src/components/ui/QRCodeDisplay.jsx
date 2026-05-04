@@ -17,6 +17,9 @@ const QRCodeDisplay = ({
   campaignType = 'ar-card',
   redirectSlug = null,
 }) => {
+  const isDynamicQr =
+    campaignType === 'single-link-qr' || campaignType === 'multiple-links-qr';
+
   const [qrUrl, setQrUrl] = useState(initialQrUrl);
   const [polling, setPolling] = useState(!initialQrUrl);
   const [copied, setCopied] = useState(false);
@@ -27,12 +30,10 @@ const QRCodeDisplay = ({
   const arPageUrl = `${window.location.origin}/ar/${campaignId}`;
   const localRedirectUrl = redirectSlug ? `${window.location.origin}/r/${redirectSlug}` : null;
   const [shareUrl, setShareUrl] = useState(
-    campaignType === 'single-link-qr'
-      ? (localRedirectUrl || arPageUrl)
-      : arPageUrl
+    isDynamicQr ? (localRedirectUrl || arPageUrl) : arPageUrl
   );
   const styledOptions = useMemo(() => {
-    if (campaignType !== 'single-link-qr' || !shareUrl) return null;
+    if (!isDynamicQr || !shareUrl) return null;
     const design = qrDesign || {};
     return {
       width: design.width || 256,
@@ -53,7 +54,7 @@ const QRCodeDisplay = ({
         ...(design.imageOptions || {}),
       },
     };
-  }, [campaignType, qrDesign, shareUrl]);
+  }, [isDynamicQr, qrDesign, shareUrl]);
 
   /* ── Poll until QR is generated ───────────────────────────── */
   const fetchQR = useCallback(async () => {
@@ -68,7 +69,10 @@ const QRCodeDisplay = ({
       } = res.data.data;
       if (!ready) return;
 
-      if (type === 'single-link-qr' && redirectUrl) {
+      if (
+        (type === 'single-link-qr' || type === 'multiple-links-qr')
+        && redirectUrl
+      ) {
         setShareUrl(redirectUrl);
         setQrDesign(persistedDesign || null);
         setQrUrl(null);
@@ -105,7 +109,7 @@ const QRCodeDisplay = ({
 
   /* ── Download QR as PNG ────────────────────────────────────── */
   const handleDownload = async () => {
-    if (campaignType === 'single-link-qr') {
+    if (isDynamicQr) {
       downloadRef.current?.({ name: campaignName || 'qr-code', extension: 'png' });
       return;
     }
@@ -132,9 +136,12 @@ const QRCodeDisplay = ({
     if (navigator.share) {
       await navigator.share({
         title: campaignName || 'AR Business Card',
-        text: campaignType === 'single-link-qr'
-          ? 'Scan this QR code to open the link.'
-          : 'Scan this QR code to see my AR business card!',
+        text:
+          campaignType === 'multiple-links-qr'
+            ? 'Scan this QR code to open my link page.'
+            : campaignType === 'single-link-qr'
+              ? 'Scan this QR code to open the link.'
+              : 'Scan this QR code to see my AR business card!',
         url: shareUrl,
       });
     } else {
@@ -142,7 +149,7 @@ const QRCodeDisplay = ({
     }
   };
 
-  const qrReady = campaignType === 'single-link-qr' ? Boolean(styledOptions) : Boolean(qrUrl);
+  const qrReady = isDynamicQr ? Boolean(styledOptions) : Boolean(qrUrl);
 
   return (
     <div className="flex flex-col items-center gap-5">
@@ -163,7 +170,7 @@ const QRCodeDisplay = ({
               <RefreshCw size={12} /> Retry
             </button>
           </div>
-        ) : campaignType === 'single-link-qr' ? (
+        ) : isDynamicQr ? (
           <StyledQrPreview
             options={styledOptions}
             downloadRef={downloadRef}
@@ -216,16 +223,18 @@ const QRCodeDisplay = ({
         </button>
       </div>
 
-      {!campaignActive && campaignType !== 'single-link-qr' && (
+      {!campaignActive && !isDynamicQr && (
         <p className="text-center text-xs text-amber-500/90">
           Activate this campaign so the QR and link open the AR experience for everyone.
         </p>
       )}
 
       <p className="text-center text-xs text-[var(--text-muted)]">
-        {campaignType === 'single-link-qr'
-          ? 'Print this QR or share the link. When scanned, it redirects to your destination URL.'
-          : 'Print this QR on your business card or share the link. When scanned, it opens your AR experience instantly — no app download needed.'}
+        {campaignType === 'multiple-links-qr'
+          ? 'Print this QR or share the link. When scanned, it opens your link page with every destination you configured.'
+          : campaignType === 'single-link-qr'
+            ? 'Print this QR or share the link. When scanned, it redirects to your destination URL.'
+            : 'Print this QR on your business card or share the link. When scanned, it opens your AR experience instantly — no app download needed.'}
       </p>
     </div>
   );

@@ -81,6 +81,12 @@ const useAuthStore = create((set, get) => {
       set({ user: null, accessToken: null, isAuthenticated: false, isLoading: false });
     },
 
+    /** Revoke refresh sessions on every device; clears local auth state. */
+    logoutAll: async () => {
+      try { await authService.logoutAll(); } catch { /* ignore */ }
+      set({ user: null, accessToken: null, isAuthenticated: false, isLoading: false });
+    },
+
     /**
      * hydrate — called ONCE in App.jsx on mount.
      * Silently restores a session from the httpOnly refresh cookie.

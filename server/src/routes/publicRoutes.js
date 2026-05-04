@@ -5,13 +5,22 @@ const router = express.Router();
 const rateLimit = require('express-rate-limit');
 const Campaign = require('../models/Campaign');
 const ScanEvent = require('../models/ScanEvent');
+const LinkClickEvent = require('../models/LinkClickEvent');
 const { success } = require('../utils/apiResponse');
 const { AppError } = require('../middleware/errorHandler');
 const scanQueue = require('../utils/scanQueue');
 const { getClientIpFromRequest, getCfIpCountry } = require('../utils/geoLookup');
 const { validate } = require('../middleware/validate');
-const { publicSingleLinkScanSchema } = require('../validators/publicScanValidators');
+const {
+  publicSingleLinkScanSchema,
+  publicMultiLinkScanSchema,
+  publicMultiLinkClickSchema,
+  publicMultiLinkSessionSchema,
+} = require('../validators/publicScanValidators');
+const { toPublicLinkList } = require('../utils/linkItemResolver');
 const { SLUG_RE } = require('../constants/singleLinkSlug');
+const { dynamicQrMetaCache } = require('../utils/redirectCache');
+const logger = require('../config/logger');
 
 /* ── Generous rate limit — AR scans can come in bursts ──────────── */
 const publicLimiter = rateLimit({
@@ -115,6 +124,190 @@ const singleLinkSlugLimiter = rateLimit({
   keyGenerator: (req) => `${getClientIpFromRequest(req)}:${req.params.slug || ''}`,
   message: 'Too many requests for this link. Please try again shortly.',
 });
+
+const multiLinkClickLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `${getClientIpFromRequest(req)}:${req.params.slug || ''}`,
+  message: 'Too many link clicks. Please try again shortly.',
+});
+
+/* ─────────────────────────────────────────
+   Dynamic QR meta — single-link + multiple-links (bridge + hub)
+   ───────────────────────────────────────── */
+
+router.get('/dynamic-qr/:slug/meta', singleLinkSlugLimiter, async (req, res) => {
+  const { slug } = req.params;
+  if (!SLUG_RE.test(slug)) throw new AppError('Invalid link code', 400);
+
+  const cached = await dynamicQrMetaCache.get(slug);
+  if (cached) return success(res, cached);
+
+  const campaign = await Campaign.findOne(
+    {
+      redirectSlug: slug,
+      status: 'active',
+      campaignType: { $in: ['single-link-qr', 'multiple-links-qr'] },
+    },
+    'campaignName campaignType destinationUrl preciseGeoAnalytics redirectSlug linkItems'
+  ).lean();
+
+  if (!campaign) throw new AppError('Link not found', 404);
+
+  const payload =
+    campaign.campaignType === 'single-link-qr'
+      ? {
+        campaignType: 'single-link-qr',
+        campaignName: campaign.campaignName,
+        destinationUrl: campaign.destinationUrl,
+        preciseGeoAnalytics: !!campaign.preciseGeoAnalytics,
+        slug: campaign.redirectSlug,
+      }
+      : {
+        campaignType: 'multiple-links-qr',
+        campaignName: campaign.campaignName,
+        links: toPublicLinkList(campaign.linkItems || []),
+        preciseGeoAnalytics: !!campaign.preciseGeoAnalytics,
+        slug: campaign.redirectSlug,
+      };
+
+  await dynamicQrMetaCache.set(slug, payload);
+  return success(res, payload);
+});
+
+/* ─────────────────────────────────────────
+   Multiple-links hub — scan, session, click
+   ───────────────────────────────────────── */
+
+router.post(
+  '/multi-link/:slug/scan',
+  singleLinkSlugLimiter,
+  validate(publicMultiLinkScanSchema),
+  async (req, res) => {
+    const { slug } = req.params;
+    if (!SLUG_RE.test(slug)) throw new AppError('Invalid link code', 400);
+
+    const campaign = await Campaign.findOne(
+      { redirectSlug: slug, status: 'active', campaignType: 'multiple-links-qr' },
+      '_id preciseGeoAnalytics'
+    ).lean();
+
+    if (!campaign) throw new AppError('Link not found', 404);
+
+    const {
+      visitorHash,
+      deviceType,
+      browser,
+      latitude,
+      longitude,
+      accuracyM,
+      consentVersion,
+    } = req.body;
+
+    scanQueue.enqueue({
+      campaignId: campaign._id,
+      slug,
+      ip: getClientIpFromRequest(req),
+      ua: req.get('user-agent'),
+      cfCountry: getCfIpCountry(req),
+      ts: Date.now(),
+      allowBrowserGeo: campaign.preciseGeoAnalytics === true,
+      browserLatitude: latitude,
+      browserLongitude: longitude,
+      browserAccuracyM: accuracyM,
+      consentVersion,
+      visitorHash,
+      deviceType,
+      browser,
+    });
+
+    return success(res, {}, 'Scan recorded');
+  }
+);
+
+/** POST + PATCH — POST supports navigator.sendBeacon (beacon is always POST). */
+const updateMultiLinkSession = async (req, res) => {
+  const { slug } = req.params;
+  if (!SLUG_RE.test(slug)) throw new AppError('Invalid link code', 400);
+
+  const campaign = await Campaign.findOne(
+    { redirectSlug: slug, status: 'active', campaignType: 'multiple-links-qr' },
+    '_id'
+  ).lean();
+
+  if (!campaign) throw new AppError('Link not found', 404);
+
+  const { visitorHash, sessionDurationMs } = req.body;
+
+  await ScanEvent.findOneAndUpdate(
+    {
+      campaignId: campaign._id,
+      visitorHash,
+    },
+    {
+      $max: {
+        sessionDurationMs: Number(sessionDurationMs) || 0,
+      },
+    },
+    { sort: { scannedAt: -1 } }
+  );
+
+  return success(res, {}, 'Session updated');
+};
+
+router.patch(
+  '/multi-link/:slug/session',
+  singleLinkSlugLimiter,
+  validate(publicMultiLinkSessionSchema),
+  updateMultiLinkSession
+);
+
+router.post(
+  '/multi-link/:slug/session',
+  singleLinkSlugLimiter,
+  validate(publicMultiLinkSessionSchema),
+  updateMultiLinkSession
+);
+
+router.post(
+  '/multi-link/:slug/click',
+  multiLinkClickLimiter,
+  validate(publicMultiLinkClickSchema),
+  async (req, res) => {
+    const { slug } = req.params;
+    if (!SLUG_RE.test(slug)) throw new AppError('Invalid link code', 400);
+
+    const campaign = await Campaign.findOne(
+      { redirectSlug: slug, status: 'active', campaignType: 'multiple-links-qr' },
+      '_id userId linkItems'
+    ).lean();
+
+    if (!campaign) throw new AppError('Link not found', 404);
+
+    const { linkId, visitorHash } = req.body;
+    const allowed = new Set((campaign.linkItems || []).map((x) => x.linkId));
+    if (!allowed.has(linkId)) throw new AppError('Invalid link', 400);
+
+    LinkClickEvent.create({
+      campaignId: campaign._id,
+      userId: campaign.userId,
+      linkId,
+      visitorHash: visitorHash || null,
+      clickedAt: new Date(),
+    }).catch(() => {});
+
+    void Campaign.updateOne(
+      { _id: campaign._id },
+      { $inc: { [`analytics.linkClickTotals.${linkId}`]: 1 } }
+    ).catch((err) => {
+      logger.warn('analytics.linkClickTotals inc failed', { linkId, error: err.message });
+    });
+
+    return success(res, {}, 'Click recorded');
+  }
+);
 
 /* ─────────────────────────────────────────
    Single-link QR bridge (precise geo analytics)

@@ -15,6 +15,7 @@
 
 const mongoose = require('mongoose');
 const User      = require('../models/User');
+const Session   = require('../models/Session');
 const Campaign  = require('../models/Campaign');
 const ScanEvent = require('../models/ScanEvent');
 const { success } = require('../utils/apiResponse');
@@ -140,7 +141,7 @@ exports.getUsers = async (req, res) => {
 
   const [users, total] = await Promise.all([
     User.find(filter)
-      .select('-password -passwordResetToken -passwordResetExpires -refreshTokenHash')
+      .select('-password -passwordResetToken -passwordResetExpires')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(Number(limit))
@@ -194,8 +195,12 @@ exports.updateUser = async (req, res) => {
   if (Object.keys(allowed).length === 0) throw new AppError('No valid fields to update', 400);
 
   const user = await User.findByIdAndUpdate(req.params.id, allowed, { new: true })
-    .select('-password -passwordResetToken -refreshTokenHash');
+    .select('-password -passwordResetToken -passwordResetExpires');
   if (!user) throw new AppError('User not found', 404);
+
+  if (allowed.isActive === false) {
+    await Session.deleteMany({ user: user._id });
+  }
 
   return success(res, { user }, 'User updated');
 };

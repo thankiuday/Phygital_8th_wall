@@ -30,6 +30,8 @@ const NewCampaignPage        = lazy(() => import('./pages/campaigns/NewCampaignP
 const PhygitalizePickerPage  = lazy(() => import('./pages/campaigns/PhygitalizePickerPage'));
 const ComingSoonPage         = lazy(() => import('./pages/campaigns/ComingSoonPage'));
 const SingleLinkQrWizard     = lazy(() => import('./pages/campaigns/SingleLinkQrWizard'));
+const MultipleLinksQrWizard  = lazy(() => import('./pages/campaigns/MultipleLinksQrWizard'));
+const LinkHubPage            = lazy(() => import('./pages/LinkHubPage'));
 const CampaignDetailPage     = lazy(() => import('./pages/campaigns/CampaignDetailPage'));
 const AnalyticsPage          = lazy(() => import('./pages/analytics/AnalyticsPage'));
 const CampaignAnalyticsPage  = lazy(() => import('./pages/analytics/CampaignAnalyticsPage'));
@@ -100,7 +102,7 @@ function App() {
               <Route path="campaigns/new/phygital-qr/links-video"      element={<RouteLoader><ComingSoonPage type="Links + Video QR" /></RouteLoader>} />
               <Route path="campaigns/new/phygital-qr/links-doc-video"  element={<RouteLoader><ComingSoonPage type="Links, Doc & Video QR" /></RouteLoader>} />
               <Route path="campaigns/new/dynamic-qr/single-link"       element={<RouteLoader><SingleLinkQrWizard /></RouteLoader>} />
-              <Route path="campaigns/new/dynamic-qr/multiple-links"    element={<RouteLoader><ComingSoonPage type="Multiple Links Dynamic QR" /></RouteLoader>} />
+              <Route path="campaigns/new/dynamic-qr/multiple-links"    element={<RouteLoader><MultipleLinksQrWizard /></RouteLoader>} />
               <Route path="campaigns/new/digital-business-card/personalized-identity" element={<RouteLoader><ComingSoonPage type="Personalized Identity Card" /></RouteLoader>} />
               <Route path="campaigns/new/digital-business-card/ar"     element={<RouteLoader><NewCampaignPage /></RouteLoader>} />
               <Route path="campaigns/:id"        element={<RouteLoader><CampaignDetailPage /></RouteLoader>} />
@@ -122,7 +124,17 @@ function App() {
               <Route path="campaigns" element={<RouteLoader><AdminCampaignsPage /></RouteLoader>} />
             </Route>
 
-            {/* ── Public single-link bridge (precise geo QR) ───────── */}
+            {/* ── Public multi-link hub (first-party link page) ─────── */}
+            <Route
+              path="/l/:slug"
+              element={
+                <Suspense fallback={<RouteSkeleton />}>
+                  <LinkHubPage />
+                </Suspense>
+              }
+            />
+
+            {/* ── Public single-link / multi-link bridge (precise geo) ─ */}
             <Route path="/open/:slug" element={<OpenSingleLinkBridgePage />} />
 
             {/* ── Public AR experience ──────────────────────────────── */}

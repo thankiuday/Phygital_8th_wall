@@ -43,8 +43,8 @@ const campaignSchema = new mongoose.Schema(
     campaignType: {
       type: String,
       enum: {
-        values: ['ar-card', 'single-link-qr'],
-        message: 'campaignType must be one of: ar-card, single-link-qr',
+        values: ['ar-card', 'single-link-qr', 'multiple-links-qr'],
+        message: 'campaignType must be one of: ar-card, single-link-qr, multiple-links-qr',
       },
       default: 'ar-card',
       required: true,
@@ -113,6 +113,22 @@ const campaignSchema = new mongoose.Schema(
      */
     preciseGeoAnalytics: { type: Boolean, default: false },
 
+    /**
+     * Hub links for `multiple-links-qr` — resolved hrefs are built server-side
+     * for public meta and click validation.
+     */
+    linkItems: {
+      type: [
+        {
+          linkId: { type: String, required: true },
+          kind: { type: String, required: true },
+          label: { type: String, required: true, maxlength: 80 },
+          value: { type: String, required: true, maxlength: 500 },
+        },
+      ],
+      default: undefined,
+    },
+
     status: {
       type: String,
       enum: ['draft', 'active', 'paused'],
@@ -124,6 +140,8 @@ const campaignSchema = new mongoose.Schema(
       totalScans: { type: Number, default: 0 },
       uniqueScans: { type: Number, default: 0 },
       lastScannedAt: { type: Date, default: null },
+      /** Denormalized per-linkId click counts for multiple-links-qr (see $inc on click). */
+      linkClickTotals: { type: mongoose.Schema.Types.Mixed, default: undefined },
     },
 
     thumbnailUrl: { type: String, default: null },

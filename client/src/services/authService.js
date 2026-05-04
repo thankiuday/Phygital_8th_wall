@@ -19,6 +19,10 @@ export const authService = {
     await api.post('/auth/logout');
   },
 
+  logoutAll: async () => {
+    await api.post('/auth/logout-all');
+  },
+
   /**
    * refresh — uses the httpOnly cookie automatically (withCredentials: true).
    * Returns { accessToken }.

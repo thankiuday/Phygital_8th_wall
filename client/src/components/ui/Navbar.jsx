@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Zap } from 'lucide-react';
+import { Menu, X, Zap, ChevronDown, LayoutDashboard, LogOut } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
+import useAuthStore from '../../store/useAuthStore';
 
 const NAV_LINKS = [
   { label: 'Features', to: '/#features' },
@@ -19,8 +20,16 @@ const NAV_LINKS = [
  * - Mobile hamburger with slide-down glass menu
  */
 const Navbar = () => {
+  const { user, isAuthenticated, isHydrating, logout } = useAuthStore();
+  const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  const initials = user?.name
+    ? user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+    : 'U';
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 16);
@@ -33,6 +42,23 @@ const Navbar = () => {
     document.body.style.overflow = mobileOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [mobileOpen]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handler);
+    return () => document.removeEventListener('pointerdown', handler);
+  }, []);
+
+  const handleLogout = async () => {
+    setUserMenuOpen(false);
+    setMobileOpen(false);
+    await logout();
+    navigate('/', { replace: true });
+  };
 
   return (
     <header
@@ -68,18 +94,96 @@ const Navbar = () => {
         {/* Right actions */}
         <div className="flex items-center gap-2 sm:gap-3">
           <ThemeToggle />
-          <Link
-            to="/login"
-            className="hidden rounded-xl px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--brand)] md:block"
-          >
-            Sign In
-          </Link>
-          <Link
-            to="/register"
-            className="hidden rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-glow transition-all duration-200 hover:bg-brand-500 hover:shadow-glow-lg md:block"
-          >
-            Get Started Free
-          </Link>
+
+          {isHydrating ? (
+            <div
+              className="hidden h-9 w-28 animate-pulse rounded-xl bg-[var(--surface-3)] md:block"
+              aria-hidden
+            />
+          ) : isAuthenticated && user ? (
+            <>
+              <Link
+                to="/dashboard"
+                className="hidden items-center gap-1.5 rounded-xl border border-[var(--border-color)] bg-[var(--glass-bg)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] backdrop-blur-sm transition-colors hover:border-brand-500/50 hover:text-brand-400 md:inline-flex"
+              >
+                <LayoutDashboard size={16} />
+                Dashboard
+              </Link>
+              <div className="relative hidden md:block" ref={menuRef}>
+                <button
+                  type="button"
+                  onClick={() => setUserMenuOpen((p) => !p)}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[var(--border-color)] bg-[var(--glass-bg)] px-3 py-2 backdrop-blur-sm transition-colors hover:border-brand-500/50"
+                  aria-label="Account menu"
+                  aria-expanded={userMenuOpen}
+                >
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-brand text-xs font-bold text-white">
+                    {user.avatar ? (
+                      <img src={user.avatar} alt="" className="h-full w-full rounded-full object-cover" />
+                    ) : (
+                      initials
+                    )}
+                  </div>
+                  <span className="max-w-[8rem] truncate text-sm font-medium text-[var(--text-primary)]">
+                    {user.name?.split(' ')[0] || 'Account'}
+                  </span>
+                  <ChevronDown
+                    size={14}
+                    className={`text-[var(--text-muted)] transition-transform ${userMenuOpen ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                <AnimatePresence>
+                  {userMenuOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 top-full z-50 mt-2 w-52 rounded-2xl border border-[var(--border-color)] bg-[var(--surface-solid)] p-1.5 shadow-[var(--shadow-lg)]"
+                    >
+                      <div className="mb-1 border-b border-[var(--border-color)] px-3 pb-2 pt-1">
+                        <p className="text-sm font-semibold text-[var(--text-primary)]">{user.name}</p>
+                        <p className="truncate text-xs text-[var(--text-muted)]">{user.email}</p>
+                      </div>
+                      <Link
+                        to="/dashboard"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
+                      >
+                        <LayoutDashboard size={14} />
+                        Dashboard
+                      </Link>
+                      <div className="mt-1 border-t border-[var(--border-color)] pt-1">
+                        <button
+                          type="button"
+                          onClick={handleLogout}
+                          className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-red-400 transition-colors hover:bg-red-500/10"
+                        >
+                          <LogOut size={14} />
+                          Sign out
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </>
+          ) : (
+            <>
+              <Link
+                to="/login"
+                className="hidden rounded-xl px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--brand)] md:block"
+              >
+                Sign In
+              </Link>
+              <Link
+                to="/register"
+                className="hidden rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-glow transition-all duration-200 hover:bg-brand-500 hover:shadow-glow-lg md:block"
+              >
+                Get Started Free
+              </Link>
+            </>
+          )}
 
           {/* Mobile hamburger — full 44×44 tap target (WCAG 2.5.5) */}
           <button
@@ -135,22 +239,50 @@ const Navbar = () => {
                 </NavLink>
               ))}
 
-              {/* Auth buttons */}
+              {/* Auth / account */}
               <div className="mt-3 flex flex-col gap-2 border-t border-[var(--border-color)] pt-3">
-                <Link
-                  to="/login"
-                  onClick={() => setMobileOpen(false)}
-                  className="rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-4 py-3 text-center text-sm font-semibold text-[var(--text-primary)] transition-colors hover:border-brand-500/50 hover:text-brand-400"
-                >
-                  Sign In
-                </Link>
-                <Link
-                  to="/register"
-                  onClick={() => setMobileOpen(false)}
-                  className="rounded-xl bg-brand-600 px-4 py-3 text-center text-sm font-semibold text-white shadow-glow transition-all hover:bg-brand-500"
-                >
-                  Get Started Free
-                </Link>
+                {isHydrating ? (
+                  <div className="h-11 animate-pulse rounded-xl bg-[var(--surface-3)]" aria-hidden />
+                ) : isAuthenticated && user ? (
+                  <>
+                    <Link
+                      to="/dashboard"
+                      onClick={() => setMobileOpen(false)}
+                      className="flex items-center justify-center gap-2 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-4 py-3 text-sm font-semibold text-[var(--text-primary)] transition-colors hover:border-brand-500/50 hover:text-brand-400"
+                    >
+                      <LayoutDashboard size={16} />
+                      Dashboard
+                    </Link>
+                    <p className="px-1 text-center text-xs text-[var(--text-muted)]">
+                      Signed in as <span className="font-medium text-[var(--text-secondary)]">{user.name}</span>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="flex items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm font-semibold text-red-400 transition-colors hover:bg-red-500/10"
+                    >
+                      <LogOut size={16} />
+                      Sign out
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      to="/login"
+                      onClick={() => setMobileOpen(false)}
+                      className="rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-4 py-3 text-center text-sm font-semibold text-[var(--text-primary)] transition-colors hover:border-brand-500/50 hover:text-brand-400"
+                    >
+                      Sign In
+                    </Link>
+                    <Link
+                      to="/register"
+                      onClick={() => setMobileOpen(false)}
+                      className="rounded-xl bg-brand-600 px-4 py-3 text-center text-sm font-semibold text-white shadow-glow transition-all hover:bg-brand-500"
+                    >
+                      Get Started Free
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
           </motion.div>

@@ -48,10 +48,17 @@ const StatusBadge = ({ status }) => {
 /* ── Mobile action sheet (collapsed into three-dot menu on small screens) ── */
 const ActionMenu = ({ campaign, actionLoading, onEdit, onDuplicate, onToggleStatus, onDelete }) => {
   const [open, setOpen] = useState(false);
-  const isSingleLinkQr = campaign.campaignType === 'single-link-qr';
+  const isDynamicQr =
+    campaign.campaignType === 'single-link-qr'
+    || campaign.campaignType === 'multiple-links-qr';
   const trackedRedirectUrl = campaign.redirectSlug
     ? `${resolveRedirectBase()}/r/${campaign.redirectSlug}`
     : null;
+  const hubPreviewUrl = campaign.redirectSlug
+    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/l/${campaign.redirectSlug}`
+    : null;
+  const openDynamicUrl =
+    campaign.campaignType === 'multiple-links-qr' ? hubPreviewUrl : trackedRedirectUrl;
 
   return (
     <div className="relative">
@@ -95,16 +102,17 @@ const ActionMenu = ({ campaign, actionLoading, onEdit, onDuplicate, onToggleStat
                 {campaign.status === 'active' ? <Pause size={14} /> : <Play size={14} />}
                 {campaign.status === 'active' ? 'Pause' : 'Activate'}
               </button>
-              {isSingleLinkQr ? (
-                trackedRedirectUrl ? (
+              {isDynamicQr ? (
+                openDynamicUrl ? (
                   <a
-                    href={trackedRedirectUrl}
+                    href={openDynamicUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => setOpen(false)}
                     className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-3)]"
                   >
-                    <ExternalLink size={14} /> Open Link
+                    <ExternalLink size={14} />{' '}
+                    {campaign.campaignType === 'multiple-links-qr' ? 'Open link page' : 'Open Link'}
                   </a>
                 ) : null
               ) : (
@@ -259,10 +267,17 @@ const CampaignDetailPage = () => {
     );
   }
 
-  const isSingleLinkQr = campaign.campaignType === 'single-link-qr';
+  const isDynamicQr =
+    campaign.campaignType === 'single-link-qr'
+    || campaign.campaignType === 'multiple-links-qr';
   const trackedRedirectUrl = campaign.redirectSlug
     ? `${resolveRedirectBase()}/r/${campaign.redirectSlug}`
     : null;
+  const hubPreviewUrl = campaign.redirectSlug
+    ? `${window.location.origin}/l/${campaign.redirectSlug}`
+    : null;
+  const openDynamicUrl =
+    campaign.campaignType === 'multiple-links-qr' ? hubPreviewUrl : trackedRedirectUrl;
 
   return (
     <div className="mx-auto max-w-4xl space-y-4 p-4 sm:space-y-5 sm:p-6">
@@ -289,15 +304,16 @@ const CampaignDetailPage = () => {
           >
             <BarChart3 size={14} /> Analytics
           </Link>
-          {isSingleLinkQr ? (
-            trackedRedirectUrl ? (
+          {isDynamicQr ? (
+            openDynamicUrl ? (
               <a
-                href={trackedRedirectUrl}
+                href={openDynamicUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 rounded-xl border border-[var(--border-color)] px-3 py-2 text-sm text-[var(--text-secondary)] hover:border-brand-500/50 hover:text-brand-400"
               >
-                <ExternalLink size={14} /> Open Link
+                <ExternalLink size={14} />{' '}
+                {campaign.campaignType === 'multiple-links-qr' ? 'Open link page' : 'Open Link'}
               </a>
             ) : null
           ) : (
@@ -468,7 +484,7 @@ const CampaignDetailPage = () => {
             </motion.div>
           )}
 
-          {isSingleLinkQr && campaign.destinationUrl && (
+          {campaign.campaignType === 'single-link-qr' && campaign.destinationUrl && (
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
@@ -488,6 +504,35 @@ const CampaignDetailPage = () => {
               >
                 {campaign.destinationUrl}
               </a>
+            </motion.div>
+          )}
+
+          {campaign.campaignType === 'multiple-links-qr'
+            && Array.isArray(campaign.linkItems)
+            && campaign.linkItems.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="glass-card p-4 sm:p-5"
+            >
+              <div className="mb-3 flex items-center gap-2">
+                <ExternalLink size={16} className="text-brand-400" />
+                <h4 className="text-sm font-semibold text-[var(--text-primary)]">Hub links</h4>
+              </div>
+              <ul className="space-y-2">
+                {campaign.linkItems.map((it) => (
+                  <li
+                    key={it.linkId}
+                    className="rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                  >
+                    <span className="font-medium">{it.label}</span>
+                    <span className="mt-0.5 block truncate text-xs text-[var(--text-muted)]">
+                      {it.kind} · {it.value}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </motion.div>
           )}
         </div>

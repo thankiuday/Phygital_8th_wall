@@ -1,6 +1,7 @@
 'use strict';
 
 const User = require('../models/User');
+const Session = require('../models/Session');
 const { AppError } = require('../middleware/errorHandler');
 const { success, created } = require('../utils/apiResponse');
 const {
@@ -42,10 +43,10 @@ const register = async (req, res) => {
   const accessToken = signAccessToken(user._id, user.role);
   const refreshToken = signRefreshToken(user._id);
 
-  // Store hashed refresh token in DB
-  user.refreshTokenHash = hashToken(refreshToken);
   user.lastLoginAt = new Date();
   await user.save({ validateModifiedOnly: true });
+
+  await Session.create({ user: user._id, refreshTokenHash: hashToken(refreshToken) });
 
   setRefreshCookie(res, refreshToken);
 
@@ -59,7 +60,7 @@ const login = async (req, res) => {
   const { email, password } = req.body;
 
   // Explicitly select password field (it is select: false by default)
-  const user = await User.findOne({ email }).select('+password +refreshTokenHash');
+  const user = await User.findOne({ email }).select('+password');
 
   if (!user || !(await user.comparePassword(password))) {
     throw new AppError('Invalid email or password', 401);
@@ -72,9 +73,10 @@ const login = async (req, res) => {
   const accessToken = signAccessToken(user._id, user.role);
   const refreshToken = signRefreshToken(user._id);
 
-  user.refreshTokenHash = hashToken(refreshToken);
   user.lastLoginAt = new Date();
   await user.save({ validateModifiedOnly: true });
+
+  await Session.create({ user: user._id, refreshTokenHash: hashToken(refreshToken) });
 
   setRefreshCookie(res, refreshToken);
 
@@ -98,15 +100,23 @@ const refreshAccessToken = async (req, res) => {
     throw new AppError('Refresh token invalid or expired', 401);
   }
 
-  const user = await User.findById(payload.sub).select('+refreshTokenHash');
-  if (!user || user.refreshTokenHash !== hashToken(token)) {
+  const user = await User.findById(payload.sub);
+  if (!user) {
+    throw new AppError('Refresh token invalid or expired', 401);
+  }
+  if (!user.isActive) {
+    throw new AppError('Your account has been suspended', 403);
+  }
+
+  const session = await Session.findOne({ user: user._id, refreshTokenHash: hashToken(token) });
+  if (!session) {
     throw new AppError('Refresh token reuse detected — please log in again', 401);
   }
 
   // Rotate refresh token on every use (refresh token rotation)
   const newRefreshToken = signRefreshToken(user._id);
-  user.refreshTokenHash = hashToken(newRefreshToken);
-  await user.save({ validateModifiedOnly: true });
+  session.refreshTokenHash = hashToken(newRefreshToken);
+  await session.save({ validateModifiedOnly: true });
 
   setRefreshCookie(res, newRefreshToken);
 
@@ -121,16 +131,21 @@ const logout = async (req, res) => {
   const token = req.cookies?.p8w_refresh;
 
   if (token) {
-    // Invalidate the stored token hash so the old token can never be reused
-    const user = await User.findById(req.user?._id).select('+refreshTokenHash');
-    if (user) {
-      user.refreshTokenHash = null;
-      await user.save({ validateModifiedOnly: true });
-    }
+    await Session.deleteOne({ user: req.user._id, refreshTokenHash: hashToken(token) });
   }
 
   clearRefreshCookie(res);
   return success(res, {}, 'Logged out successfully');
+};
+
+/* ─────────────────────────────────────────
+   POST /api/auth/logout-all
+   Revokes every refresh session for the current user (all devices).
+   ───────────────────────────────────────── */
+const logoutAll = async (req, res) => {
+  await Session.deleteMany({ user: req.user._id });
+  clearRefreshCookie(res);
+  return success(res, {}, 'Logged out from all devices');
 };
 
 /* ─────────────────────────────────────────
@@ -193,8 +208,7 @@ const resetPassword = async (req, res) => {
   user.password = password;
   user.passwordResetToken = undefined;
   user.passwordResetExpires = undefined;
-  // Invalidate all existing refresh tokens
-  user.refreshTokenHash = null;
+  await Session.deleteMany({ user: user._id });
   await user.save();
 
   clearRefreshCookie(res);
@@ -206,6 +220,7 @@ module.exports = {
   login,
   refreshAccessToken,
   logout,
+  logoutAll,
   getMe,
   forgotPassword,
   resetPassword,

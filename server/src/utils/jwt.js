@@ -2,6 +2,18 @@
 
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const ms = require('ms');
+
+const refreshExpiresIn = () => process.env.JWT_REFRESH_EXPIRES || '7d';
+
+/** Cookie maxAge must match JWT refresh TTL (both driven by JWT_REFRESH_EXPIRES). */
+const refreshCookieMaxAgeMs = () => {
+  const parsed = ms(refreshExpiresIn());
+  if (typeof parsed !== 'number' || Number.isNaN(parsed)) {
+    return ms('7d');
+  }
+  return parsed;
+};
 
 /* ─────────────────────────────────────────
    Token generators
@@ -23,7 +35,7 @@ const signAccessToken = (userId, role) => {
  */
 const signRefreshToken = (userId) => {
   return jwt.sign({ sub: userId }, process.env.JWT_REFRESH_SECRET, {
-    expiresIn: process.env.JWT_REFRESH_EXPIRES || '7d',
+    expiresIn: refreshExpiresIn(),
   });
 };
 
@@ -47,7 +59,7 @@ const verifyRefreshToken = (token) => {
  * Sets the refresh token as an httpOnly cookie on the response.
  */
 const setRefreshCookie = (res, token) => {
-  const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
+  const maxAge = refreshCookieMaxAgeMs();
   const isProd = process.env.NODE_ENV === 'production';
   res.cookie('p8w_refresh', token, {
     httpOnly: true,

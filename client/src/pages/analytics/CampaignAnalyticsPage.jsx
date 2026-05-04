@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -11,7 +11,7 @@ import {
 import {
   ScanLine, Users, Clock, PlayCircle,
   Smartphone, Monitor, BarChart3, ArrowLeft,
-  ChevronRight, MapPin,
+  ChevronRight, MapPin, MousePointerClick,
 } from 'lucide-react';
 import useAnalyticsStore from '../../store/useAnalyticsStore';
 import useIsMobile from '../../hooks/useIsMobile';
@@ -131,6 +131,13 @@ const CampaignAnalyticsPage = () => {
   const hourly      = campaignData?.hourlyHeatmap    || [];
   const locations   = campaignData?.locationBreakdown || [];
   const campaign    = campaignData?.campaign;
+  const multiLink   = campaignData?.multiLinkAnalytics;
+  const isMultiLinkHub = campaign?.campaignType === 'multiple-links-qr';
+
+  const periodLinkClicks = useMemo(() => {
+    if (!multiLink?.clicksByLinkPeriod?.length) return 0;
+    return multiLink.clicksByLinkPeriod.reduce((acc, r) => acc + (r.clicks || 0), 0);
+  }, [multiLink]);
 
   const fmtDuration = (ms) => {
     if (!ms) return '—';
@@ -169,7 +176,9 @@ const CampaignAnalyticsPage = () => {
               {campaign?.campaignName || 'Campaign Analytics'}
             </h1>
             <p className="mt-1 text-sm text-[var(--text-muted)]">
-              Scan performance for this campaign
+              {isMultiLinkHub
+                ? 'Hub visits, sessions, and outbound link taps'
+                : 'Scan performance for this campaign'}
             </p>
           </div>
 
@@ -208,7 +217,7 @@ const CampaignAnalyticsPage = () => {
           <>
             <StatCard
               icon={ScanLine}
-              label="Total Scans"
+              label={isMultiLinkHub ? 'Hub visits' : 'Total scans'}
               value={stats.totalScans?.toLocaleString()}
               sub={`+${periodStats.scans || 0} this period`}
               accent="#7c3aed"
@@ -224,16 +233,26 @@ const CampaignAnalyticsPage = () => {
               icon={Clock}
               label="Avg Session"
               value={fmtDuration(stats.avgSessionDuration)}
-              sub="Time in AR"
+              sub={isMultiLinkHub ? 'Time on link page' : 'Time in AR'}
               accent="#10b981"
             />
-            <StatCard
-              icon={PlayCircle}
-              label="Video Completion"
-              value={stats.avgVideoWatchPercent ? `${stats.avgVideoWatchPercent}%` : '—'}
-              sub="Avg watch %"
-              accent="#f59e0b"
-            />
+            {isMultiLinkHub ? (
+              <StatCard
+                icon={MousePointerClick}
+                label="Link clicks"
+                value={periodLinkClicks.toLocaleString()}
+                sub="Outbound taps (this period)"
+                accent="#f59e0b"
+              />
+            ) : (
+              <StatCard
+                icon={PlayCircle}
+                label="Video Completion"
+                value={stats.avgVideoWatchPercent ? `${stats.avgVideoWatchPercent}%` : '—'}
+                sub="Avg watch %"
+                accent="#f59e0b"
+              />
+            )}
           </>
         )}
       </div>
@@ -251,7 +270,9 @@ const CampaignAnalyticsPage = () => {
             <BarChart3 size={28} className="text-[var(--text-muted)]/60" />
             <p className="text-sm font-medium text-[var(--text-secondary)]">No scans yet for this period</p>
             <p className="max-w-xs text-xs text-[var(--text-muted)]">
-              Once someone scans this campaign's QR code, the trend will populate here.
+              {isMultiLinkHub
+                ? 'Visits appear after someone opens your link hub from the QR code.'
+                : "Once someone scans this campaign's QR code, the trend will populate here."}
             </p>
           </div>
         ) : (
@@ -298,6 +319,101 @@ const CampaignAnalyticsPage = () => {
           </ResponsiveContainer>
         )}
       </div>
+
+      {/* ── Multi-link: clicks by link + click trend ───────────────────── */}
+      {isMultiLinkHub && (
+        <>
+          <div className="glass-card p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <MousePointerClick size={16} className="text-brand-400" />
+              <h2 className="text-base font-semibold text-[var(--text-primary)]">Clicks by link</h2>
+              <span className="ml-auto text-xs text-[var(--text-muted)]">Last {period}</span>
+            </div>
+            {isLoadingCamp || !multiLink ? (
+              <ChartSkeleton h="h-48" />
+            ) : !multiLink.clicksByLinkPeriod?.length ? (
+              <div className="flex h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border-color)] text-center">
+                <MousePointerClick size={24} className="text-[var(--text-muted)]/60" />
+                <p className="text-sm text-[var(--text-secondary)]">No link clicks in this period yet</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={Math.min(360, multiLink.clicksByLinkPeriod.length * 36 + 40)}>
+                <BarChart
+                  data={multiLink.clicksByLinkPeriod}
+                  layout="vertical"
+                  margin={{ top: 4, right: 12, bottom: 4, left: 8 }}
+                  barCategoryGap="18%"
+                >
+                  <XAxis type="number" allowDecimals={false} tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                    axisLine={false} tickLine={false} />
+                  <YAxis
+                    type="category"
+                    dataKey="label"
+                    width={isMobile ? 100 : 140}
+                    tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} />
+                  <Bar dataKey="clicks" name="Clicks" fill="#7c3aed" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          <div className="glass-card p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-[var(--text-primary)]">Click trend</h2>
+              <span className="text-xs text-[var(--text-muted)]">Last {period}</span>
+            </div>
+            {isLoadingCamp || !multiLink ? (
+              <ChartSkeleton h="h-56" />
+            ) : !multiLink.clickTrend?.length ? (
+              <div className="flex h-56 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--text-muted)]/30 text-center">
+                <BarChart3 size={28} className="text-[var(--text-muted)]/60" />
+                <p className="text-sm font-medium text-[var(--text-secondary)]">No click activity for this period</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={multiLink.clickTrend} margin={chartMargin}>
+                  <defs>
+                    <linearGradient id="cGradClicks" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.45} />
+                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(d) => d.slice(5)}
+                    tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    width={yAxisWidth}
+                    tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} />
+                  <Area
+                    type="monotone"
+                    dataKey="clicks"
+                    stroke="#f59e0b"
+                    strokeWidth={2}
+                    fill="url(#cGradClicks)"
+                    name="Clicks"
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </>
+      )}
 
       {/* ── Device + Browser ────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -377,7 +493,9 @@ const CampaignAnalyticsPage = () => {
       <div className="glass-card p-5">
         <div className="mb-4 flex items-center gap-2">
           <MapPin size={16} className="text-brand-400" />
-          <h2 className="text-base font-semibold text-[var(--text-primary)]">Top Scan Locations</h2>
+          <h2 className="text-base font-semibold text-[var(--text-primary)]">
+            {isMultiLinkHub ? 'Top visitor locations' : 'Top scan locations'}
+          </h2>
         </div>
         {isLoadingCamp ? (
           <ChartSkeleton h="h-40" />

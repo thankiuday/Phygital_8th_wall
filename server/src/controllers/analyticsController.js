@@ -14,6 +14,7 @@
 
 const mongoose = require('mongoose');
 const ScanEvent = require('../models/ScanEvent');
+const LinkClickEvent = require('../models/LinkClickEvent');
 const Campaign  = require('../models/Campaign');
 const { success } = require('../utils/apiResponse');
 const { AppError } = require('../middleware/errorHandler');
@@ -264,10 +265,17 @@ exports.getCampaignAnalytics = async (req, res) => {
   const cid   = new mongoose.Types.ObjectId(req.params.id);
 
   // Verify the campaign belongs to this user
-  const campaign = await Campaign.findOne({ _id: cid, userId: uid }, 'campaignName status analytics').lean();
+  const campaign = await Campaign.findOne(
+    { _id: cid, userId: uid },
+    'campaignName status analytics campaignType linkItems'
+  ).lean();
   if (!campaign) throw new AppError('Campaign not found', 404);
 
   const match = { campaignId: cid };
+
+  const linkLabelMap = Object.fromEntries(
+    (campaign.linkItems || []).map((it) => [it.linkId, it.label])
+  );
 
   const [
     totals,
@@ -393,11 +401,56 @@ exports.getCampaignAnalytics = async (req, res) => {
   };
   const periodStats = totals[0]?.period[0] || { scans: 0, uniqueVisitors: 0 };
 
+  let multiLinkAnalytics = null;
+  if (campaign.campaignType === 'multiple-links-qr') {
+    const clickMatch = { campaignId: cid };
+    const clickMatchPeriod = { campaignId: cid, clickedAt: { $gte: since } };
+
+    const [clicksByLinkPeriod, clicksByLinkAllTime, clickTrend] = await Promise.all([
+      LinkClickEvent.aggregate([
+        { $match: clickMatchPeriod },
+        { $group: { _id: '$linkId', clicks: { $sum: 1 } } },
+        { $sort: { clicks: -1 } },
+        { $project: { _id: 0, linkId: '$_id', clicks: 1 } },
+      ]),
+      LinkClickEvent.aggregate([
+        { $match: clickMatch },
+        { $group: { _id: '$linkId', clicks: { $sum: 1 } } },
+        { $sort: { clicks: -1 } },
+        { $project: { _id: 0, linkId: '$_id', clicks: 1 } },
+      ]),
+      LinkClickEvent.aggregate([
+        { $match: clickMatchPeriod },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$clickedAt' } },
+            clicks: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: 1 } },
+        { $project: { _id: 0, date: '$_id', clicks: 1 } },
+      ]),
+    ]);
+
+    const attachLabels = (rows) =>
+      rows.map((r) => ({
+        ...r,
+        label: linkLabelMap[r.linkId] || r.linkId,
+      }));
+
+    multiLinkAnalytics = {
+      clicksByLinkPeriod: attachLabels(clicksByLinkPeriod),
+      clicksByLinkAllTime: attachLabels(clicksByLinkAllTime),
+      clickTrend,
+    };
+  }
+
   return success(res, {
     campaign: {
       _id:          campaign._id,
       campaignName: campaign.campaignName,
       status:       campaign.status,
+      campaignType: campaign.campaignType,
     },
     period: `${days}d`,
     allTime,
@@ -407,6 +460,7 @@ exports.getCampaignAnalytics = async (req, res) => {
     scanTrend,
     hourlyHeatmap,
     locationBreakdown,
+    multiLinkAnalytics,
   });
 };
 

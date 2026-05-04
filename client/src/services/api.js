@@ -22,6 +22,14 @@ const api = axios.create({
   withCredentials: true, // sends httpOnly refresh cookie automatically
 });
 
+/** Avoid refresh-on-401 for the refresh call itself (prevents deadlock / double logout). */
+const isFailedAuthRefreshRequest = (config) => {
+  if (!config) return false;
+  if (config.skipAuthRefresh === true) return true;
+  const url = typeof config.url === 'string' ? config.url : '';
+  return url.includes('/auth/refresh');
+};
+
 /* ── Request interceptor — attach access token ──────────────────── */
 api.interceptors.request.use(
   (config) => {
@@ -48,6 +56,10 @@ api.interceptors.response.use(
   async (error) => {
     const orig = error.config;
 
+    if (error.response?.status === 401 && isFailedAuthRefreshRequest(orig)) {
+      return Promise.reject(error);
+    }
+
     if (error.response?.status === 401 && !orig._retry) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => failedQueue.push({ resolve, reject }))
@@ -61,7 +73,7 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const res = await api.post('/auth/refresh');
+        const res = await api.post('/auth/refresh', null, { skipAuthRefresh: true });
         const newToken = res.data.data.accessToken;
         setToken(newToken);
         processQueue(null, newToken);

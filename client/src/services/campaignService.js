@@ -70,6 +70,16 @@ export const campaignService = {
     return res.data.data.campaign;
   },
 
+  createMultipleLinksCampaign: async ({ campaignName, linkItems, qrDesign, preciseGeoAnalytics }) => {
+    const res = await api.post('/campaigns/multiple-links', {
+      campaignName,
+      linkItems,
+      qrDesign: qrDesign ?? null,
+      preciseGeoAnalytics: !!preciseGeoAnalytics,
+    });
+    return res.data.data.campaign;
+  },
+
   getCampaigns: async (params = {}) => {
     const res = await api.get('/campaigns', { params });
     return res.data.data;

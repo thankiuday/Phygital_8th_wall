@@ -6,7 +6,7 @@ const rateLimit = require('express-rate-limit');
 
 const Campaign = require('../models/Campaign');
 const { SLUG_RE } = require('../constants/singleLinkSlug');
-const redirectCache = require('../utils/redirectCache');
+const { redirectCache } = require('../utils/redirectCache');
 const scanQueue = require('../utils/scanQueue');
 const { getClientIpFromRequest, getCfIpCountry } = require('../utils/geoLookup');
 const logger = require('../config/logger');
@@ -53,8 +53,12 @@ router.get('/:slug', slugLimiter, async (req, res) => {
 
   if (!camp) {
     camp = await Campaign.findOne(
-      { redirectSlug: slug, status: 'active', campaignType: 'single-link-qr' },
-      'destinationUrl _id'
+      {
+        redirectSlug: slug,
+        status: 'active',
+        campaignType: { $in: ['single-link-qr', 'multiple-links-qr'] },
+      },
+      'destinationUrl campaignType _id'
     ).lean();
 
     if (camp) {
@@ -68,6 +72,21 @@ router.get('/:slug', slugLimiter, async (req, res) => {
       .status(404)
       .type('html')
       .send('<!doctype html><meta charset="utf-8"><title>QR not active</title><h1>This QR is not active.</h1>');
+  }
+
+  const clientBase = (process.env.CLIENT_URL || '').replace(/\/$/, '');
+
+  if (camp.campaignType === 'multiple-links-qr') {
+    if (!clientBase) {
+      logger.error('redirect.multiLinkMissingClientUrl', { slug });
+      return res
+        .status(503)
+        .type('html')
+        .send('<!doctype html><meta charset="utf-8"><title>Unavailable</title><h1>Link page is not configured.</h1>');
+    }
+    res.set('Cache-Control', 'no-store, private');
+    res.set('Referrer-Policy', 'no-referrer');
+    return res.redirect(302, `${clientBase}/l/${slug}`);
   }
 
   scanQueue.enqueue({

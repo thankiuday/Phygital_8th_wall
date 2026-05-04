@@ -56,12 +56,6 @@ const userSchema = new mongoose.Schema(
       select: false,
     },
 
-    // Refresh token storage (hashed)
-    refreshTokenHash: {
-      type: String,
-      select: false,
-    },
-
     // Soft-delete / suspension
     isActive: {
       type: Boolean,
@@ -82,7 +76,6 @@ const userSchema = new mongoose.Schema(
         delete ret.password;
         delete ret.passwordResetToken;
         delete ret.passwordResetExpires;
-        delete ret.refreshTokenHash;
         delete ret.__v;
         return ret;
       },

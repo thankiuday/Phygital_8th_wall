@@ -103,12 +103,22 @@ const normalizeAndPersist = async (event) => {
     }
   }
 
+  const visitorHash =
+    typeof event.visitorHash === 'string' && event.visitorHash.trim().length > 0
+      ? event.visitorHash.trim().slice(0, 128)
+      : hashIp(event.ip);
+
   await ScanEvent.create({
     campaignId: camp._id,
     userId: camp.userId,
-    visitorHash: hashIp(event.ip),
-    deviceType: classifyDevice(event.ua),
-    browser: 'unknown',
+    visitorHash,
+    deviceType:
+      event.deviceType && ['mobile', 'tablet', 'desktop', 'unknown'].includes(event.deviceType)
+        ? event.deviceType
+        : classifyDevice(event.ua),
+    browser: typeof event.browser === 'string' && event.browser.trim()
+      ? event.browser.trim().slice(0, 64)
+      : 'unknown',
     os: 'unknown',
     country,
     region,

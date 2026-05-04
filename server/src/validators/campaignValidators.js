@@ -170,6 +170,43 @@ const createSingleLinkOnlySchema = z
   })
   .strict();
 
+const linkKindEnum = z.enum([
+  'contact',
+  'whatsapp',
+  'instagram',
+  'facebook',
+  'twitter',
+  'linkedin',
+  'website',
+  'tiktok',
+  'custom',
+]);
+
+const linkItemInputSchema = z
+  .object({
+    kind: linkKindEnum,
+    label: z.string().trim().min(1, 'label is required').max(80),
+    value: z.string().trim().min(1, 'value is required').max(500),
+  })
+  .strict();
+
+const linkItemsField = z
+  .array(linkItemInputSchema)
+  .min(1, 'At least one link is required')
+  .max(20, 'Too many links (max 20)');
+
+/**
+ * POST /api/campaigns/multiple-links — dedicated route (mirrors single-link).
+ */
+const createMultipleLinksOnlySchema = z
+  .object({
+    campaignName: campaignNameField,
+    linkItems: linkItemsField,
+    qrDesign: qrDesignSchema.nullable().optional(),
+    preciseGeoAnalytics: z.boolean().optional(),
+  })
+  .strict();
+
 /**
  * Strip Cloudinary fields so single-link `.strict()` payloads never carry stray keys.
  */
@@ -255,13 +292,17 @@ const updateCampaignSchema = z
       })
       .optional(),
     qrDesign: qrDesignSchema.nullable().optional(),
+    linkItems: linkItemsField.optional(),
   })
   .strict()
   .refine((d) => Object.keys(d).length > 0, { message: 'No valid fields to update' });
 
 module.exports = {
   qrDesignSchema,
+  linkItemInputSchema,
+  linkItemsField,
   createCampaignSchema,
   createSingleLinkOnlySchema,
+  createMultipleLinksOnlySchema,
   updateCampaignSchema,
 };

@@ -25,7 +25,7 @@ PhygitalEightThWall/
 | Layer        | Technology                                          |
 |--------------|-----------------------------------------------------|
 | Frontend     | React 18, Vite, Tailwind CSS v3, Framer Motion      |
-| State        | Zustand (with persist middleware)                   |
+| State        | Zustand (persist used for theme prefs; auth tokens stay in memory only) |
 | HTTP Client  | Axios (with JWT interceptors)                       |
 | Charts       | Recharts                                            |
 | Backend      | Node.js, Express 4, MongoDB Atlas, Mongoose 8       |
@@ -79,14 +79,18 @@ Three.js 3D Scene — holographic video plane
 ## Authentication Flow
 
 ```
-POST /api/auth/register → 201 { user, accessToken }  + Set-Cookie: refreshToken
-POST /api/auth/login    → 200 { user, accessToken }  + Set-Cookie: refreshToken
-POST /api/auth/refresh  → 200 { accessToken }         (uses httpOnly cookie)
-POST /api/auth/logout   → 200                         (clears cookie)
+POST /api/auth/register   → 201 { user, accessToken }  + Set-Cookie: refreshToken
+POST /api/auth/login      → 200 { user, accessToken }  + Set-Cookie: refreshToken
+POST /api/auth/refresh    → 200 { accessToken }         (uses httpOnly cookie; per-device session row)
+POST /api/auth/logout     → 200                         (clears cookie + current session)
+POST /api/auth/logout-all → 200                         (clears cookie + all sessions for user)
 ```
 
 Access tokens live in memory (Zustand store) — never localStorage.
 Refresh tokens live in httpOnly cookies — not accessible to JS.
+Each login or register creates a new **session** document so multiple devices can stay signed in; **logout-all** revokes every session at once.
+
+**Session** (MongoDB): `user` (ObjectId ref User), `refreshTokenHash` (SHA-256 of the current refresh JWT for that device), timestamps. Unique index on `(user, refreshTokenHash)`.
 
 ---
 
@@ -119,7 +123,7 @@ Refresh tokens live in httpOnly cookies — not accessible to JS.
 | Module | Feature                        | Status  |
 |--------|--------------------------------|---------|
 | 1      | Monorepo setup                 | ✅ Done |
-| 2      | Authentication system          | Pending |
+| 2      | Authentication system          | ✅ Done |
 | 3      | User dashboard                 | Pending |
 | 4      | Campaign creation flow         | Pending |
 | 5      | QR generation + public AR page | Pending |

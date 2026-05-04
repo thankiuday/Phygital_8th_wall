@@ -5,8 +5,9 @@ const { AppError } = require('../middleware/errorHandler');
 const { success, created } = require('../utils/apiResponse');
 const { generateUploadSignature, deleteCloudinaryAsset } = require('../services/cloudinaryService');
 const { generateQRCode } = require('../services/qrService');
-const redirectCache = require('../utils/redirectCache');
+const { redirectCache, dynamicQrMetaCache } = require('../utils/redirectCache');
 const logger = require('../config/logger');
+const { resolveLinkHref } = require('../utils/linkItemResolver');
 
 /* ── Defense-in-depth: cap on stringified qrDesign size.  Zod already bounds
    the logo `image` field to 180 KB; this is a belt-and-braces guard against a
@@ -129,6 +130,49 @@ const createSingleLinkCampaign = async (req, res) => {
   return created(res, { campaign }, 'Single Link QR campaign created successfully');
 };
 
+const persistLinkItemsFromBody = async (linkItems) => {
+  const { nanoid } = await import('nanoid');
+  const persistedItems = [];
+  for (const item of linkItems) {
+    const row = {
+      linkId: nanoid(12),
+      kind: item.kind,
+      label: item.label.trim(),
+      value: item.value.trim(),
+    };
+    resolveLinkHref(row.kind, row.value);
+    persistedItems.push(row);
+  }
+  return persistedItems;
+};
+
+const createMultipleLinksCampaign = async (req, res) => {
+  const { campaignName, linkItems, qrDesign, preciseGeoAnalytics } = req.body;
+
+  if (qrDesign && JSON.stringify(qrDesign).length > MAX_QR_DESIGN_BYTES) {
+    throw new AppError(
+      `qrDesign payload exceeds ${MAX_QR_DESIGN_BYTES} bytes`,
+      413
+    );
+  }
+
+  const persistedItems = await persistLinkItemsFromBody(linkItems);
+  const redirectSlug = await generateUniqueSlug();
+
+  const campaign = await Campaign.create({
+    userId: req.user._id,
+    campaignType: 'multiple-links-qr',
+    campaignName: campaignName.trim(),
+    linkItems: persistedItems,
+    qrDesign: qrDesign || null,
+    redirectSlug,
+    preciseGeoAnalytics: !!preciseGeoAnalytics,
+    status: 'active',
+  });
+
+  return created(res, { campaign }, 'Multiple Links QR campaign created successfully');
+};
+
 /* ─────────────────────────────────────────
    GET /api/campaigns
    ───────────────────────────────────────── */
@@ -139,7 +183,10 @@ const getCampaigns = async (req, res) => {
   if (status && ['draft', 'active', 'paused'].includes(status)) {
     filter.status = status;
   }
-  if (campaignType && ['ar-card', 'single-link-qr'].includes(campaignType)) {
+  if (
+    campaignType
+    && ['ar-card', 'single-link-qr', 'multiple-links-qr'].includes(campaignType)
+  ) {
     filter.campaignType = campaignType;
   }
 
@@ -190,7 +237,14 @@ const updateCampaign = async (req, res) => {
   );
   if (!existing) throw new AppError('Campaign not found', 404);
 
-  const { campaignName, status, destinationUrl, qrDesign, preciseGeoAnalytics } = req.body;
+  const {
+    campaignName,
+    status,
+    destinationUrl,
+    qrDesign,
+    preciseGeoAnalytics,
+    linkItems,
+  } = req.body;
   const updates = {};
 
   if (campaignName !== undefined) updates.campaignName = campaignName;
@@ -212,6 +266,22 @@ const updateCampaign = async (req, res) => {
     }
   }
 
+  if (existing.campaignType === 'multiple-links-qr') {
+    if (preciseGeoAnalytics !== undefined) updates.preciseGeoAnalytics = !!preciseGeoAnalytics;
+    if (qrDesign !== undefined) {
+      if (qrDesign && JSON.stringify(qrDesign).length > MAX_QR_DESIGN_BYTES) {
+        throw new AppError(
+          `qrDesign payload exceeds ${MAX_QR_DESIGN_BYTES} bytes`,
+          413
+        );
+      }
+      updates.qrDesign = qrDesign;
+    }
+    if (linkItems !== undefined) {
+      updates.linkItems = await persistLinkItemsFromBody(linkItems);
+    }
+  }
+
   if (Object.keys(updates).length === 0) {
     throw new AppError('No valid fields to update', 400);
   }
@@ -223,9 +293,14 @@ const updateCampaign = async (req, res) => {
   );
 
   // Evict cache after a successful write so the next scan picks up the new
-  // destinationUrl / status.  Only single-link campaigns are ever cached.
-  if (existing.campaignType === 'single-link-qr' && existing.redirectSlug) {
+  // destination / hub data / status.
+  if (
+    (existing.campaignType === 'single-link-qr'
+      || existing.campaignType === 'multiple-links-qr')
+    && existing.redirectSlug
+  ) {
     redirectCache.evict(existing.redirectSlug).catch(() => {});
+    dynamicQrMetaCache.evict(existing.redirectSlug).catch(() => {});
   }
 
   return success(res, { campaign }, 'Campaign updated');
@@ -248,6 +323,7 @@ const deleteCampaign = async (req, res) => {
 
   if (campaign.redirectSlug) {
     redirectCache.evict(campaign.redirectSlug).catch(() => {});
+    dynamicQrMetaCache.evict(campaign.redirectSlug).catch(() => {});
   }
 
   await campaign.deleteOne();
@@ -273,6 +349,28 @@ const duplicateCampaign = async (req, res) => {
       campaignType: 'single-link-qr',
       campaignName: `Copy of ${original.campaignName}`,
       destinationUrl: original.destinationUrl,
+      qrDesign: original.qrDesign,
+      redirectSlug,
+      preciseGeoAnalytics: !!original.preciseGeoAnalytics,
+      status: 'active',
+    });
+    return created(res, { campaign: copy }, 'Campaign duplicated successfully');
+  }
+
+  if (original.campaignType === 'multiple-links-qr') {
+    const { nanoid } = await import('nanoid');
+    const redirectSlug = await generateUniqueSlug();
+    const items = (original.linkItems || []).map((it) => ({
+      linkId: nanoid(12),
+      kind: it.kind,
+      label: it.label,
+      value: it.value,
+    }));
+    const copy = await Campaign.create({
+      userId: original.userId,
+      campaignType: 'multiple-links-qr',
+      campaignName: `Copy of ${original.campaignName}`,
+      linkItems: items,
       qrDesign: original.qrDesign,
       redirectSlug,
       preciseGeoAnalytics: !!original.preciseGeoAnalytics,
@@ -323,7 +421,10 @@ const getCampaignQR = async (req, res) => {
 
   if (!campaign) throw new AppError('Campaign not found', 404);
 
-  if (campaign.campaignType === 'single-link-qr') {
+  if (
+    campaign.campaignType === 'single-link-qr'
+    || campaign.campaignType === 'multiple-links-qr'
+  ) {
     const apiBase = process.env.PUBLIC_REDIRECT_BASE
       || process.env.API_URL
       || `${req.protocol}://${req.get('host')}`;
@@ -338,7 +439,7 @@ const getCampaignQR = async (req, res) => {
     }
 
     return success(res, {
-      campaignType: 'single-link-qr',
+      campaignType: campaign.campaignType,
       redirectUrl,
       redirectSlug: campaign.redirectSlug,
       qrDesign: campaign.qrDesign,
@@ -359,6 +460,7 @@ module.exports = {
   getUploadSignature,
   createCampaign,
   createSingleLinkCampaign,
+  createMultipleLinksCampaign,
   getCampaigns,
   getCampaign,
   updateCampaign,

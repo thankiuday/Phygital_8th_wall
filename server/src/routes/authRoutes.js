@@ -9,6 +9,7 @@ const {
   login,
   refreshAccessToken,
   logout,
+  logoutAll,
   getMe,
   forgotPassword,
   resetPassword,
@@ -47,6 +48,7 @@ router.post('/reset-password/:token', authLimiter, validate(resetPasswordSchema)
    Protected routes — requires valid access token
    ───────────────────────────────────────── */
 router.post('/logout', protect, logout);
+router.post('/logout-all', protect, logoutAll);
 router.get('/me', protect, getMe);
 
 module.exports = router;

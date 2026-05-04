@@ -144,7 +144,7 @@ app.use(
 /* ─────────────────────────────────────────
    Health Check
    ───────────────────────────────────────── */
-const redirectCache = require('./src/utils/redirectCache');
+const { redirectCache } = require('./src/utils/redirectCache');
 const scanQueue     = require('./src/utils/scanQueue');
 
 app.get('/health', (req, res) => {
@@ -178,8 +178,14 @@ app.get('/cors-debug', (req, res) => {
    ───────────────────────────────────────── */
 const { protect } = require('./src/middleware/auth');
 const { validate } = require('./src/middleware/validate');
-const { createSingleLinkOnlySchema } = require('./src/validators/campaignValidators');
-const { createSingleLinkCampaign } = require('./src/controllers/campaignController');
+const {
+  createSingleLinkOnlySchema,
+  createMultipleLinksOnlySchema,
+} = require('./src/validators/campaignValidators');
+const {
+  createSingleLinkCampaign,
+  createMultipleLinksCampaign,
+} = require('./src/controllers/campaignController');
 
 /**
  * Single Link QR — registered on the root app *before* the `/api/campaigns`
@@ -191,6 +197,13 @@ app.post(
   protect,
   validate(createSingleLinkOnlySchema),
   createSingleLinkCampaign
+);
+
+app.post(
+  '/api/campaigns/multiple-links',
+  protect,
+  validate(createMultipleLinksOnlySchema),
+  createMultipleLinksCampaign
 );
 
 app.use('/api/auth',      require('./src/routes/authRoutes'));

@@ -101,9 +101,15 @@ const CardMenu = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete }) =
 // ---------------------------------------------------------------------------
 const CampaignCard = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete }) => {
   const isSingleLinkQr = campaign.campaignType === 'single-link-qr';
+  const isMultiLinkQr = campaign.campaignType === 'multiple-links-qr';
   const trackedRedirectUrl = campaign.redirectSlug
     ? `${resolveRedirectBase()}/r/${campaign.redirectSlug}`
     : null;
+  const hubPageUrl = campaign.redirectSlug && typeof window !== 'undefined'
+    ? `${window.location.origin}/l/${campaign.redirectSlug}`
+    : campaign.redirectSlug
+      ? `/l/${campaign.redirectSlug}`
+      : null;
   const quickAction = isSingleLinkQr
     ? (trackedRedirectUrl ? (
       <a
@@ -125,6 +131,27 @@ const CampaignCard = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete 
         <ExternalLink size={14} />
       </span>
     ))
+    : isMultiLinkQr
+      ? (hubPageUrl && campaign.status === 'active' ? (
+        <a
+          href={hubPageUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-lg border border-[var(--border-color)] px-2 py-1.5 text-xs text-[var(--text-muted)] transition-colors hover:border-brand-500/50 hover:text-brand-400"
+          aria-label="Open link hub page"
+          title="Open link page"
+        >
+          <ExternalLink size={14} />
+          <span className="hidden sm:inline">Links</span>
+        </a>
+      ) : (
+        <span
+          className="inline-flex min-h-[44px] min-w-[44px] cursor-not-allowed items-center justify-center rounded-lg border border-[var(--border-color)] px-2 py-1.5 text-xs text-[var(--text-muted)] opacity-40"
+          title={campaign.status !== 'active' ? 'Activate the campaign to open the link page' : 'No slug configured'}
+        >
+          <ExternalLink size={14} />
+        </span>
+      ))
     : (campaign.status === 'active' ? (
       <a
         href={`/ar/${campaign._id}`}
