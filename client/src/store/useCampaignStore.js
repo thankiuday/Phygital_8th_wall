@@ -174,7 +174,16 @@ const useCampaignStore = create((set, get) => ({
   removeCampaignFromList: async (id) => {
     try {
       await campaignService.deleteCampaign(id);
-      set((s) => ({ campaigns: s.campaigns.filter((c) => c._id !== id) }));
+      set((s) => ({
+        campaigns: s.campaigns.filter((c) => c._id !== id),
+        pagination: s.pagination
+          ? {
+            ...s.pagination,
+            total: Math.max(0, s.pagination.total - 1),
+            pages: Math.max(1, Math.ceil(Math.max(0, s.pagination.total - 1) / s.pagination.limit)),
+          }
+          : s.pagination,
+      }));
       return { success: true };
     } catch (err) {
       return { success: false, message: err.response?.data?.message || 'Delete failed' };

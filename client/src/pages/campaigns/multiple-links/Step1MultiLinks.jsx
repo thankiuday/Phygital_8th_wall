@@ -1,33 +1,8 @@
-import { useMemo, useState } from 'react';
-import {
-  ArrowRight,
-  Phone,
-  MessageCircle,
-  AtSign,
-  Users,
-  Feather,
-  Briefcase,
-  Globe,
-  Music2,
-  Plus,
-  Trash2,
-  QrCode,
-} from 'lucide-react';
+import { useState } from 'react';
+import { ArrowRight, QrCode } from 'lucide-react';
 import FormInput from '../../../components/ui/FormInput';
-
-const PRESETS = [
-  { kind: 'contact', label: 'Contact Number', Icon: Phone },
-  { kind: 'whatsapp', label: 'WhatsApp', Icon: MessageCircle },
-  { kind: 'instagram', label: 'Instagram', Icon: AtSign },
-  { kind: 'facebook', label: 'Facebook', Icon: Users },
-  { kind: 'twitter', label: 'Twitter / X', Icon: Feather },
-  { kind: 'linkedin', label: 'LinkedIn', Icon: Briefcase },
-  { kind: 'website', label: 'Website', Icon: Globe },
-  { kind: 'tiktok', label: 'TikTok', Icon: Music2 },
-];
-
-let rowKey = 0;
-const nextKey = () => `row-${++rowKey}`;
+import MultiLinksEditor from './MultiLinksEditor';
+import { validateLinkRows, rowsToApiLinkItems } from './multiLinkFormUtils';
 
 const Step1MultiLinks = ({
   campaignName,
@@ -42,33 +17,6 @@ const Step1MultiLinks = ({
   const [nameError, setNameError] = useState('');
   const [linkError, setLinkError] = useState('');
 
-  const kindsInUse = useMemo(() => new Set(linkRows.map((r) => r.kind)), [linkRows]);
-
-  const addPreset = (preset) => {
-    if (preset.kind !== 'custom' && kindsInUse.has(preset.kind)) return;
-    onLinkRowsChange([
-      ...linkRows,
-      { key: nextKey(), kind: preset.kind, label: preset.label, value: '' },
-    ]);
-  };
-
-  const addCustom = () => {
-    onLinkRowsChange([
-      ...linkRows,
-      { key: nextKey(), kind: 'custom', label: '', value: '' },
-    ]);
-  };
-
-  const updateRow = (key, patch) => {
-    onLinkRowsChange(
-      linkRows.map((r) => (r.key === key ? { ...r, ...patch } : r))
-    );
-  };
-
-  const removeRow = (key) => {
-    onLinkRowsChange(linkRows.filter((r) => r.key !== key));
-  };
-
   const handleContinue = () => {
     const trimmed = campaignName.trim();
     if (!trimmed) {
@@ -81,29 +29,16 @@ const Step1MultiLinks = ({
     }
     setNameError('');
 
-    if (linkRows.length === 0) {
-      return setLinkError('Add at least one link to continue.');
+    const err = validateLinkRows(linkRows);
+    if (err) {
+      setLinkError(err);
+      return;
     }
-
-    for (const row of linkRows) {
-      if (!row.value.trim()) {
-        return setLinkError(`Enter a value for “${row.label || row.kind}”.`);
-      }
-      if (row.kind === 'custom') {
-        if (!row.label.trim()) return setLinkError('Each custom link needs a label.');
-      }
-    }
-
-    const linkItems = linkRows.map((r) => ({
-      kind: r.kind,
-      label: (r.kind === 'custom' ? r.label.trim() : r.label).slice(0, 80),
-      value: r.value.trim().slice(0, 500),
-    }));
 
     setLinkError('');
     onContinue({
       campaignName: trimmed,
-      linkItems,
+      linkItems: rowsToApiLinkItems(linkRows),
       preciseGeoAnalytics,
     });
   };
@@ -140,102 +75,14 @@ const Step1MultiLinks = ({
         }
       />
 
-      <div>
-        <p className="mb-2 text-sm font-medium text-[var(--text-primary)]">Social links</p>
-        <p className="mb-3 text-xs text-[var(--text-muted)]">
-          Tap a platform to add it. You can add one entry per preset type.
-        </p>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {PRESETS.map(({ kind, label, Icon }) => {
-            const active = kindsInUse.has(kind);
-            return (
-              <button
-                key={kind}
-                type="button"
-                onClick={() => addPreset({ kind, label })}
-                disabled={active}
-                className={`flex flex-col items-center gap-2 rounded-xl border px-3 py-3 text-center transition-colors ${
-                  active
-                    ? 'cursor-not-allowed border-brand-500/40 bg-brand-500/10 text-brand-300'
-                    : 'border-[var(--border-color)] bg-[var(--surface-2)] text-[var(--text-secondary)] hover:border-brand-500/50 hover:text-[var(--text-primary)]'
-                }`}
-              >
-                <Icon size={20} className="shrink-0" />
-                <span className="text-xs font-medium leading-tight">{label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {linkError && (
-        <p className="text-sm text-red-400" role="alert">
-          {linkError}
-        </p>
-      )}
-
-      {linkRows.length > 0 && (
-        <div className="space-y-3">
-          <p className="text-sm font-medium text-[var(--text-primary)]">Your links</p>
-          {linkRows.map((row) => (
-            <div
-              key={row.key}
-              className="flex flex-col gap-2 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] p-3 sm:flex-row sm:items-end"
-            >
-              <div className="min-w-0 flex-1 space-y-2">
-                {row.kind === 'custom' && (
-                  <FormInput
-                    label="Button label"
-                    value={row.label}
-                    onChange={(e) => updateRow(row.key, { label: e.target.value })}
-                    placeholder="e.g. My portfolio"
-                  />
-                )}
-                <FormInput
-                  label={
-                    row.kind === 'contact'
-                      ? 'Phone number'
-                      : row.kind === 'whatsapp'
-                        ? 'WhatsApp number'
-                        : row.kind === 'website' || row.kind === 'custom'
-                          ? 'URL'
-                          : row.kind === 'linkedin'
-                            ? 'Profile URL or handle'
-                            : 'Username or URL'
-                  }
-                  value={row.value}
-                  onChange={(e) => updateRow(row.key, { value: e.target.value })}
-                  placeholder={
-                    row.kind === 'instagram'
-                      ? 'username'
-                      : row.kind === 'website' || row.kind === 'custom'
-                        ? 'https://…'
-                        : ''
-                  }
-                />
-                <p className="text-xs text-[var(--text-muted)]">{row.label}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => removeRow(row.key)}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10"
-                aria-label="Remove link"
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <button
-        type="button"
-        onClick={addCustom}
-        className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border-color)] py-3 text-sm font-medium text-[var(--text-secondary)] hover:border-brand-500/50 hover:text-brand-400"
-      >
-        <Plus size={16} />
-        Add custom link
-      </button>
+      <MultiLinksEditor
+        rows={linkRows}
+        onRowsChange={(next) => {
+          setLinkError('');
+          onLinkRowsChange(next);
+        }}
+        error={linkError}
+      />
 
       <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] p-4">
         <input

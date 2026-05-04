@@ -100,8 +100,10 @@ const DashboardPage = () => {
   const { stats, recentCampaigns, scanTrend, isLoading, fetchStats } = useDashboardStore();
   const isMobile = useIsMobile();
   const chartMargin = isMobile
-    ? { top: 4, right: 4, left: 0, bottom: 0 }
+    ? { top: 6, right: 2, left: 0, bottom: 4 }
     : { top: 4, right: 4, left: -24, bottom: 0 };
+  const yAxisWidth = isMobile ? 32 : 48;
+  const chartHeight = isMobile ? 200 : 168;
 
   useEffect(() => {
     fetchStats();
@@ -191,9 +193,12 @@ const DashboardPage = () => {
       </div>
 
       {/* ── Chart + Recent campaigns ───────────────────────────────── */}
-      <div className="grid gap-4 sm:gap-5 lg:grid-cols-5">
+      <div className="grid min-w-0 gap-4 sm:gap-5 lg:grid-cols-5">
         {/* Scan trend chart — full width on mobile, 3/5 on lg */}
-        <motion.div {...fadeUp(0.25)} className="glass-card p-4 sm:p-5 lg:col-span-3">
+        <motion.div
+          {...fadeUp(0.25)}
+          className="glass-card min-w-0 p-4 sm:p-5 lg:col-span-3"
+        >
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h3 className="font-semibold text-[var(--text-primary)]">Scan Trend</h3>
@@ -202,49 +207,66 @@ const DashboardPage = () => {
           </div>
 
           {isLoading ? (
-            <div className="flex h-40 items-center justify-center">
+            <div
+              className="flex items-center justify-center"
+              style={{ height: chartHeight }}
+            >
               <div className="loader-spinner" />
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={160}>
-              <AreaChart data={scanTrend} margin={chartMargin}>
-                <defs>
-                  <linearGradient id="scanGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 9, fill: 'var(--text-muted)' }}
-                  tickFormatter={(v) => v.slice(5)}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fontSize: 9, fill: 'var(--text-muted)' }}
-                  axisLine={false}
-                  tickLine={false}
-                  allowDecimals={false}
-                />
-                <Tooltip content={<ChartTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey="scans"
-                  stroke="#8b5cf6"
-                  strokeWidth={2}
-                  fill="url(#scanGradient)"
-                  dot={false}
-                  activeDot={{ r: 4, fill: '#8b5cf6' }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            <div className="w-full min-w-0" style={{ height: chartHeight }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={scanTrend} margin={chartMargin}>
+                  <defs>
+                    <linearGradient id="scanGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
+                  <XAxis
+                    dataKey="date"
+                    tick={{
+                      fontSize: isMobile ? 10 : 11,
+                      fill: 'var(--text-muted)',
+                    }}
+                    tickFormatter={(v) => (typeof v === 'string' ? v.slice(5) : v)}
+                    tickMargin={isMobile ? 6 : 8}
+                    minTickGap={isMobile ? 4 : 8}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    width={yAxisWidth}
+                    tick={{
+                      fontSize: isMobile ? 10 : 11,
+                      fill: 'var(--text-muted)',
+                    }}
+                    axisLine={false}
+                    tickLine={false}
+                    allowDecimals={false}
+                  />
+                  <Tooltip
+                    content={<ChartTooltip />}
+                    wrapperStyle={{ outline: 'none' }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="scans"
+                    stroke="#8b5cf6"
+                    strokeWidth={isMobile ? 1.75 : 2}
+                    fill="url(#scanGradient)"
+                    dot={false}
+                    activeDot={{ r: isMobile ? 5 : 4, fill: '#8b5cf6' }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           )}
         </motion.div>
 
         {/* Recent campaigns — full width on mobile, 2/5 on lg */}
-        <motion.div {...fadeUp(0.3)} className="glass-card p-4 sm:p-5 lg:col-span-2">
+        <motion.div {...fadeUp(0.3)} className="glass-card min-w-0 p-4 sm:p-5 lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h3 className="font-semibold text-[var(--text-primary)]">Recent Campaigns</h3>

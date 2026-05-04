@@ -146,6 +146,51 @@ const persistLinkItemsFromBody = async (linkItems) => {
   return persistedItems;
 };
 
+/**
+ * Merge PATCH linkItems with existing hub rows: reuse linkId when the client
+ * sends a known id (keeps analytics.linkClickTotals aligned); assign new ids
+ * for added rows or spoofed ids. Trims click totals to current linkIds only.
+ */
+const mergeLinkItemsForUpdate = async (existingItems, incomingItems) => {
+  const { nanoid } = await import('nanoid');
+  const existingById = new Map((existingItems || []).map((it) => [it.linkId, it]));
+  const assigned = new Set();
+  const merged = [];
+
+  for (const item of incomingItems) {
+    const label = item.label.trim();
+    const value = item.value.trim();
+    resolveLinkHref(item.kind, value);
+
+    let linkId = null;
+    const claimed = item.linkId && typeof item.linkId === 'string' ? item.linkId.trim() : '';
+    if (claimed && existingById.has(claimed) && !assigned.has(claimed)) {
+      linkId = claimed;
+    } else {
+      linkId = nanoid(12);
+      while (assigned.has(linkId) || existingById.has(linkId)) {
+        linkId = nanoid(12);
+      }
+    }
+    assigned.add(linkId);
+    merged.push({ linkId, kind: item.kind, label, value });
+  }
+
+  return merged;
+};
+
+const pruneLinkClickTotals = (totals, linkIds) => {
+  const next = {};
+  if (totals && typeof totals === 'object' && !Array.isArray(totals)) {
+    for (const id of linkIds) {
+      if (Object.prototype.hasOwnProperty.call(totals, id)) {
+        next[id] = totals[id];
+      }
+    }
+  }
+  return next;
+};
+
 const createMultipleLinksCampaign = async (req, res) => {
   const { campaignName, linkItems, qrDesign, preciseGeoAnalytics } = req.body;
 
@@ -233,8 +278,8 @@ const getCampaign = async (req, res) => {
 const updateCampaign = async (req, res) => {
   const existing = await Campaign.findOne(
     { _id: req.params.id, userId: req.user._id },
-    'campaignType redirectSlug status'
-  );
+    'campaignType redirectSlug status linkItems analytics.linkClickTotals'
+  ).lean();
   if (!existing) throw new AppError('Campaign not found', 404);
 
   const {
@@ -278,7 +323,12 @@ const updateCampaign = async (req, res) => {
       updates.qrDesign = qrDesign;
     }
     if (linkItems !== undefined) {
-      updates.linkItems = await persistLinkItemsFromBody(linkItems);
+      const merged = await mergeLinkItemsForUpdate(existing.linkItems, linkItems);
+      updates.linkItems = merged;
+      updates['analytics.linkClickTotals'] = pruneLinkClickTotals(
+        existing.analytics?.linkClickTotals,
+        merged.map((m) => m.linkId)
+      );
     }
   }
 

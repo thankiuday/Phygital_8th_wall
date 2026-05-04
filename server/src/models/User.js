@@ -39,6 +39,7 @@ const userSchema = new mongoose.Schema(
     avatar: {
       type: String,
       default: null,
+      maxlength: [500, 'Avatar URL is too long'],
     },
 
     isEmailVerified: {

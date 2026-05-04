@@ -11,6 +11,8 @@ const {
   logout,
   logoutAll,
   getMe,
+  updateMe,
+  changePassword,
   forgotPassword,
   resetPassword,
 } = require('../controllers/authController');
@@ -22,6 +24,8 @@ const {
   loginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  updateProfileSchema,
+  changePasswordSchema,
 } = require('../middleware/validate');
 
 /* ─────────────────────────────────────────
@@ -50,5 +54,7 @@ router.post('/reset-password/:token', authLimiter, validate(resetPasswordSchema)
 router.post('/logout', protect, logout);
 router.post('/logout-all', protect, logoutAll);
 router.get('/me', protect, getMe);
+router.patch('/me', protect, validate(updateProfileSchema), updateMe);
+router.patch('/password', authLimiter, protect, validate(changePasswordSchema), changePassword);
 
 module.exports = router;

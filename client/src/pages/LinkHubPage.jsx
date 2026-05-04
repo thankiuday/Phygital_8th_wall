@@ -11,6 +11,7 @@ import {
   Globe,
   Music2,
   Link2,
+  PauseCircle,
 } from 'lucide-react';
 import publicApi from '../services/publicApi';
 import SEOHead from '../components/ui/SEOHead';
@@ -49,7 +50,7 @@ const deviceTypeGuess = () => {
  */
 const LinkHubPage = () => {
   const { slug } = useParams();
-  const [phase, setPhase] = useState('loading'); // loading | ready | error
+  const [phase, setPhase] = useState('loading'); // loading | ready | paused | error
   const [error, setError] = useState('');
   const [meta, setMeta] = useState(null);
   const visitorHashRef = useRef('');
@@ -69,6 +70,13 @@ const LinkHubPage = () => {
         if (!data) throw new Error('Invalid response');
         if (data.campaignType === 'single-link-qr' && data.destinationUrl) {
           window.location.replace(data.destinationUrl);
+          return;
+        }
+        if (data.campaignType === 'multiple-links-qr' && (data.paused || data.status === 'paused')) {
+          if (!cancelled) {
+            setMeta(data);
+            setPhase('paused');
+          }
           return;
         }
         if (data.campaignType !== 'multiple-links-qr' || !Array.isArray(data.links)) {
@@ -220,6 +228,25 @@ const LinkHubPage = () => {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 bg-[var(--bg-primary)] px-6 text-center">
         <p className="text-[var(--text-primary)]">{error}</p>
+      </div>
+    );
+  }
+
+  if (phase === 'paused' && meta) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--bg-primary)] px-6 py-12 text-center text-[var(--text-primary)]">
+        <SEOHead title={meta.campaignName ? `${meta.campaignName} — Paused` : 'Paused'} description="This link page is temporarily unavailable." />
+        <div className="mx-auto max-w-md">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-500">
+            <PauseCircle size={36} strokeWidth={1.75} aria-hidden />
+          </div>
+          <h1 className="text-xl font-bold tracking-tight">
+            {meta.campaignName || 'Link page'}
+          </h1>
+          <p className="mt-4 text-sm leading-relaxed text-[var(--text-secondary)]">
+            This link page is temporarily paused by the campaign owner. Check back later or contact them if you need access.
+          </p>
+        </div>
       </div>
     );
   }

@@ -33,7 +33,15 @@ const OpenSingleLinkBridgePage = () => {
         );
         const data = res.data?.data;
         if (!data?.campaignType) throw new Error('Invalid response');
-        if (data.campaignType === 'single-link-qr' && !data.destinationUrl) {
+        if (data.campaignType === 'multiple-links-qr' && (data.paused || data.status === 'paused')) {
+          window.location.replace(`${window.location.origin}/l/${slug}`);
+          return;
+        }
+        if (data.campaignType === 'single-link-qr') {
+          if (!data.destinationUrl) throw new Error('Invalid response');
+        } else if (data.campaignType === 'multiple-links-qr') {
+          if (!Array.isArray(data.links)) throw new Error('Invalid response');
+        } else {
           throw new Error('Invalid response');
         }
         if (!visitorHashRef.current) {

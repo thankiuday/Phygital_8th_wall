@@ -110,6 +110,17 @@ const useAuthStore = create((set, get) => {
 
     setAccessToken: (token) => set({ accessToken: token }),
     updateUser:     (patch) => set((s) => ({ user: { ...s.user, ...patch } })),
+
+    /** Refetch `/auth/me` and replace `user` (e.g. after profile save). */
+    refreshUser: async (options = {}) => {
+      const token = get().accessToken;
+      const data = await authService.getMe(
+        token ? { token, stats: !!options.stats } : { stats: !!options.stats }
+      );
+      set({ user: data.user });
+      return data;
+    },
+
     clearError:     ()      => set({ error: null }),
   };
 });

@@ -148,30 +148,51 @@ router.get('/dynamic-qr/:slug/meta', singleLinkSlugLimiter, async (req, res) => 
   const campaign = await Campaign.findOne(
     {
       redirectSlug: slug,
-      status: 'active',
       campaignType: { $in: ['single-link-qr', 'multiple-links-qr'] },
     },
-    'campaignName campaignType destinationUrl preciseGeoAnalytics redirectSlug linkItems'
+    'campaignName campaignType destinationUrl preciseGeoAnalytics redirectSlug linkItems status'
   ).lean();
 
   if (!campaign) throw new AppError('Link not found', 404);
+  if (campaign.status === 'draft') throw new AppError('Link not found', 404);
 
-  const payload =
-    campaign.campaignType === 'single-link-qr'
-      ? {
-        campaignType: 'single-link-qr',
-        campaignName: campaign.campaignName,
-        destinationUrl: campaign.destinationUrl,
-        preciseGeoAnalytics: !!campaign.preciseGeoAnalytics,
-        slug: campaign.redirectSlug,
-      }
-      : {
-        campaignType: 'multiple-links-qr',
-        campaignName: campaign.campaignName,
-        links: toPublicLinkList(campaign.linkItems || []),
-        preciseGeoAnalytics: !!campaign.preciseGeoAnalytics,
-        slug: campaign.redirectSlug,
-      };
+  if (campaign.campaignType === 'single-link-qr') {
+    if (campaign.status !== 'active') throw new AppError('Link not found', 404);
+    const payload = {
+      campaignType: 'single-link-qr',
+      campaignName: campaign.campaignName,
+      destinationUrl: campaign.destinationUrl,
+      preciseGeoAnalytics: !!campaign.preciseGeoAnalytics,
+      slug: campaign.redirectSlug,
+    };
+    await dynamicQrMetaCache.set(slug, payload);
+    return success(res, payload);
+  }
+
+  // multiple-links-qr — hub still reachable when paused (visitor sees owner message)
+  if (campaign.status === 'paused') {
+    const payload = {
+      campaignType: 'multiple-links-qr',
+      campaignName: campaign.campaignName,
+      status: 'paused',
+      paused: true,
+      links: [],
+      preciseGeoAnalytics: !!campaign.preciseGeoAnalytics,
+      slug: campaign.redirectSlug,
+    };
+    await dynamicQrMetaCache.set(slug, payload);
+    return success(res, payload);
+  }
+
+  if (campaign.status !== 'active') throw new AppError('Link not found', 404);
+
+  const payload = {
+    campaignType: 'multiple-links-qr',
+    campaignName: campaign.campaignName,
+    links: toPublicLinkList(campaign.linkItems || []),
+    preciseGeoAnalytics: !!campaign.preciseGeoAnalytics,
+    slug: campaign.redirectSlug,
+  };
 
   await dynamicQrMetaCache.set(slug, payload);
   return success(res, payload);

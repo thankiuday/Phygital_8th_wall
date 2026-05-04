@@ -33,10 +33,10 @@ const Skeleton = ({ h = 'h-20', className = '' }) => (
 );
 
 const TOOLTIP_STYLE = {
-  backgroundColor: 'rgba(15,10,30,0.95)',
-  border: '1px solid rgba(255,255,255,0.1)',
+  backgroundColor: 'var(--chart-tooltip-bg)',
+  border: '1px solid var(--chart-tooltip-border)',
   borderRadius: '10px',
-  color: '#e2e8f0',
+  color: 'var(--chart-tooltip-color)',
   fontSize: 12,
 };
 
@@ -104,7 +104,7 @@ const AdminDashboardPage = () => {
                   <stop offset="95%" stopColor="#7c3aed" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid-stroke)" />
               <XAxis dataKey="date" tickFormatter={(d) => d.slice(5)}
                 tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
               <YAxis allowDecimals={false}

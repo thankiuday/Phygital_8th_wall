@@ -55,8 +55,10 @@ router.get('/:slug', slugLimiter, async (req, res) => {
     camp = await Campaign.findOne(
       {
         redirectSlug: slug,
-        status: 'active',
-        campaignType: { $in: ['single-link-qr', 'multiple-links-qr'] },
+        $or: [
+          { campaignType: 'single-link-qr', status: 'active' },
+          { campaignType: 'multiple-links-qr', status: { $in: ['active', 'paused'] } },
+        ],
       },
       'destinationUrl campaignType _id'
     ).lean();

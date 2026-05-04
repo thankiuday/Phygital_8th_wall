@@ -2,6 +2,7 @@
 
 const User = require('../models/User');
 const Session = require('../models/Session');
+const Campaign = require('../models/Campaign');
 const { AppError } = require('../middleware/errorHandler');
 const { success, created } = require('../utils/apiResponse');
 const {
@@ -25,6 +26,7 @@ const userPayload = (user) => ({
   avatar: user.avatar,
   isEmailVerified: user.isEmailVerified,
   createdAt: user.createdAt,
+  lastLoginAt: user.lastLoginAt,
 });
 
 /* ─────────────────────────────────────────
@@ -155,7 +157,52 @@ const logoutAll = async (req, res) => {
 const getMe = async (req, res) => {
   const user = await User.findById(req.user._id);
   if (!user) throw new AppError('User not found', 404);
-  return success(res, { user: userPayload(user) });
+
+  const payload = { user: userPayload(user) };
+
+  if (req.query.stats === '1') {
+    const uid = user._id;
+    const [campaignCount, activeCampaignCount] = await Promise.all([
+      Campaign.countDocuments({ userId: uid }),
+      Campaign.countDocuments({ userId: uid, status: 'active' }),
+    ]);
+    payload.stats = { campaignCount, activeCampaignCount };
+  }
+
+  return success(res, payload);
+};
+
+const updateMe = async (req, res) => {
+  const { name, avatar } = req.body;
+  const updates = {};
+  if (name !== undefined) updates.name = name;
+  if (avatar !== undefined) {
+    updates.avatar = avatar === '' || avatar === null ? null : avatar;
+  }
+
+  const user = await User.findByIdAndUpdate(req.user._id, updates, {
+    new: true,
+    runValidators: true,
+  });
+  if (!user) throw new AppError('User not found', 404);
+
+  return success(res, { user: userPayload(user) }, 'Profile updated');
+};
+
+const changePassword = async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+
+  const user = await User.findById(req.user._id).select('+password');
+  if (!user) throw new AppError('User not found', 404);
+
+  if (!(await user.comparePassword(currentPassword))) {
+    throw new AppError('Current password is incorrect', 401);
+  }
+
+  user.password = newPassword;
+  await user.save({ validateModifiedOnly: true });
+
+  return success(res, {}, 'Password updated successfully');
 };
 
 /* ─────────────────────────────────────────
@@ -222,6 +269,8 @@ module.exports = {
   logout,
   logoutAll,
   getMe,
+  updateMe,
+  changePassword,
   forgotPassword,
   resetPassword,
 };

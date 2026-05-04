@@ -190,8 +190,18 @@ const linkItemInputSchema = z
   })
   .strict();
 
+/** PATCH body — optional linkId when updating existing hub rows (preserves analytics). */
+const linkItemPatchSchema = linkItemInputSchema.extend({
+  linkId: z.string().trim().min(8).max(24).optional(),
+});
+
 const linkItemsField = z
   .array(linkItemInputSchema)
+  .min(1, 'At least one link is required')
+  .max(20, 'Too many links (max 20)');
+
+const linkItemsPatchField = z
+  .array(linkItemPatchSchema)
   .min(1, 'At least one link is required')
   .max(20, 'Too many links (max 20)');
 
@@ -292,7 +302,7 @@ const updateCampaignSchema = z
       })
       .optional(),
     qrDesign: qrDesignSchema.nullable().optional(),
-    linkItems: linkItemsField.optional(),
+    linkItems: linkItemsPatchField.optional(),
   })
   .strict()
   .refine((d) => Object.keys(d).length > 0, { message: 'No valid fields to update' });
@@ -300,7 +310,9 @@ const updateCampaignSchema = z
 module.exports = {
   qrDesignSchema,
   linkItemInputSchema,
+  linkItemPatchSchema,
   linkItemsField,
+  linkItemsPatchField,
   createCampaignSchema,
   createSingleLinkOnlySchema,
   createMultipleLinksOnlySchema,

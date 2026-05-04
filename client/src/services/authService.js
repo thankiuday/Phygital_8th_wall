@@ -72,15 +72,44 @@ export const authService = {
     return data;
   },
 
-  getMe: async (token) => {
+  /**
+   * @param {string | { token?: string, stats?: boolean }} tokenOrOptions
+   *        Pass access token string (e.g. during hydrate) or `{ stats: true }` when the axios interceptor already sends Bearer.
+   */
+  getMe: async (tokenOrOptions) => {
+    const isStr = typeof tokenOrOptions === 'string';
+    const token = isStr ? tokenOrOptions : tokenOrOptions?.token;
+    const stats = isStr ? false : !!tokenOrOptions?.stats;
     const res = await api.get('/auth/me', {
-      headers: { Authorization: `Bearer ${token}` },
+      ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+      ...(stats ? { params: { stats: '1' } } : {}),
     });
     const data = requireAuthPayload(res, 'getMe');
     if (!data.user) {
       throw new Error('Profile response missing user.');
     }
     return data;
+  },
+
+  updateProfile: async (payload) => {
+    const res = await api.patch('/auth/me', payload);
+    const data = requireAuthPayload(res, 'updateProfile');
+    if (!data.user) {
+      throw new Error('Profile update response missing user.');
+    }
+    return data;
+  },
+
+  changePassword: async (payload) => {
+    const res = await api.patch('/auth/password', payload);
+    const body = res?.data;
+    if (body == null || typeof body !== 'object') {
+      throw new Error('Invalid response from server (change password).');
+    }
+    if (!body.success) {
+      throw new Error(body.message || 'Password change failed.');
+    }
+    return body;
   },
 
   forgotPassword: async (email) => {

@@ -35,6 +35,7 @@ const LinkHubPage            = lazy(() => import('./pages/LinkHubPage'));
 const CampaignDetailPage     = lazy(() => import('./pages/campaigns/CampaignDetailPage'));
 const AnalyticsPage          = lazy(() => import('./pages/analytics/AnalyticsPage'));
 const CampaignAnalyticsPage  = lazy(() => import('./pages/analytics/CampaignAnalyticsPage'));
+const AccountSettingsPage    = lazy(() => import('./pages/settings/AccountSettingsPage'));
 const AdminLayout            = lazy(() => import('./pages/admin/AdminLayout'));
 const AdminDashboardPage     = lazy(() => import('./pages/admin/AdminDashboardPage'));
 const AdminUsersPage         = lazy(() => import('./pages/admin/AdminUsersPage'));
@@ -108,6 +109,7 @@ function App() {
               <Route path="campaigns/:id"        element={<RouteLoader><CampaignDetailPage /></RouteLoader>} />
               <Route path="campaigns/:id/analytics" element={<RouteLoader><CampaignAnalyticsPage /></RouteLoader>} />
               <Route path="analytics"            element={<RouteLoader><AnalyticsPage /></RouteLoader>} />
+              <Route path="settings"             element={<RouteLoader><AccountSettingsPage /></RouteLoader>} />
             </Route>
 
             {/* ── Admin routes ──────────────────────────────────────── */}

@@ -28,10 +28,10 @@ const DEVICE_COLORS  = ['#7c3aed', '#06b6d4', '#10b981', '#f59e0b'];
 const BROWSER_COLORS = ['#7c3aed', '#06b6d4', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6'];
 
 const CHART_TOOLTIP_STYLE = {
-  backgroundColor: 'rgba(15,10,30,0.95)',
-  border: '1px solid rgba(255,255,255,0.1)',
+  backgroundColor: 'var(--chart-tooltip-bg)',
+  border: '1px solid var(--chart-tooltip-border)',
   borderRadius: '10px',
-  color: '#e2e8f0',
+  color: 'var(--chart-tooltip-color)',
   fontSize: 12,
 };
 
@@ -103,7 +103,7 @@ const HourlyHeatmap = ({ data }) => {
                 height: `${Math.max(4, (count / max) * 48)}px`,
                 background: count > 0
                   ? `rgba(124,58,237,${0.2 + (count / max) * 0.8})`
-                  : 'rgba(255,255,255,0.05)',
+                  : 'var(--chart-heatmap-empty)',
               }}
               title={`${hour}:00 — ${count} scans`}
             />
@@ -240,7 +240,7 @@ const AnalyticsPage = () => {
                   <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid-stroke)" />
               <XAxis
                 dataKey="date"
                 tickFormatter={(d) => d.slice(5)}

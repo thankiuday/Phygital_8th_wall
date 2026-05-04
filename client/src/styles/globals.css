@@ -26,19 +26,26 @@
   --text-secondary: #475569;
   --text-muted: #94a3b8;
 
-  /* Border */
-  --border-color: #e2e8f0;
-  --border-subtle: #f1f5f9;
+  /* Border — slightly stronger than slate-200 so edges read on white / glass */
+  --border-color: #cbd5e1;
+  --border-subtle: #e2e8f0;
 
   /* Brand */
   --brand: #7c3aed;
   --brand-light: #8b5cf6;
   --accent: #06b6d4;
 
-  /* Glassmorphism — light */
-  --glass-bg: rgba(255, 255, 255, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.5);
+  /* Glassmorphism — light (avoid white-on-white border; use a slate hairline) */
+  --glass-bg: rgba(255, 255, 255, 0.82);
+  --glass-border: rgba(51, 65, 85, 0.22);
   --glass-blur: 16px;
+
+  /* Recharts / inline chart chrome — theme-aware */
+  --chart-grid-stroke: rgba(15, 23, 42, 0.08);
+  --chart-tooltip-bg: rgba(255, 255, 255, 0.98);
+  --chart-tooltip-border: var(--border-color);
+  --chart-tooltip-color: var(--text-primary);
+  --chart-heatmap-empty: rgba(15, 23, 42, 0.06);
 
   /* Solid surface — used by mobile drawers / modals where translucency must
      not leak page content through. Theme-aware (white in light, deep slate
@@ -87,6 +94,12 @@
   --glass-bg: rgba(15, 23, 42, 0.6);
   --glass-border: rgba(139, 92, 246, 0.15);
   --glass-blur: 16px;
+
+  --chart-grid-stroke: rgba(255, 255, 255, 0.08);
+  --chart-tooltip-bg: rgba(15, 10, 30, 0.96);
+  --chart-tooltip-border: rgba(255, 255, 255, 0.12);
+  --chart-tooltip-color: #e2e8f0;
+  --chart-heatmap-empty: rgba(255, 255, 255, 0.06);
 
   /* Solid surface — opaque per theme */
   --surface-solid: #0f172a;
