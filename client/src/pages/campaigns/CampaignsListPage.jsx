@@ -321,6 +321,15 @@ const FILTER_TABS = [
   { value: 'draft', label: 'Draft' },
 ];
 
+const TYPE_FILTER_OPTIONS = [
+  { value: '', label: 'All types' },
+  { value: 'ar-card', label: 'AR Card' },
+  { value: 'single-link-qr', label: 'Single Link QR' },
+  { value: 'multiple-links-qr', label: 'Multiple Links QR' },
+  { value: 'links-video-qr', label: 'Links + Video QR' },
+  { value: 'links-doc-video-qr', label: 'Links + Doc + Video QR' },
+];
+
 const CampaignsListPage = () => {
   const navigate = useNavigate();
   const {
@@ -330,6 +339,7 @@ const CampaignsListPage = () => {
 
   const [search, setSearch]             = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [typeFilter, setTypeFilter]     = useState('');
   const [editTarget, setEditTarget]     = useState(null);
   const [toastMsg, setToastMsg]         = useState('');
 
@@ -338,12 +348,13 @@ const CampaignsListPage = () => {
   const displayed = useMemo(() => {
     let list = campaigns;
     if (statusFilter) list = list.filter((c) => c.status === statusFilter);
+    if (typeFilter) list = list.filter((c) => c.campaignType === typeFilter);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter((c) => c.campaignName.toLowerCase().includes(q));
     }
     return list;
-  }, [campaigns, statusFilter, search]);
+  }, [campaigns, statusFilter, typeFilter, search]);
 
   const showToast = (msg) => {
     setToastMsg(msg);
@@ -374,7 +385,7 @@ const CampaignsListPage = () => {
 
   const handleSaveEdit = async (id, updates) => updateCampaignInList(id, updates);
 
-  const isFiltered = !!search.trim() || !!statusFilter;
+  const isFiltered = !!search.trim() || !!statusFilter || !!typeFilter;
 
   return (
     <div className="mx-auto max-w-7xl space-y-5 p-4 sm:p-6">
@@ -432,6 +443,25 @@ const CampaignsListPage = () => {
               {tab.label}
             </button>
           ))}
+        </div>
+
+        {/* Campaign type filter */}
+        <div className="sm:w-[220px]">
+          <label htmlFor="campaignTypeFilter" className="sr-only">
+            Filter by campaign type
+          </label>
+          <select
+            id="campaignTypeFilter"
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="w-full rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30"
+          >
+            {TYPE_FILTER_OPTIONS.map((option) => (
+              <option key={option.value || 'all'} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
