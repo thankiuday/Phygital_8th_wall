@@ -19,9 +19,9 @@ configureCloudinary();
  *   https://api.cloudinary.com/v1_1/<cloud_name>/<resource_type>/upload
  *
  * @param {object} options
- * @param {'image'|'video'} options.resourceType
- * @param {string}          options.folder       — Cloudinary folder path
- * @param {number}          [options.maxBytes]   — optional byte limit (not enforced server-side but included for reference)
+ * @param {'image'|'video'|'raw'} options.resourceType
+ * @param {string}                options.folder       — Cloudinary folder path
+ * @param {number}                [options.maxBytes]   — optional byte limit (not enforced server-side but included for reference)
  */
 const generateUploadSignature = (options) => {
   const { resourceType = 'image', folder } = options;
@@ -61,8 +61,8 @@ const generateUploadSignature = (options) => {
 
 /**
  * deleteCloudinaryAsset
- * @param {string}          publicId
- * @param {'image'|'video'} resourceType
+ * @param {string}                publicId
+ * @param {'image'|'video'|'raw'} resourceType
  */
 const deleteCloudinaryAsset = async (publicId, resourceType = 'image') => {
   if (!publicId) return;

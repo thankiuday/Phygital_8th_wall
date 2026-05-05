@@ -26,7 +26,8 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
 
   const hasLinkItems =
     campaign.campaignType === 'multiple-links-qr'
-    || campaign.campaignType === 'links-video-qr';
+    || campaign.campaignType === 'links-video-qr'
+    || campaign.campaignType === 'links-doc-video-qr';
   const [linkRows, setLinkRows] = useState(() =>
     hasLinkItems ? campaignLinkItemsToRows(campaign.linkItems) : []
   );
@@ -38,7 +39,11 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
     setStatus(campaign.status);
     setError('');
     setLinkError('');
-    if (campaign.campaignType === 'multiple-links-qr' || campaign.campaignType === 'links-video-qr') {
+    if (
+      campaign.campaignType === 'multiple-links-qr'
+      || campaign.campaignType === 'links-video-qr'
+      || campaign.campaignType === 'links-doc-video-qr'
+    ) {
       setLinkRows(campaignLinkItemsToRows(campaign.linkItems));
       setPreciseGeo(!!campaign.preciseGeoAnalytics);
     } else {

@@ -12,6 +12,11 @@ import {
   Music2,
   Link2,
   PauseCircle,
+  FileText,
+  FileSpreadsheet,
+  FileImage,
+  Presentation,
+  FileType,
 } from 'lucide-react';
 import publicApi from '../services/publicApi';
 import SEOHead from '../components/ui/SEOHead';
@@ -27,6 +32,27 @@ const KIND_ICONS = {
   website: Globe,
   tiktok: Music2,
   custom: Link2,
+};
+
+const HUB_TYPES = new Set([
+  'multiple-links-qr',
+  'links-video-qr',
+  'links-doc-video-qr',
+]);
+
+const docIconForMime = (mime = '') => {
+  if (mime === 'application/pdf') return FileText;
+  if (mime.startsWith('image/')) return FileImage;
+  if (mime.includes('spreadsheet') || mime.includes('excel')) return FileSpreadsheet;
+  if (mime.includes('presentation') || mime.includes('powerpoint')) return Presentation;
+  if (mime.includes('word')) return FileType;
+  return FileText;
+};
+
+const formatBytes = (bytes) => {
+  if (!bytes || bytes < 1024) return `${bytes || 0} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
 const configuredApiUrl = import.meta.env.VITE_API_URL;
@@ -73,20 +99,14 @@ const LinkHubPage = () => {
           window.location.replace(data.destinationUrl);
           return;
         }
-        if (
-          (data.campaignType === 'multiple-links-qr' || data.campaignType === 'links-video-qr')
-          && (data.paused || data.status === 'paused')
-        ) {
+        if (HUB_TYPES.has(data.campaignType) && (data.paused || data.status === 'paused')) {
           if (!cancelled) {
             setMeta(data);
             setPhase('paused');
           }
           return;
         }
-        if (
-          (data.campaignType !== 'multiple-links-qr' && data.campaignType !== 'links-video-qr')
-          || !Array.isArray(data.links)
-        ) {
+        if (!HUB_TYPES.has(data.campaignType) || !Array.isArray(data.links)) {
           throw new Error('This page is not available.');
         }
         let vh = sessionStorage.getItem(visitorStorageKey);
@@ -187,53 +207,70 @@ const LinkHubPage = () => {
     };
   }, [flushSession, scheduleSessionFlush]);
 
+  const sendBeacon = useCallback((path, body) => {
+    const url = `${publicApiBase()}${path}`;
+    const payload = JSON.stringify(body);
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(url, new Blob([payload], { type: 'application/json' }));
+      return;
+    }
+    fetch(url, {
+      method: 'POST',
+      body: payload,
+      headers: { 'Content-Type': 'application/json' },
+      keepalive: true,
+    }).catch(() => {});
+  }, []);
+
   const onLinkActivate = useCallback(
     (link) => {
       const vh = visitorHashRef.current;
-      const url = `${publicApiBase()}/public/multi-link/${encodeURIComponent(slug)}/click`;
-      const body = JSON.stringify({
+      sendBeacon(`/public/multi-link/${encodeURIComponent(slug)}/click`, {
         linkId: link.linkId,
+        kind: 'link',
         visitorHash: vh || undefined,
       });
-      if (navigator.sendBeacon) {
-        navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
-      } else {
-        fetch(url, {
-          method: 'POST',
-          body,
-          headers: { 'Content-Type': 'application/json' },
-          keepalive: true,
-        }).catch(() => {});
-      }
       window.open(link.href, '_blank', 'noopener,noreferrer');
     },
-    [slug]
+    [slug, sendBeacon]
   );
 
-  const onVideoEvent = useCallback(
-    (evt) => {
+  const onDocActivate = useCallback(
+    (doc) => {
+      const vh = visitorHashRef.current;
+      sendBeacon(`/public/multi-link/${encodeURIComponent(slug)}/click`, {
+        linkId: doc.docId,
+        kind: 'document',
+        visitorHash: vh || undefined,
+      });
+      window.open(doc.url, '_blank', 'noopener,noreferrer');
+    },
+    [slug, sendBeacon]
+  );
+
+  const sendVideoEvent = useCallback(
+    (evt, videoId) => {
       const vh = visitorHashRef.current;
       if (!vh || !slug) return;
-      const url = `${publicApiBase()}/public/multi-link/${encodeURIComponent(slug)}/video`;
-      const body = JSON.stringify({
+      sendBeacon(`/public/multi-link/${encodeURIComponent(slug)}/video`, {
         visitorHash: vh,
         event: evt?.event || 'progress',
+        videoId: videoId || undefined,
         positionSec: typeof evt?.positionSec === 'number' ? evt.positionSec : undefined,
         durationSec: typeof evt?.durationSec === 'number' ? evt.durationSec : undefined,
         watchPercent: typeof evt?.watchPercent === 'number' ? evt.watchPercent : undefined,
       });
-      if (navigator.sendBeacon) {
-        navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
-      } else {
-        fetch(url, {
-          method: 'POST',
-          body,
-          headers: { 'Content-Type': 'application/json' },
-          keepalive: true,
-        }).catch(() => {});
-      }
     },
-    [slug]
+    [slug, sendBeacon]
+  );
+
+  // Single-video hubs (links-video-qr) — no per-asset attribution.
+  const onVideoEvent = useCallback((evt) => sendVideoEvent(evt), [sendVideoEvent]);
+
+  // Multi-video hubs (links-doc-video-qr) — attribute each beacon to its videoId.
+  const makeVideoEventHandler = useCallback(
+    (videoId) => (evt) => sendVideoEvent(evt, videoId),
+    [sendVideoEvent]
   );
 
   if (phase === 'loading') {
@@ -286,11 +323,21 @@ const LinkHubPage = () => {
 
   const { campaignName, links } = meta;
   const hasHeroVideo = meta.campaignType === 'links-video-qr';
+  const isMultiAssetHub = meta.campaignType === 'links-doc-video-qr';
+  const videoItems = Array.isArray(meta.videoItems) ? meta.videoItems : [];
+  const docItems = Array.isArray(meta.docItems) ? meta.docItems : [];
+
+  // 1 video → single hero column for max impact; 2+ → responsive grid (1 col
+  // on mobile, 2 cols on tablet/desktop) so we never shrink to a tile so
+  // small the play button overlaps the title.
+  const videoGridClass = videoItems.length <= 1
+    ? 'grid grid-cols-1 gap-4'
+    : 'grid grid-cols-1 gap-4 md:grid-cols-2';
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
       <SEOHead title={campaignName || 'Links'} description="Quick links" />
-      <div className="mx-auto max-w-md px-4 py-10">
+      <div className={`mx-auto px-4 py-10 ${isMultiAssetHub && videoItems.length > 1 ? 'max-w-3xl' : 'max-w-md'}`}>
         <header className="mb-8 text-center">
           <h1 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
             {campaignName}
@@ -310,6 +357,75 @@ const LinkHubPage = () => {
               onEvent={onVideoEvent}
             />
           </div>
+        )}
+
+        {isMultiAssetHub && videoItems.length > 0 && (
+          <section className="mb-6">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+              Videos
+            </h2>
+            <div className={videoGridClass}>
+              {videoItems.map((item) => (
+                <div key={item.videoId} className="flex flex-col gap-2">
+                  <HubVideoPlayer
+                    source={item.source}
+                    videoUrl={item.videoUrl}
+                    externalVideoUrl={item.externalVideoUrl}
+                    embedSrc={item.embedSrc}
+                    embedHost={item.embedHost}
+                    thumbnailUrl={item.thumbnailUrl}
+                    onEvent={makeVideoEventHandler(item.videoId)}
+                  />
+                  <p className="line-clamp-2 px-1 text-sm font-medium text-[var(--text-primary)]">
+                    {item.label}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {isMultiAssetHub && docItems.length > 0 && (
+          <section className="mb-6">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+              Documents
+            </h2>
+            <ul className="flex flex-col gap-3">
+              {docItems.map((doc) => {
+                const Icon = docIconForMime(doc.mimeType || '');
+                return (
+                  <li key={doc.docId}>
+                    <button
+                      type="button"
+                      onClick={() => onDocActivate(doc)}
+                      className="flex w-full items-center gap-3 rounded-2xl border border-[var(--border-color)] bg-[var(--surface-1)] px-4 py-4 text-left shadow-sm transition hover:border-brand-500/40 hover:bg-[var(--surface-2)]"
+                    >
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400">
+                        <Icon size={20} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium text-[var(--text-primary)]">
+                          {doc.label}
+                        </span>
+                        {doc.bytes ? (
+                          <span className="block truncate text-xs text-[var(--text-muted)]">
+                            {formatBytes(doc.bytes)}
+                          </span>
+                        ) : null}
+                      </span>
+                      <ExternalLink size={16} className="shrink-0 text-[var(--text-muted)]" />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
+
+        {(isMultiAssetHub && (videoItems.length > 0 || docItems.length > 0)) && (
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+            Links
+          </h2>
         )}
 
         <ul className="flex flex-col gap-3">

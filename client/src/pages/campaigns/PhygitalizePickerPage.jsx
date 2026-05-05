@@ -37,6 +37,7 @@ const SECTIONS = [
         description: 'Bundle links, downloadable documents and video into one scan.',
         icon: FileText,
         to: '/dashboard/campaigns/new/phygital-qr/links-doc-video',
+        available: true,
       },
     ],
   },

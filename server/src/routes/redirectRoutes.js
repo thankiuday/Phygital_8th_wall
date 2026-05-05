@@ -58,7 +58,9 @@ router.get('/:slug', slugLimiter, async (req, res) => {
         $or: [
           { campaignType: 'single-link-qr', status: 'active' },
           {
-            campaignType: { $in: ['multiple-links-qr', 'links-video-qr'] },
+            campaignType: {
+              $in: ['multiple-links-qr', 'links-video-qr', 'links-doc-video-qr'],
+            },
             status: { $in: ['active', 'paused'] },
           },
         ],
@@ -81,7 +83,11 @@ router.get('/:slug', slugLimiter, async (req, res) => {
 
   const clientBase = (process.env.CLIENT_URL || '').replace(/\/$/, '');
 
-  if (camp.campaignType === 'multiple-links-qr' || camp.campaignType === 'links-video-qr') {
+  if (
+    camp.campaignType === 'multiple-links-qr'
+    || camp.campaignType === 'links-video-qr'
+    || camp.campaignType === 'links-doc-video-qr'
+  ) {
     if (!clientBase) {
       logger.error('redirect.multiLinkMissingClientUrl', { slug });
       return res

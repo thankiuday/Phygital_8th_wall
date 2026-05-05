@@ -20,6 +20,18 @@ const linkClickEventSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    /**
+     * Discriminator: `'link'` is the historical outbound-link tap (default
+     * to keep older docs valid), `'document'` is a doc-open on the
+     * `links-doc-video-qr` hub. The combined collection keeps aggregations
+     * cheap; analytics splits by `kind` when needed.
+     */
+    kind: {
+      type: String,
+      enum: ['link', 'document'],
+      default: 'link',
+      index: true,
+    },
     visitorHash: { type: String, default: null, index: true },
     country: { type: String, default: null },
     city: { type: String, default: null },
@@ -32,5 +44,6 @@ const linkClickEventSchema = new mongoose.Schema(
 
 linkClickEventSchema.index({ campaignId: 1, clickedAt: -1 });
 linkClickEventSchema.index({ campaignId: 1, linkId: 1, clickedAt: -1 });
+linkClickEventSchema.index({ campaignId: 1, kind: 1, clickedAt: -1 });
 
 module.exports = mongoose.model('LinkClickEvent', linkClickEventSchema);

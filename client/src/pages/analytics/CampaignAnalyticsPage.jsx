@@ -12,6 +12,7 @@ import {
   ScanLine, Users, Clock, PlayCircle,
   Smartphone, Monitor, BarChart3, ArrowLeft,
   ChevronRight, MapPin, MousePointerClick,
+  FileText, Film,
 } from 'lucide-react';
 import useAnalyticsStore from '../../store/useAnalyticsStore';
 import useIsMobile from '../../hooks/useIsMobile';
@@ -82,6 +83,18 @@ const TYPE_CONFIG = {
     avgSessionSub: 'Time on link page',
     showVideoCompletion: false,
     showLinkClicksTile: true,
+    showAssetTiles: false,
+    locationsTitle: 'Top visitor locations',
+    scanEmptyHint: 'Visits appear after someone opens your link page.',
+  },
+  'links-doc-video-qr': {
+    headerSub: 'Hub visits, video plays, document opens, and outbound link taps',
+    scanLabel: 'Hub visits',
+    showAvgSession: true,
+    avgSessionSub: 'Time on link page',
+    showVideoCompletion: false,
+    showLinkClicksTile: true,
+    showAssetTiles: true,
     locationsTitle: 'Top visitor locations',
     scanEmptyHint: 'Visits appear after someone opens your link page.',
   },
@@ -181,9 +194,12 @@ const CampaignAnalyticsPage = () => {
   const campaign    = campaignData?.campaign;
   const multiLink   = campaignData?.multiLinkAnalytics;
   const videoAnalytics = campaignData?.videoAnalytics;
+  const assetAnalytics = campaignData?.assetAnalytics;
   const campaignType = campaign?.campaignType;
   const typeConfig = TYPE_CONFIG[campaignType] || DEFAULT_TYPE_CONFIG;
-  const isLinksVideo = campaignType === 'links-video-qr';
+  const isVideoHub =
+    campaignType === 'links-video-qr' || campaignType === 'links-doc-video-qr';
+  const isLinksDocVideo = campaignType === 'links-doc-video-qr';
 
   const periodLinkClicks = useMemo(() => {
     if (!multiLink?.clicksByLinkPeriod?.length) return 0;
@@ -310,6 +326,24 @@ const CampaignAnalyticsPage = () => {
                 sub="Outbound taps (this period)"
                 accent="#f59e0b"
               />
+            )}
+            {typeConfig.showAssetTiles && (
+              <>
+                <StatCard
+                  icon={FileText}
+                  label="Document opens"
+                  value={(assetAnalytics?.totalDocOpensPeriod || 0).toLocaleString()}
+                  sub="This period"
+                  accent="#ef4444"
+                />
+                <StatCard
+                  icon={Film}
+                  label="Video plays"
+                  value={(assetAnalytics?.totalVideoPlaysPeriod || 0).toLocaleString()}
+                  sub="This period"
+                  accent="#7c3aed"
+                />
+              </>
             )}
           </>
         )}
@@ -471,7 +505,7 @@ const CampaignAnalyticsPage = () => {
         </>
       )}
 
-      {isLinksVideo && videoAnalytics && (
+      {isVideoHub && videoAnalytics && (
         <>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
             <StatCard
@@ -557,6 +591,155 @@ const CampaignAnalyticsPage = () => {
                 </AreaChart>
               </ResponsiveContainer>
             )}
+          </div>
+        </>
+      )}
+
+      {/* ── Per-asset analytics (links-doc-video-qr) ─────────────────────── */}
+      {isLinksDocVideo && assetAnalytics && (
+        <>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="glass-card p-5">
+              <div className="mb-4 flex items-center gap-2">
+                <Film size={16} className="text-brand-400" />
+                <h2 className="text-base font-semibold text-[var(--text-primary)]">Top videos</h2>
+                <span className="ml-auto text-xs text-[var(--text-muted)]">Last {period}</span>
+              </div>
+              {!assetAnalytics?.videoPlaysByAssetPeriod?.length ? (
+                <div className="flex h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border-color)] text-center">
+                  <Film size={24} className="text-[var(--text-muted)]/60" />
+                  <p className="text-sm text-[var(--text-secondary)]">No video plays in this period yet</p>
+                </div>
+              ) : (
+                <ResponsiveContainer
+                  width="100%"
+                  height={Math.min(360, assetAnalytics.videoPlaysByAssetPeriod.length * 36 + 40)}
+                >
+                  <BarChart
+                    data={assetAnalytics.videoPlaysByAssetPeriod}
+                    layout="vertical"
+                    margin={{ top: 4, right: 12, bottom: 4, left: 8 }}
+                    barCategoryGap="18%"
+                  >
+                    <XAxis type="number" allowDecimals={false} tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                      axisLine={false} tickLine={false} />
+                    <YAxis
+                      type="category"
+                      dataKey="label"
+                      width={isMobile ? 100 : 140}
+                      tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} />
+                    <Bar dataKey="plays" name="Plays" fill="#7c3aed" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            <div className="glass-card p-5">
+              <div className="mb-4 flex items-center gap-2">
+                <FileText size={16} className="text-amber-400" />
+                <h2 className="text-base font-semibold text-[var(--text-primary)]">Top documents</h2>
+                <span className="ml-auto text-xs text-[var(--text-muted)]">Last {period}</span>
+              </div>
+              {!assetAnalytics?.docOpensByAssetPeriod?.length ? (
+                <div className="flex h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border-color)] text-center">
+                  <FileText size={24} className="text-[var(--text-muted)]/60" />
+                  <p className="text-sm text-[var(--text-secondary)]">No document opens in this period yet</p>
+                </div>
+              ) : (
+                <ResponsiveContainer
+                  width="100%"
+                  height={Math.min(360, assetAnalytics.docOpensByAssetPeriod.length * 36 + 40)}
+                >
+                  <BarChart
+                    data={assetAnalytics.docOpensByAssetPeriod}
+                    layout="vertical"
+                    margin={{ top: 4, right: 12, bottom: 4, left: 8 }}
+                    barCategoryGap="18%"
+                  >
+                    <XAxis type="number" allowDecimals={false} tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                      axisLine={false} tickLine={false} />
+                    <YAxis
+                      type="category"
+                      dataKey="label"
+                      width={isMobile ? 100 : 140}
+                      tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} />
+                    <Bar dataKey="opens" name="Opens" fill="#ef4444" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="glass-card p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-base font-semibold text-[var(--text-primary)]">Video play trend</h2>
+                <span className="text-xs text-[var(--text-muted)]">Last {period}</span>
+              </div>
+              {!assetAnalytics?.videoPlayTrend?.length ? (
+                <div className="flex h-56 items-center justify-center rounded-xl border border-dashed border-[var(--border-color)] text-sm text-[var(--text-muted)]">
+                  No video play activity yet
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={assetAnalytics.videoPlayTrend} margin={chartMargin}>
+                    <defs>
+                      <linearGradient id="cGradAssetPlays" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.45} />
+                        <stop offset="95%" stopColor="#7c3aed" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid-stroke)" />
+                    <XAxis dataKey="date" tickFormatter={(d) => d.slice(5)}
+                      tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} width={yAxisWidth}
+                      tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} />
+                    <Area type="monotone" dataKey="plays" stroke="#7c3aed" strokeWidth={2}
+                      fill="url(#cGradAssetPlays)" name="Plays" dot={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            <div className="glass-card p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-base font-semibold text-[var(--text-primary)]">Document open trend</h2>
+                <span className="text-xs text-[var(--text-muted)]">Last {period}</span>
+              </div>
+              {!assetAnalytics?.docOpenTrend?.length ? (
+                <div className="flex h-56 items-center justify-center rounded-xl border border-dashed border-[var(--border-color)] text-sm text-[var(--text-muted)]">
+                  No document open activity yet
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={assetAnalytics.docOpenTrend} margin={chartMargin}>
+                    <defs>
+                      <linearGradient id="cGradDocs" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.45} />
+                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid-stroke)" />
+                    <XAxis dataKey="date" tickFormatter={(d) => d.slice(5)}
+                      tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} width={yAxisWidth}
+                      tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} />
+                    <Area type="monotone" dataKey="opens" stroke="#ef4444" strokeWidth={2}
+                      fill="url(#cGradDocs)" name="Opens" dot={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
           </div>
         </>
       )}

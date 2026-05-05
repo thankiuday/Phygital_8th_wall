@@ -32,6 +32,7 @@ const ComingSoonPage         = lazy(() => import('./pages/campaigns/ComingSoonPa
 const SingleLinkQrWizard     = lazy(() => import('./pages/campaigns/SingleLinkQrWizard'));
 const MultipleLinksQrWizard  = lazy(() => import('./pages/campaigns/MultipleLinksQrWizard'));
 const LinksVideoQrWizard     = lazy(() => import('./pages/campaigns/LinksVideoQrWizard'));
+const LinksDocVideoQrWizard  = lazy(() => import('./pages/campaigns/LinksDocVideoQrWizard'));
 const LinkHubPage            = lazy(() => import('./pages/LinkHubPage'));
 const CampaignDetailPage     = lazy(() => import('./pages/campaigns/CampaignDetailPage'));
 const AnalyticsPage          = lazy(() => import('./pages/analytics/AnalyticsPage'));
@@ -102,7 +103,7 @@ function App() {
               <Route path="campaigns"            element={<RouteLoader><CampaignsListPage /></RouteLoader>} />
               <Route path="campaigns/new"        element={<RouteLoader><PhygitalizePickerPage /></RouteLoader>} />
               <Route path="campaigns/new/phygital-qr/links-video"      element={<RouteLoader><LinksVideoQrWizard /></RouteLoader>} />
-              <Route path="campaigns/new/phygital-qr/links-doc-video"  element={<RouteLoader><ComingSoonPage type="Links, Doc & Video QR" /></RouteLoader>} />
+              <Route path="campaigns/new/phygital-qr/links-doc-video"  element={<RouteLoader><LinksDocVideoQrWizard /></RouteLoader>} />
               <Route path="campaigns/new/dynamic-qr/single-link"       element={<RouteLoader><SingleLinkQrWizard /></RouteLoader>} />
               <Route path="campaigns/new/dynamic-qr/multiple-links"    element={<RouteLoader><MultipleLinksQrWizard /></RouteLoader>} />
               <Route path="campaigns/new/digital-business-card/personalized-identity" element={<RouteLoader><ComingSoonPage type="Personalized Identity Card" /></RouteLoader>} />

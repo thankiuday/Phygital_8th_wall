@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 const Campaign = require('../models/Campaign');
 const ScanEvent = require('../models/ScanEvent');
 const LinkClickEvent = require('../models/LinkClickEvent');
+const VideoPlayEvent = require('../models/VideoPlayEvent');
 const { success } = require('../utils/apiResponse');
 const { AppError } = require('../middleware/errorHandler');
 const scanQueue = require('../utils/scanQueue');
@@ -25,7 +26,14 @@ const { toEmbedSrc, detectVideoHost } = require('../utils/videoEmbed');
 const logger = require('../config/logger');
 
 /** Campaign types that funnel through the multi-link hub + analytics path. */
-const HUB_CAMPAIGN_TYPES = ['multiple-links-qr', 'links-video-qr'];
+const HUB_CAMPAIGN_TYPES = [
+  'multiple-links-qr',
+  'links-video-qr',
+  'links-doc-video-qr',
+];
+
+/** Hub types that can ship hero/video assets and therefore accept video beacons. */
+const VIDEO_CAPABLE_HUB_TYPES = ['links-video-qr', 'links-doc-video-qr'];
 
 /* ── Generous rate limit — AR scans can come in bursts ──────────── */
 const publicLimiter = rateLimit({
@@ -153,10 +161,17 @@ router.get('/dynamic-qr/:slug/meta', singleLinkSlugLimiter, async (req, res) => 
   const campaign = await Campaign.findOne(
     {
       redirectSlug: slug,
-      campaignType: { $in: ['single-link-qr', 'multiple-links-qr', 'links-video-qr'] },
+      campaignType: {
+        $in: [
+          'single-link-qr',
+          'multiple-links-qr',
+          'links-video-qr',
+          'links-doc-video-qr',
+        ],
+      },
     },
     'campaignName campaignType destinationUrl preciseGeoAnalytics redirectSlug linkItems '
-      + 'videoSource videoUrl externalVideoUrl thumbnailUrl status'
+      + 'videoSource videoUrl externalVideoUrl thumbnailUrl videoItems docItems status'
   ).lean();
 
   if (!campaign) throw new AppError('Link not found', 404);
@@ -175,9 +190,8 @@ router.get('/dynamic-qr/:slug/meta', singleLinkSlugLimiter, async (req, res) => 
     return success(res, payload);
   }
 
-  // Hub-based types (multiple-links-qr + links-video-qr) — paused state still
-  // resolves to a friendly "owner paused" page so we always reply with cached
-  // structure rather than 404.
+  // Hub-based types — paused state still resolves to a friendly "owner paused"
+  // page so we always reply with cached structure rather than 404.
   if (campaign.status === 'paused') {
     const payload = {
       campaignType: campaign.campaignType,
@@ -185,6 +199,8 @@ router.get('/dynamic-qr/:slug/meta', singleLinkSlugLimiter, async (req, res) => 
       status: 'paused',
       paused: true,
       links: [],
+      videoItems: [],
+      docItems: [],
       preciseGeoAnalytics: !!campaign.preciseGeoAnalytics,
       slug: campaign.redirectSlug,
     };
@@ -214,6 +230,46 @@ router.get('/dynamic-qr/:slug/meta', singleLinkSlugLimiter, async (req, res) => 
       embedSrc,
       embedHost,
       thumbnailUrl: campaign.thumbnailUrl || null,
+      links: toPublicLinkList(campaign.linkItems || []),
+      preciseGeoAnalytics: !!campaign.preciseGeoAnalytics,
+      slug: campaign.redirectSlug,
+    };
+
+    await dynamicQrMetaCache.set(slug, payload);
+    return success(res, payload);
+  }
+
+  if (campaign.campaignType === 'links-doc-video-qr') {
+    // Resolve embed src/host once per video on the server so the client never
+    // has to parse external URLs (and never sees raw ones for the upload mode).
+    const videoItems = (campaign.videoItems || []).map((vi) => {
+      const isLink = vi.source === 'link' && vi.externalVideoUrl;
+      return {
+        videoId: vi.videoId,
+        label: vi.label,
+        source: vi.source,
+        videoUrl: vi.source === 'upload' ? vi.url : null,
+        externalVideoUrl: isLink ? vi.externalVideoUrl : null,
+        embedSrc: isLink ? toEmbedSrc(vi.externalVideoUrl) : null,
+        embedHost: isLink ? detectVideoHost(vi.externalVideoUrl) : null,
+        thumbnailUrl: vi.thumbnailUrl || null,
+      };
+    });
+
+    const docItems = (campaign.docItems || []).map((di) => ({
+      docId: di.docId,
+      label: di.label,
+      url: di.url,
+      mimeType: di.mimeType || null,
+      bytes: di.bytes || 0,
+    }));
+
+    const payload = {
+      campaignType: 'links-doc-video-qr',
+      campaignName: campaign.campaignName,
+      videoSource: campaign.videoSource,
+      videoItems,
+      docItems,
       links: toPublicLinkList(campaign.linkItems || []),
       preciseGeoAnalytics: !!campaign.preciseGeoAnalytics,
       slug: campaign.redirectSlug,
@@ -351,28 +407,43 @@ router.post(
         status: 'active',
         campaignType: { $in: HUB_CAMPAIGN_TYPES },
       },
-      '_id userId linkItems'
+      '_id userId linkItems docItems'
     ).lean();
 
     if (!campaign) throw new AppError('Link not found', 404);
 
     const { linkId, visitorHash } = req.body;
-    const allowed = new Set((campaign.linkItems || []).map((x) => x.linkId));
-    if (!allowed.has(linkId)) throw new AppError('Invalid link', 400);
+    const kind = req.body.kind === 'document' ? 'document' : 'link';
+
+    if (kind === 'document') {
+      const allowed = new Set((campaign.docItems || []).map((x) => x.docId));
+      if (!allowed.has(linkId)) throw new AppError('Invalid document', 400);
+    } else {
+      const allowed = new Set((campaign.linkItems || []).map((x) => x.linkId));
+      if (!allowed.has(linkId)) throw new AppError('Invalid link', 400);
+    }
 
     LinkClickEvent.create({
       campaignId: campaign._id,
       userId: campaign.userId,
       linkId,
+      kind,
       visitorHash: visitorHash || null,
       clickedAt: new Date(),
     }).catch(() => {});
 
+    // Mirror the existing linkClickTotals pattern for fast per-asset reads.
+    const totalsPath = kind === 'document'
+      ? `analytics.docOpenTotals.${linkId}`
+      : `analytics.linkClickTotals.${linkId}`;
     void Campaign.updateOne(
       { _id: campaign._id },
-      { $inc: { [`analytics.linkClickTotals.${linkId}`]: 1 } }
+      { $inc: { [totalsPath]: 1 } }
     ).catch((err) => {
-      logger.warn('analytics.linkClickTotals inc failed', { linkId, error: err.message });
+      logger.warn(`analytics.${kind === 'document' ? 'docOpenTotals' : 'linkClickTotals'} inc failed`, {
+        linkId,
+        error: err.message,
+      });
     });
 
     return success(res, {}, 'Click recorded');
@@ -391,9 +462,9 @@ router.post(
       {
         redirectSlug: slug,
         status: 'active',
-        campaignType: 'links-video-qr',
+        campaignType: { $in: VIDEO_CAPABLE_HUB_TYPES },
       },
-      '_id userId'
+      '_id userId campaignType videoItems'
     ).lean();
 
     if (!campaign) throw new AppError('Link not found', 404);
@@ -401,6 +472,7 @@ router.post(
     const {
       visitorHash,
       event,
+      videoId,
       positionSec,
       durationSec,
       watchPercent,
@@ -418,6 +490,15 @@ router.post(
     const maxSec = typeof positionSec === 'number'
       ? Math.max(0, positionSec)
       : 0;
+
+    // Resolve videoId if the campaign supports per-asset attribution. We only
+    // accept ids that exist on the campaign so spoofed beacons can't pollute
+    // the per-video totals.
+    let resolvedVideoId = null;
+    if (campaign.campaignType === 'links-doc-video-qr' && typeof videoId === 'string') {
+      const allowed = new Set((campaign.videoItems || []).map((x) => x.videoId));
+      if (allowed.has(videoId)) resolvedVideoId = videoId;
+    }
 
     const update = { $set: { videoPlayed: true } };
     if (event === 'progress' || event === 'ended') {
@@ -450,6 +531,51 @@ router.post(
       },
       { sort: { scannedAt: -1 }, upsert: true }
     );
+
+    if (resolvedVideoId) {
+      // Per-asset row — collapsed to one document per (campaign, video, visitor)
+      // via the unique compound index, so totals stay bounded for any traffic.
+      // The compound filter (campaignId + videoId + visitorHash) lives in the
+      // query so we only $setOnInsert fields not already implied by the
+      // filter — Mongo refuses path conflicts between filter and $setOnInsert.
+      const playEventUpdate = {
+        $max: {
+          watchedSec: maxSec,
+          watchPercent: maxPercent,
+        },
+        $set: { occurredAt: new Date() },
+        $setOnInsert: { userId: campaign.userId },
+      };
+
+      VideoPlayEvent.findOneAndUpdate(
+        {
+          campaignId: campaign._id,
+          videoId: resolvedVideoId,
+          visitorHash: visitorHash || null,
+        },
+        playEventUpdate,
+        { upsert: true }
+      ).catch((err) => {
+        logger.warn('VideoPlayEvent upsert failed', {
+          videoId: resolvedVideoId,
+          error: err.message,
+        });
+      });
+
+      // Counter on the campaign for fast per-asset lookups (mirrors linkClickTotals).
+      // Only inc on `play` so progress/ended beacons can't inflate the count.
+      if (event === 'play') {
+        void Campaign.updateOne(
+          { _id: campaign._id },
+          { $inc: { [`analytics.videoPlayTotals.${resolvedVideoId}`]: 1 } }
+        ).catch((err) => {
+          logger.warn('analytics.videoPlayTotals inc failed', {
+            videoId: resolvedVideoId,
+            error: err.message,
+          });
+        });
+      }
+    }
 
     return success(res, {}, 'Video event recorded');
   }

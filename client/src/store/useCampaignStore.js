@@ -143,7 +143,33 @@ const useCampaignStore = create((set, get) => ({
     set({ listLoading: true, listError: null });
     try {
       const data = await campaignService.getCampaigns(params);
-      set({ campaigns: data.campaigns, pagination: data.pagination, listLoading: false });
+      const page = Number(params?.page || 1);
+      set((s) => {
+        if (page <= 1) {
+          return {
+            campaigns: data.campaigns,
+            pagination: data.pagination,
+            listLoading: false,
+          };
+        }
+
+        // Append for "load more" while deduplicating by _id in case of
+        // retry/race or backend page overlap.
+        const seen = new Set(s.campaigns.map((c) => String(c._id)));
+        const appended = [...s.campaigns];
+        for (const row of data.campaigns || []) {
+          const id = String(row?._id || '');
+          if (!id || seen.has(id)) continue;
+          seen.add(id);
+          appended.push(row);
+        }
+
+        return {
+          campaigns: appended,
+          pagination: data.pagination,
+          listLoading: false,
+        };
+      });
     } catch (err) {
       set({ listLoading: false, listError: err.response?.data?.message || 'Failed to load campaigns' });
     }

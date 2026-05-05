@@ -112,6 +112,53 @@
 }
 
 /* ─────────────────────────────────────────
+   CSS Custom Properties — Neon Theme
+   ───────────────────────────────────────── */
+.neon {
+  /* Background layers */
+  --bg-primary: #020617;
+  --bg-secondary: #0f172a;
+  --bg-tertiary: #1e293b;
+
+  /* Surface cards */
+  --surface-1: #111827;
+  --surface-2: #1f2937;
+  --surface-3: #334155;
+
+  /* Text */
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+
+  /* Border */
+  --border-color: #334155;
+  --border-subtle: #475569;
+
+  /* Brand accents */
+  --brand: #00d4ff;
+  --brand-light: #a855f7;
+  --accent: #ec4899;
+
+  /* Glassmorphism */
+  --glass-bg: rgba(15, 23, 42, 0.55);
+  --glass-border: rgba(0, 212, 255, 0.28);
+  --glass-blur: 16px;
+
+  --chart-grid-stroke: rgba(0, 212, 255, 0.12);
+  --chart-tooltip-bg: rgba(2, 6, 23, 0.96);
+  --chart-tooltip-border: rgba(0, 212, 255, 0.3);
+  --chart-tooltip-color: #e2e8f0;
+  --chart-heatmap-empty: rgba(255, 255, 255, 0.08);
+
+  --surface-solid: #0f172a;
+  --overlay-bg: rgba(0, 0, 0, 0.68);
+
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.48);
+  --shadow-lg: 0 10px 36px rgba(0, 0, 0, 0.6);
+}
+
+/* ─────────────────────────────────────────
    Base Styles
    ───────────────────────────────────────── */
 @layer base {
@@ -150,6 +197,25 @@
 
   .dark ::-webkit-scrollbar-thumb:hover {
     background: #475569;
+  }
+
+  /* Scrollbar — neon */
+  .neon ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .neon ::-webkit-scrollbar-track {
+    background: #0f172a;
+  }
+
+  .neon ::-webkit-scrollbar-thumb {
+    background: #0ea5e9;
+    border-radius: 3px;
+  }
+
+  .neon ::-webkit-scrollbar-thumb:hover {
+    background: #a855f7;
   }
 
   /* Scrollbar — light */
@@ -239,6 +305,10 @@
     background-image: linear-gradient(135deg, #7c3aed 0%, #06b6d4 100%);
   }
 
+  .neon .gradient-text {
+    background-image: linear-gradient(135deg, #00d4ff 0%, #a855f7 50%, #ec4899 100%);
+  }
+
   /* Glow ring button effect */
   .glow-ring {
     box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.25);
@@ -259,6 +329,30 @@
 
   .input-base::placeholder {
     color: var(--text-muted);
+  }
+
+  .theme-page {
+    @apply min-h-screen bg-site-bg text-bg-100;
+  }
+
+  .card-elevated {
+    @apply rounded-xl border border-bg-700/50 bg-bg-800/80 p-6 shadow-dark-large backdrop-blur-sm;
+  }
+
+  .btn-primary {
+    @apply rounded-xl bg-gradient-to-r from-neon-blue via-neon-purple to-neon-pink px-6 py-3 font-semibold text-white transition-all duration-300 hover:scale-105 hover:shadow-glow-blue active:scale-95;
+  }
+
+  .btn-secondary {
+    @apply rounded-xl border border-bg-600/50 bg-bg-800/50 px-6 py-3 font-semibold text-bg-200 transition-all duration-300 hover:border-neon-blue/50 hover:bg-bg-700 hover:text-neon-blue;
+  }
+
+  .input-theme {
+    @apply rounded-lg border border-bg-600/50 bg-bg-800/50 px-4 py-2 text-bg-100 focus:border-neon-blue/50 focus:outline-none focus:ring-2 focus:ring-neon-blue/50;
+  }
+
+  .text-gradient-neon {
+    @apply bg-gradient-to-r from-neon-blue via-neon-purple to-neon-pink bg-clip-text text-transparent;
   }
 
   /* Page section padding */

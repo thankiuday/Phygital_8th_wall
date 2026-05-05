@@ -17,6 +17,11 @@ import {
   Copy,
   Pencil,
   MoreVertical,
+  FileText,
+  FileSpreadsheet,
+  FileImage,
+  Presentation,
+  FileType,
 } from 'lucide-react';
 import QRCodeDisplay from '../../components/ui/QRCodeDisplay';
 import { campaignService } from '../../services/campaignService';
@@ -51,23 +56,25 @@ const ActionMenu = ({ campaign, actionLoading, onEdit, onDuplicate, onToggleStat
   const isDynamicQr =
     campaign.campaignType === 'single-link-qr'
     || campaign.campaignType === 'multiple-links-qr'
-    || campaign.campaignType === 'links-video-qr';
+    || campaign.campaignType === 'links-video-qr'
+    || campaign.campaignType === 'links-doc-video-qr';
+  const isHubType =
+    campaign.campaignType === 'multiple-links-qr'
+    || campaign.campaignType === 'links-video-qr'
+    || campaign.campaignType === 'links-doc-video-qr';
   const trackedRedirectUrl = campaign.redirectSlug
     ? `${resolveRedirectBase()}/r/${campaign.redirectSlug}`
     : null;
   const hubPreviewUrl = campaign.redirectSlug
     ? `${typeof window !== 'undefined' ? window.location.origin : ''}/l/${campaign.redirectSlug}`
     : null;
-  const openDynamicUrl =
-    (campaign.campaignType === 'multiple-links-qr' || campaign.campaignType === 'links-video-qr')
-      ? hubPreviewUrl
-      : trackedRedirectUrl;
+  const openDynamicUrl = isHubType ? hubPreviewUrl : trackedRedirectUrl;
 
   return (
     <div className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--border-color)] text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 hover:text-brand-400 sm:hidden"
+        className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--border-color)] text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 hover:text-brand-400"
         aria-label="More actions"
       >
         <MoreVertical size={18} />
@@ -76,13 +83,13 @@ const ActionMenu = ({ campaign, actionLoading, onEdit, onDuplicate, onToggleStat
       <AnimatePresence>
         {open && (
           <>
-            <div className="fixed inset-0 z-20 sm:hidden" onClick={() => setOpen(false)} />
+            <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: -4 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -4 }}
               transition={{ duration: 0.12 }}
-              className="absolute right-0 top-full z-30 mt-1 w-48 overflow-hidden rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] py-1 shadow-xl sm:hidden"
+              className="absolute right-0 top-full z-30 mt-1 w-48 overflow-hidden rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] py-1 shadow-xl"
             >
               <button
                 onClick={() => { setOpen(false); onEdit(); }}
@@ -115,9 +122,7 @@ const ActionMenu = ({ campaign, actionLoading, onEdit, onDuplicate, onToggleStat
                     className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-3)]"
                   >
                     <ExternalLink size={14} />{' '}
-                    {(campaign.campaignType === 'multiple-links-qr' || campaign.campaignType === 'links-video-qr')
-                      ? 'Open link page'
-                      : 'Open Link'}
+                    {isHubType ? 'Open link page' : 'Open Link'}
                   </a>
                 ) : null
               ) : (
@@ -275,17 +280,20 @@ const CampaignDetailPage = () => {
   const isDynamicQr =
     campaign.campaignType === 'single-link-qr'
     || campaign.campaignType === 'multiple-links-qr'
-    || campaign.campaignType === 'links-video-qr';
+    || campaign.campaignType === 'links-video-qr'
+    || campaign.campaignType === 'links-doc-video-qr';
+  const isHubType =
+    campaign.campaignType === 'multiple-links-qr'
+    || campaign.campaignType === 'links-video-qr'
+    || campaign.campaignType === 'links-doc-video-qr';
+  const isLinksDocVideo = campaign.campaignType === 'links-doc-video-qr';
   const trackedRedirectUrl = campaign.redirectSlug
     ? `${resolveRedirectBase()}/r/${campaign.redirectSlug}`
     : null;
   const hubPreviewUrl = campaign.redirectSlug
     ? `${window.location.origin}/l/${campaign.redirectSlug}`
     : null;
-  const openDynamicUrl =
-    (campaign.campaignType === 'multiple-links-qr' || campaign.campaignType === 'links-video-qr')
-      ? hubPreviewUrl
-      : trackedRedirectUrl;
+  const openDynamicUrl = isHubType ? hubPreviewUrl : trackedRedirectUrl;
 
   return (
     <div className="mx-auto max-w-4xl space-y-4 p-4 sm:space-y-5 sm:p-6">
@@ -321,9 +329,7 @@ const CampaignDetailPage = () => {
                 className="flex items-center gap-1.5 rounded-xl border border-[var(--border-color)] px-3 py-2 text-sm text-[var(--text-secondary)] hover:border-brand-500/50 hover:text-brand-400"
               >
                 <ExternalLink size={14} />{' '}
-                {(campaign.campaignType === 'multiple-links-qr' || campaign.campaignType === 'links-video-qr')
-                  ? 'Open link page'
-                  : 'Open Link'}
+                {isHubType ? 'Open link page' : 'Open Link'}
               </a>
             ) : null
           ) : (
@@ -367,13 +373,14 @@ const CampaignDetailPage = () => {
             {campaign.status === 'active' ? <Pause size={14} /> : <Play size={14} />}
             {campaign.status === 'active' ? 'Pause' : 'Activate'}
           </button>
-          <button
-            onClick={handleDelete}
-            disabled={actionLoading}
-            className="flex items-center gap-1.5 rounded-xl border border-red-500/30 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 disabled:opacity-50"
-          >
-            <Trash2 size={14} /> Delete
-          </button>
+          <ActionMenu
+            campaign={campaign}
+            actionLoading={actionLoading}
+            onEdit={() => setShowEdit(true)}
+            onDuplicate={handleDuplicate}
+            onToggleStatus={toggleStatus}
+            onDelete={handleDelete}
+          />
         </div>
 
         {/* ── Mobile: condensed icon actions + three-dot overflow ── */}
@@ -588,6 +595,156 @@ const CampaignDetailPage = () => {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
+              className="glass-card p-4 sm:p-5"
+            >
+              <div className="mb-3 flex items-center gap-2">
+                <ExternalLink size={16} className="text-brand-400" />
+                <h4 className="text-sm font-semibold text-[var(--text-primary)]">Hub links</h4>
+              </div>
+              <ul className="space-y-2">
+                {campaign.linkItems.map((it) => (
+                  <li
+                    key={it.linkId}
+                    className="rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                  >
+                    <span className="font-medium">{it.label}</span>
+                    <span className="mt-0.5 block truncate text-xs text-[var(--text-muted)]">
+                      {it.kind} · {it.value}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+          )}
+
+          {isLinksDocVideo
+            && Array.isArray(campaign.videoItems)
+            && campaign.videoItems.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.18 }}
+              className="glass-card p-4 sm:p-5"
+            >
+              <div className="mb-3 flex items-center gap-2">
+                <VideoIcon size={16} className="text-brand-400" />
+                <h4 className="text-sm font-semibold text-[var(--text-primary)]">
+                  Videos ({campaign.videoItems.length})
+                </h4>
+              </div>
+              <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {campaign.videoItems.map((vi) => (
+                  <li
+                    key={vi.videoId}
+                    className="overflow-hidden rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)]"
+                  >
+                    {vi.thumbnailUrl ? (
+                      <img
+                        src={vi.thumbnailUrl}
+                        alt=""
+                        aria-hidden="true"
+                        className="aspect-video w-full object-cover"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="flex aspect-video w-full items-center justify-center bg-[var(--surface-3)] text-[var(--text-muted)]">
+                        <VideoIcon size={28} />
+                      </div>
+                    )}
+                    <div className="space-y-1 p-3">
+                      <p className="truncate text-sm font-medium text-[var(--text-primary)]">
+                        {vi.label}
+                      </p>
+                      <p className="text-xs text-[var(--text-muted)]">
+                        {vi.source === 'upload' ? 'Uploaded video' : 'External link'}
+                      </p>
+                      {(vi.url || vi.externalVideoUrl) && (
+                        <a
+                          href={vi.url || vi.externalVideoUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs font-medium text-brand-400 hover:underline"
+                        >
+                          Open <ExternalLink size={11} />
+                        </a>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+          )}
+
+          {isLinksDocVideo
+            && Array.isArray(campaign.docItems)
+            && campaign.docItems.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.22 }}
+              className="glass-card p-4 sm:p-5"
+            >
+              <div className="mb-3 flex items-center gap-2">
+                <FileText size={16} className="text-amber-400" />
+                <h4 className="text-sm font-semibold text-[var(--text-primary)]">
+                  Documents ({campaign.docItems.length})
+                </h4>
+              </div>
+              <ul className="space-y-2">
+                {campaign.docItems.map((di) => {
+                  const Icon = (() => {
+                    const m = di.mimeType || '';
+                    if (m === 'application/pdf') return FileText;
+                    if (m.startsWith('image/')) return FileImage;
+                    if (m.includes('spreadsheet') || m.includes('excel')) return FileSpreadsheet;
+                    if (m.includes('presentation') || m.includes('powerpoint')) return Presentation;
+                    if (m.includes('word')) return FileType;
+                    return FileText;
+                  })();
+                  const formatBytes = (bytes) => {
+                    if (!bytes || bytes < 1024) return `${bytes || 0} B`;
+                    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+                    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+                  };
+                  return (
+                    <li
+                      key={di.docId}
+                      className="flex items-center gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-3 py-2.5 text-sm"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-400">
+                        <Icon size={16} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium text-[var(--text-primary)]">{di.label}</p>
+                        <p className="text-xs text-[var(--text-muted)]">
+                          {(di.mimeType || 'document')} · {formatBytes(di.bytes)}
+                        </p>
+                      </div>
+                      {di.url && (
+                        <a
+                          href={di.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs font-medium text-brand-400 hover:underline"
+                        >
+                          Open <ExternalLink size={11} />
+                        </a>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </motion.div>
+          )}
+
+          {isLinksDocVideo
+            && Array.isArray(campaign.linkItems)
+            && campaign.linkItems.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.24 }}
               className="glass-card p-4 sm:p-5"
             >
               <div className="mb-3 flex items-center gap-2">

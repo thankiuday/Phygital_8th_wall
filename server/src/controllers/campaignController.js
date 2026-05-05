@@ -1,6 +1,9 @@
 'use strict';
 
 const Campaign = require('../models/Campaign');
+const ScanEvent = require('../models/ScanEvent');
+const LinkClickEvent = require('../models/LinkClickEvent');
+const VideoPlayEvent = require('../models/VideoPlayEvent');
 const { AppError } = require('../middleware/errorHandler');
 const { success, created } = require('../utils/apiResponse');
 const { generateUploadSignature, deleteCloudinaryAsset } = require('../services/cloudinaryService');
@@ -46,11 +49,15 @@ const generateUniqueSlug = async () => {
 const getUploadSignature = (req, res) => {
   const { resourceType = 'image' } = req.query;
 
-  if (!['image', 'video'].includes(resourceType)) {
-    throw new AppError('resourceType must be "image" or "video"', 400);
+  // `raw` is required for document uploads (PDF / Office files) in the
+  // links-doc-video-qr flow; everything else keeps its historical bucket.
+  if (!['image', 'video', 'raw'].includes(resourceType)) {
+    throw new AppError('resourceType must be "image", "video", or "raw"', 400);
   }
 
-  const folder = `phygital8thwall/${req.user._id}/${resourceType}s`;
+  // raw → "raws" reads weird; map to "documents" so Cloudinary search is intuitive.
+  const folderSuffix = resourceType === 'raw' ? 'documents' : `${resourceType}s`;
+  const folder = `phygital8thwall/${req.user._id}/${folderSuffix}`;
   const payload = generateUploadSignature({ resourceType, folder });
 
   return success(res, payload, 'Upload signature generated');
@@ -218,6 +225,182 @@ const createMultipleLinksCampaign = async (req, res) => {
   return created(res, { campaign }, 'Multiple Links QR campaign created successfully');
 };
 
+/* ──────────────────────────────────────────────────────────────────
+   links-doc-video-qr — multi-asset hub helpers
+   - persistVideoItemsFromBody: assign per-row ids on create
+   - persistDocItemsFromBody:   assign per-row ids on create
+   - mergeVideoItemsForUpdate / mergeDocItemsForUpdate: preserve ids on
+     PATCH so analytics totals stay aligned with existing rows
+   ────────────────────────────────────────────────────────────────── */
+
+const trimOrNull = (v) => {
+  if (typeof v !== 'string') return null;
+  const trimmed = v.trim();
+  return trimmed.length ? trimmed : null;
+};
+
+const persistVideoItemsFromBody = async (videoItems, campaignSource) => {
+  if (!Array.isArray(videoItems) || videoItems.length === 0) return undefined;
+  const { nanoid } = await import('nanoid');
+  return videoItems.map((vi) => {
+    const isUpload = (vi.source || campaignSource) === 'upload';
+    return {
+      videoId: nanoid(12),
+      label: vi.label.trim(),
+      source: isUpload ? 'upload' : 'link',
+      url: isUpload ? trimOrNull(vi.url) : null,
+      publicId: isUpload ? trimOrNull(vi.publicId) : null,
+      externalVideoUrl: isUpload ? null : trimOrNull(vi.externalVideoUrl),
+      thumbnailUrl: trimOrNull(vi.thumbnailUrl),
+    };
+  });
+};
+
+const persistDocItemsFromBody = async (docItems) => {
+  if (!Array.isArray(docItems) || docItems.length === 0) return undefined;
+  const { nanoid } = await import('nanoid');
+  return docItems.map((di) => ({
+    docId: nanoid(12),
+    label: di.label.trim(),
+    url: di.url,
+    publicId: trimOrNull(di.publicId),
+    mimeType: trimOrNull(di.mimeType),
+    bytes: typeof di.bytes === 'number' ? di.bytes : 0,
+    resourceType: di.resourceType === 'image' ? 'image' : 'raw',
+    addedAt: new Date(),
+  }));
+};
+
+const mergeVideoItemsForUpdate = async (existing, incoming, campaignSource) => {
+  const { nanoid } = await import('nanoid');
+  const existingById = new Map((existing || []).map((it) => [it.videoId, it]));
+  const assigned = new Set();
+  return incoming.map((vi) => {
+    const isUpload = (vi.source || campaignSource) === 'upload';
+    let videoId = null;
+    const claimed = trimOrNull(vi.videoId);
+    if (claimed && existingById.has(claimed) && !assigned.has(claimed)) {
+      videoId = claimed;
+    } else {
+      videoId = nanoid(12);
+      while (assigned.has(videoId) || existingById.has(videoId)) videoId = nanoid(12);
+    }
+    assigned.add(videoId);
+    return {
+      videoId,
+      label: vi.label.trim(),
+      source: isUpload ? 'upload' : 'link',
+      url: isUpload ? trimOrNull(vi.url) : null,
+      publicId: isUpload ? trimOrNull(vi.publicId) : null,
+      externalVideoUrl: isUpload ? null : trimOrNull(vi.externalVideoUrl),
+      thumbnailUrl: trimOrNull(vi.thumbnailUrl),
+    };
+  });
+};
+
+const mergeDocItemsForUpdate = async (existing, incoming) => {
+  const { nanoid } = await import('nanoid');
+  const existingById = new Map((existing || []).map((it) => [it.docId, it]));
+  const assigned = new Set();
+  return incoming.map((di) => {
+    let docId = null;
+    const claimed = trimOrNull(di.docId);
+    if (claimed && existingById.has(claimed) && !assigned.has(claimed)) {
+      docId = claimed;
+    } else {
+      docId = nanoid(12);
+      while (assigned.has(docId) || existingById.has(docId)) docId = nanoid(12);
+    }
+    assigned.add(docId);
+    const fallback = existingById.get(docId);
+    return {
+      docId,
+      label: di.label.trim(),
+      url: di.url,
+      publicId: trimOrNull(di.publicId) || fallback?.publicId || null,
+      mimeType: trimOrNull(di.mimeType) || fallback?.mimeType || null,
+      bytes: typeof di.bytes === 'number' ? di.bytes : (fallback?.bytes || 0),
+      resourceType: di.resourceType === 'image' ? 'image' : 'raw',
+      addedAt: fallback?.addedAt || new Date(),
+    };
+  });
+};
+
+const pruneAssetTotals = (totals, validIds) => {
+  const next = {};
+  if (totals && typeof totals === 'object' && !Array.isArray(totals)) {
+    for (const id of validIds) {
+      if (Object.prototype.hasOwnProperty.call(totals, id)) {
+        next[id] = totals[id];
+      }
+    }
+  }
+  return next;
+};
+
+/**
+ * Best-effort Cloudinary cleanup for assets removed during a PATCH.
+ * Returns immediately and never throws — campaigns must not get stuck on a
+ * Cloudinary outage. We return the diff so the caller can also prune the
+ * matching `analytics.*Totals` keys.
+ */
+const diffAndCleanupRemovedAssets = (oldList, newList, idKey, resourceTypeFor) => {
+  const keptIds = new Set((newList || []).map((x) => x[idKey]));
+  const removed = (oldList || []).filter((x) => !keptIds.has(x[idKey]));
+  removed.forEach((row) => {
+    if (!row.publicId) return;
+    deleteCloudinaryAsset(row.publicId, resourceTypeFor(row)).catch(() => {});
+  });
+  return removed;
+};
+
+/* ─────────────────────────────────────────
+   POST /api/campaigns/links-doc-video
+   Multi-asset hub: up to 5 videos and 5 documents on top of a link list.
+   At least 1 link AND at least 1 of {video, doc} (validated upstream).
+   ───────────────────────────────────────── */
+const createLinksDocVideoCampaign = async (req, res) => {
+  const {
+    campaignName,
+    videoSource,
+    videoItems,
+    docItems,
+    linkItems,
+    qrDesign,
+    preciseGeoAnalytics,
+  } = req.body;
+
+  if (qrDesign && JSON.stringify(qrDesign).length > MAX_QR_DESIGN_BYTES) {
+    throw new AppError(
+      `qrDesign payload exceeds ${MAX_QR_DESIGN_BYTES} bytes`,
+      413
+    );
+  }
+
+  const [persistedLinks, persistedVideos, persistedDocs] = await Promise.all([
+    persistLinkItemsFromBody(linkItems),
+    persistVideoItemsFromBody(videoItems, videoSource),
+    persistDocItemsFromBody(docItems),
+  ]);
+  const redirectSlug = await generateUniqueSlug();
+
+  const campaign = await Campaign.create({
+    userId: req.user._id,
+    campaignType: 'links-doc-video-qr',
+    campaignName: campaignName.trim(),
+    videoSource,
+    videoItems: persistedVideos,
+    docItems: persistedDocs,
+    linkItems: persistedLinks,
+    qrDesign: qrDesign || null,
+    redirectSlug,
+    preciseGeoAnalytics: !!preciseGeoAnalytics,
+    status: 'active',
+  });
+
+  return created(res, { campaign }, 'Links + Doc + Video QR campaign created successfully');
+};
+
 /* ─────────────────────────────────────────
    POST /api/campaigns/links-video
    Hub page with a hero video (uploaded to Cloudinary OR pasted public URL)
@@ -278,7 +461,13 @@ const getCampaigns = async (req, res) => {
   }
   if (
     campaignType
-    && ['ar-card', 'single-link-qr', 'multiple-links-qr', 'links-video-qr'].includes(campaignType)
+    && [
+      'ar-card',
+      'single-link-qr',
+      'multiple-links-qr',
+      'links-video-qr',
+      'links-doc-video-qr',
+    ].includes(campaignType)
   ) {
     filter.campaignType = campaignType;
   }
@@ -326,7 +515,18 @@ const getCampaign = async (req, res) => {
 const updateCampaign = async (req, res) => {
   const existing = await Campaign.findOne(
     { _id: req.params.id, userId: req.user._id },
-    'campaignType redirectSlug status linkItems analytics.linkClickTotals videoSource'
+    [
+      'campaignType',
+      'redirectSlug',
+      'status',
+      'linkItems',
+      'videoSource',
+      'videoItems',
+      'docItems',
+      'analytics.linkClickTotals',
+      'analytics.docOpenTotals',
+      'analytics.videoPlayTotals',
+    ].join(' ')
   ).lean();
   if (!existing) throw new AppError('Campaign not found', 404);
 
@@ -342,6 +542,8 @@ const updateCampaign = async (req, res) => {
     videoPublicId,
     externalVideoUrl,
     thumbnailUrl,
+    videoItems,
+    docItems,
   } = req.body;
   const updates = {};
 
@@ -410,6 +612,50 @@ const updateCampaign = async (req, res) => {
     }
   }
 
+  if (existing.campaignType === 'links-doc-video-qr') {
+    if (preciseGeoAnalytics !== undefined) updates.preciseGeoAnalytics = !!preciseGeoAnalytics;
+    applyQrDesign();
+    await applyLinkItemsMerge();
+
+    const nextSource =
+      videoSource !== undefined ? videoSource : existing.videoSource;
+    if (videoSource !== undefined) updates.videoSource = videoSource;
+
+    if (videoItems !== undefined) {
+      // Enforce campaign-wide source on PATCH too — easier to keep aggregations
+      // sane than to support mixed modes per row.
+      const merged = await mergeVideoItemsForUpdate(existing.videoItems, videoItems, nextSource);
+      const mismatched = merged.find((m) => m.source !== nextSource);
+      if (mismatched) {
+        throw new AppError(
+          `videoItems must all match videoSource ("${nextSource}")`,
+          400
+        );
+      }
+      diffAndCleanupRemovedAssets(existing.videoItems, merged, 'videoId', () => 'video');
+      updates.videoItems = merged;
+      updates['analytics.videoPlayTotals'] = pruneAssetTotals(
+        existing.analytics?.videoPlayTotals,
+        merged.map((m) => m.videoId)
+      );
+    }
+
+    if (docItems !== undefined) {
+      const merged = await mergeDocItemsForUpdate(existing.docItems, docItems);
+      diffAndCleanupRemovedAssets(
+        existing.docItems,
+        merged,
+        'docId',
+        (row) => (row.resourceType === 'image' ? 'image' : 'raw')
+      );
+      updates.docItems = merged;
+      updates['analytics.docOpenTotals'] = pruneAssetTotals(
+        existing.analytics?.docOpenTotals,
+        merged.map((m) => m.docId)
+      );
+    }
+  }
+
   if (Object.keys(updates).length === 0) {
     throw new AppError('No valid fields to update', 400);
   }
@@ -425,7 +671,8 @@ const updateCampaign = async (req, res) => {
   if (
     (existing.campaignType === 'single-link-qr'
       || existing.campaignType === 'multiple-links-qr'
-      || existing.campaignType === 'links-video-qr')
+      || existing.campaignType === 'links-video-qr'
+      || existing.campaignType === 'links-doc-video-qr')
     && existing.redirectSlug
   ) {
     redirectCache.evict(existing.redirectSlug).catch(() => {});
@@ -442,18 +689,54 @@ const deleteCampaign = async (req, res) => {
   const campaign = await Campaign.findOne({ _id: req.params.id, userId: req.user._id });
   if (!campaign) throw new AppError('Campaign not found', 404);
 
-  // Cloudinary cleanup only applies to AR campaigns.
-  if (campaign.campaignType === 'ar-card') {
-    await Promise.allSettled([
-      deleteCloudinaryAsset(campaign.targetImagePublicId, 'image'),
-      deleteCloudinaryAsset(campaign.videoPublicId, 'video'),
-    ]);
+  // Cloudinary cleanup for assets we own. Everything is best-effort and
+  // intentionally non-fatal so user deletion never gets stuck on third-party IO.
+  const cloudinaryDeletes = [];
+  if (campaign.targetImagePublicId) {
+    cloudinaryDeletes.push(deleteCloudinaryAsset(campaign.targetImagePublicId, 'image'));
+  }
+  if (campaign.videoPublicId) {
+    cloudinaryDeletes.push(deleteCloudinaryAsset(campaign.videoPublicId, 'video'));
+  }
+  if (campaign.qrPublicId) {
+    cloudinaryDeletes.push(deleteCloudinaryAsset(campaign.qrPublicId, 'image'));
+  }
+  // links-doc-video-qr: per-asset Cloudinary cleanup
+  for (const vi of campaign.videoItems || []) {
+    if (vi.source === 'upload' && vi.publicId) {
+      cloudinaryDeletes.push(deleteCloudinaryAsset(vi.publicId, 'video'));
+    }
+  }
+  for (const di of campaign.docItems || []) {
+    if (di.publicId) {
+      cloudinaryDeletes.push(
+        deleteCloudinaryAsset(di.publicId, di.resourceType === 'image' ? 'image' : 'raw')
+      );
+    }
+  }
+  if (cloudinaryDeletes.length) {
+    const results = await Promise.allSettled(cloudinaryDeletes);
+    results.forEach((r) => {
+      if (r.status === 'rejected') {
+        logger.warn('Cloudinary cleanup failed during campaign delete', {
+          campaignId: String(campaign._id),
+          error: r.reason?.message || String(r.reason),
+        });
+      }
+    });
   }
 
   if (campaign.redirectSlug) {
     redirectCache.evict(campaign.redirectSlug).catch(() => {});
     dynamicQrMetaCache.evict(campaign.redirectSlug).catch(() => {});
   }
+
+  // Delete all dependent analytics rows so no orphaned records remain.
+  await Promise.all([
+    ScanEvent.deleteMany({ campaignId: campaign._id }),
+    LinkClickEvent.deleteMany({ campaignId: campaign._id }),
+    VideoPlayEvent.deleteMany({ campaignId: campaign._id }),
+  ]);
 
   await campaign.deleteOne();
 
@@ -535,6 +818,53 @@ const duplicateCampaign = async (req, res) => {
     return created(res, { campaign: copy }, 'Campaign duplicated successfully');
   }
 
+  if (original.campaignType === 'links-doc-video-qr') {
+    const { nanoid } = await import('nanoid');
+    const redirectSlug = await generateUniqueSlug();
+    const links = (original.linkItems || []).map((it) => ({
+      linkId: nanoid(12),
+      kind: it.kind,
+      label: it.label,
+      value: it.value,
+    }));
+    // Asset rows keep their Cloudinary URLs / publicIds — duplicating shares
+    // storage; deleting the duplicate later won't try to remove the same
+    // publicId twice because the cleanup is best-effort and idempotent.
+    const videos = (original.videoItems || []).map((it) => ({
+      videoId: nanoid(12),
+      label: it.label,
+      source: it.source,
+      url: it.url || null,
+      publicId: it.publicId || null,
+      externalVideoUrl: it.externalVideoUrl || null,
+      thumbnailUrl: it.thumbnailUrl || null,
+    }));
+    const docs = (original.docItems || []).map((it) => ({
+      docId: nanoid(12),
+      label: it.label,
+      url: it.url,
+      publicId: it.publicId || null,
+      mimeType: it.mimeType || null,
+      bytes: it.bytes || 0,
+      resourceType: it.resourceType || 'raw',
+      addedAt: new Date(),
+    }));
+    const copy = await Campaign.create({
+      userId: original.userId,
+      campaignType: 'links-doc-video-qr',
+      campaignName: `Copy of ${original.campaignName}`,
+      videoSource: original.videoSource,
+      videoItems: videos.length ? videos : undefined,
+      docItems: docs.length ? docs : undefined,
+      linkItems: links,
+      qrDesign: original.qrDesign,
+      redirectSlug,
+      preciseGeoAnalytics: !!original.preciseGeoAnalytics,
+      status: 'active',
+    });
+    return created(res, { campaign: copy }, 'Campaign duplicated successfully');
+  }
+
   const copy = await Campaign.create({
     userId: original.userId,
     campaignType: 'ar-card',
@@ -581,6 +911,7 @@ const getCampaignQR = async (req, res) => {
     campaign.campaignType === 'single-link-qr'
     || campaign.campaignType === 'multiple-links-qr'
     || campaign.campaignType === 'links-video-qr'
+    || campaign.campaignType === 'links-doc-video-qr'
   ) {
     const apiBase = process.env.PUBLIC_REDIRECT_BASE
       || process.env.API_URL
@@ -619,6 +950,7 @@ module.exports = {
   createSingleLinkCampaign,
   createMultipleLinksCampaign,
   createLinksVideoCampaign,
+  createLinksDocVideoCampaign,
   getCampaigns,
   getCampaign,
   updateCampaign,

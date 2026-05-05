@@ -308,6 +308,154 @@ const createLinksVideoOnlySchema = z
     }
   });
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   links-doc-video-qr — multi-asset hub
+   - up to 5 video items (campaign-wide source mode)
+   - up to 5 doc items (Cloudinary raw / image)
+   - reuses linkItems contract
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/** Allow PDFs, common Office formats, and inline images. */
+const ALLOWED_DOC_MIME_TYPES = Object.freeze([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'image/jpeg',
+  'image/png',
+]);
+
+const MAX_DOC_BYTES = 25 * 1024 * 1024;
+
+const docItemInputSchema = z
+  .object({
+    label: z.string().trim().min(1, 'Document label is required').max(80),
+    url: cloudinaryUrlField,
+    publicId: z.string().min(1).max(256).optional(),
+    mimeType: z
+      .string()
+      .max(128)
+      .refine(
+        (v) => ALLOWED_DOC_MIME_TYPES.includes(v),
+        'Document type is not supported'
+      )
+      .optional(),
+    bytes: z.number().int().min(0).max(MAX_DOC_BYTES, 'Document exceeds 25 MB').optional(),
+    resourceType: z.enum(['raw', 'image']).optional(),
+  })
+  .strict();
+
+const docItemPatchSchema = docItemInputSchema.extend({
+  docId: z.string().trim().min(8).max(24).optional(),
+});
+
+const docItemsField = z.array(docItemInputSchema).max(5, 'Too many documents (max 5)');
+const docItemsPatchField = z.array(docItemPatchSchema).max(5, 'Too many documents (max 5)');
+
+const videoItemInputBase = z
+  .object({
+    label: z.string().trim().min(1, 'Video label is required').max(80),
+    source: z.enum(['upload', 'link']),
+    url: cloudinaryUrlField.optional(),
+    publicId: z.string().min(1).max(256).optional(),
+    externalVideoUrl: externalVideoUrlField.optional(),
+    thumbnailUrl: z.string().url().nullable().optional(),
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    if (data.source === 'upload') {
+      if (!data.url) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'url is required for an uploaded video',
+          path: ['url'],
+        });
+      }
+      if (data.externalVideoUrl) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'externalVideoUrl must be empty for an uploaded video',
+          path: ['externalVideoUrl'],
+        });
+      }
+    } else if (data.source === 'link') {
+      if (!data.externalVideoUrl) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'externalVideoUrl is required when video source is "link"',
+          path: ['externalVideoUrl'],
+        });
+      }
+      if (data.url || data.publicId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'url/publicId must be empty for a linked video',
+          path: ['url'],
+        });
+      }
+    }
+  });
+
+const videoItemInputSchema = videoItemInputBase;
+const videoItemPatchSchema = z
+  .object({
+    videoId: z.string().trim().min(8).max(24).optional(),
+    label: z.string().trim().min(1).max(80),
+    source: z.enum(['upload', 'link']),
+    url: cloudinaryUrlField.optional(),
+    publicId: z.string().min(1).max(256).optional(),
+    externalVideoUrl: externalVideoUrlField.optional(),
+    thumbnailUrl: z.string().url().nullable().optional(),
+  })
+  .strict();
+
+const videoItemsField = z.array(videoItemInputSchema).max(5, 'Too many videos (max 5)');
+const videoItemsPatchField = z.array(videoItemPatchSchema).max(5, 'Too many videos (max 5)');
+
+/**
+ * POST /api/campaigns/links-doc-video — dedicated route mirroring links-video.
+ *
+ * `videoSource` is the campaign-wide mode; every entry in `videoItems[]`
+ * must agree with it. We enforce "≥1 link AND ≥1 of {video, doc}" here so
+ * the controller only sees validated rows.
+ */
+const createLinksDocVideoOnlySchema = z
+  .object({
+    campaignName: campaignNameField,
+    videoSource: z.enum(['upload', 'link']),
+    videoItems: videoItemsField.optional(),
+    docItems: docItemsField.optional(),
+    linkItems: linkItemsField,
+    qrDesign: qrDesignSchema.nullable().optional(),
+    preciseGeoAnalytics: z.boolean().optional(),
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    const videoCount = data.videoItems?.length || 0;
+    const docCount = data.docItems?.length || 0;
+    if (videoCount + docCount < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Add at least one video or document',
+        path: ['videoItems'],
+      });
+    }
+    if (videoCount > 0) {
+      data.videoItems.forEach((vi, idx) => {
+        if (vi.source !== data.videoSource) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `videoItems[${idx}].source must match the campaign-wide videoSource`,
+            path: ['videoItems', idx, 'source'],
+          });
+        }
+      });
+    }
+  });
+
 /**
  * Strip Cloudinary fields so single-link `.strict()` payloads never carry stray keys.
  */
@@ -400,6 +548,9 @@ const updateCampaignSchema = z
     videoPublicId: z.string().min(1).max(256).nullable().optional(),
     externalVideoUrl: externalVideoUrlField.nullable().optional(),
     thumbnailUrl: z.string().url().nullable().optional(),
+    /* ── links-doc-video-qr (controller gates by campaignType) ── */
+    docItems: docItemsPatchField.optional(),
+    videoItems: videoItemsPatchField.optional(),
   })
   .strict()
   .refine((d) => Object.keys(d).length > 0, { message: 'No valid fields to update' });
@@ -410,9 +561,16 @@ module.exports = {
   linkItemPatchSchema,
   linkItemsField,
   linkItemsPatchField,
+  docItemInputSchema,
+  docItemPatchSchema,
+  videoItemInputSchema,
+  videoItemPatchSchema,
+  ALLOWED_DOC_MIME_TYPES,
+  MAX_DOC_BYTES,
   createCampaignSchema,
   createSingleLinkOnlySchema,
   createMultipleLinksOnlySchema,
   createLinksVideoOnlySchema,
+  createLinksDocVideoOnlySchema,
   updateCampaignSchema,
 };

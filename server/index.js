@@ -192,11 +192,13 @@ const {
   createSingleLinkOnlySchema,
   createMultipleLinksOnlySchema,
   createLinksVideoOnlySchema,
+  createLinksDocVideoOnlySchema,
 } = require('./src/validators/campaignValidators');
 const {
   createSingleLinkCampaign,
   createMultipleLinksCampaign,
   createLinksVideoCampaign,
+  createLinksDocVideoCampaign,
 } = require('./src/controllers/campaignController');
 
 /**
@@ -223,6 +225,13 @@ app.post(
   protect,
   validate(createLinksVideoOnlySchema),
   createLinksVideoCampaign
+);
+
+app.post(
+  '/api/campaigns/links-doc-video',
+  protect,
+  validate(createLinksDocVideoOnlySchema),
+  createLinksDocVideoCampaign
 );
 
 app.use('/api/auth',      require('./src/routes/authRoutes'));

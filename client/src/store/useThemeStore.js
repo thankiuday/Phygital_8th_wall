@@ -1,11 +1,13 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
+const THEMES = ['dark', 'light', 'neon'];
+
 /**
- * useThemeStore — global dark/light mode state
+ * useThemeStore — global theme state (dark / light / neon).
  *
  * Persists the user's theme preference to localStorage under 'p8w-theme'.
- * App.jsx reads this on mount and applies/removes the 'dark' class on <html>.
+ * App.jsx reads this on mount and applies theme classes to <html>.
  */
 const useThemeStore = create(
   persist(
@@ -13,11 +15,13 @@ const useThemeStore = create(
       theme: 'dark', // default to dark — premium SaaS feel
 
       /**
-       * Toggle between dark and light modes.
+       * Cycle dark -> light -> neon -> dark.
        * Also updates the <html> classList immediately.
        */
       toggleTheme: () => {
-        const next = get().theme === 'dark' ? 'light' : 'dark';
+        const current = get().theme;
+        const currentIdx = THEMES.indexOf(current);
+        const next = THEMES[(currentIdx + 1) % THEMES.length];
         set({ theme: next });
         applyThemeClass(next);
       },
@@ -26,8 +30,9 @@ const useThemeStore = create(
        * Explicitly set a theme.
        */
       setTheme: (theme) => {
-        set({ theme });
-        applyThemeClass(theme);
+        const next = THEMES.includes(theme) ? theme : 'dark';
+        set({ theme: next });
+        applyThemeClass(next);
       },
     }),
     {
@@ -52,11 +57,10 @@ const useThemeStore = create(
  */
 export const applyThemeClass = (theme) => {
   const root = document.documentElement;
-  if (theme === 'dark') {
-    root.classList.add('dark');
-  } else {
-    root.classList.remove('dark');
-  }
+  root.classList.remove('dark', 'neon');
+  root.dataset.theme = theme;
+  if (theme === 'dark') root.classList.add('dark');
+  if (theme === 'neon') root.classList.add('neon');
 };
 
 export default useThemeStore;

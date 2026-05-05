@@ -43,9 +43,15 @@ const campaignSchema = new mongoose.Schema(
     campaignType: {
       type: String,
       enum: {
-        values: ['ar-card', 'single-link-qr', 'multiple-links-qr', 'links-video-qr'],
+        values: [
+          'ar-card',
+          'single-link-qr',
+          'multiple-links-qr',
+          'links-video-qr',
+          'links-doc-video-qr',
+        ],
         message:
-          'campaignType must be one of: ar-card, single-link-qr, multiple-links-qr, links-video-qr',
+          'campaignType must be one of: ar-card, single-link-qr, multiple-links-qr, links-video-qr, links-doc-video-qr',
       },
       default: 'ar-card',
       required: true,
@@ -135,6 +141,9 @@ const campaignSchema = new mongoose.Schema(
      * (Cloudinary CDN). `'link'` → store the original public URL on
      * `externalVideoUrl`; the public meta endpoint resolves a sandboxed
      * iframe src via `toEmbedSrc()`.
+     *
+     * Also doubles as the campaign-wide source mode for `links-doc-video-qr`
+     * (all `videoItems[]` share this mode).
      */
     videoSource: {
       type: String,
@@ -146,6 +155,66 @@ const campaignSchema = new mongoose.Schema(
       default: null,
       trim: true,
       maxlength: [2048, 'externalVideoUrl cannot exceed 2048 characters'],
+    },
+
+    /**
+     * Multi-video items for `links-doc-video-qr`. Each entry follows the same
+     * source contract as the single-video `links-video-qr` campaign so a
+     * Cloudinary publicId is always tracked when the user uploaded the asset
+     * (needed for delete cleanup).
+     */
+    videoItems: {
+      type: [
+        {
+          videoId: { type: String, required: true },
+          label: { type: String, required: true, maxlength: 80, trim: true },
+          source: { type: String, enum: ['upload', 'link'], required: true },
+          url: { type: String, default: null, maxlength: 2048, trim: true },
+          publicId: { type: String, default: null, maxlength: 256 },
+          externalVideoUrl: { type: String, default: null, maxlength: 2048, trim: true },
+          thumbnailUrl: { type: String, default: null, maxlength: 2048, trim: true },
+        },
+      ],
+      default: undefined,
+      validate: {
+        validator(value) {
+          if (!Array.isArray(value)) return true;
+          return value.length <= 5;
+        },
+        message: 'videoItems cannot exceed 5 entries',
+      },
+    },
+
+    /**
+     * Document items for `links-doc-video-qr`. Cloudinary `raw` resource
+     * stores Office docs / PDFs; `publicId` lets the delete handler clean
+     * up assets at campaign-delete time.
+     */
+    docItems: {
+      type: [
+        {
+          docId: { type: String, required: true },
+          label: { type: String, required: true, maxlength: 80, trim: true },
+          url: { type: String, required: true, maxlength: 2048, trim: true },
+          publicId: { type: String, default: null, maxlength: 256 },
+          mimeType: { type: String, default: null, maxlength: 128 },
+          bytes: { type: Number, default: 0, min: 0 },
+          resourceType: {
+            type: String,
+            enum: ['raw', 'image'],
+            default: 'raw',
+          },
+          addedAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: undefined,
+      validate: {
+        validator(value) {
+          if (!Array.isArray(value)) return true;
+          return value.length <= 5;
+        },
+        message: 'docItems cannot exceed 5 entries',
+      },
     },
 
     status: {
@@ -161,6 +230,10 @@ const campaignSchema = new mongoose.Schema(
       lastScannedAt: { type: Date, default: null },
       /** Denormalized per-linkId click counts for multiple-links-qr (see $inc on click). */
       linkClickTotals: { type: mongoose.Schema.Types.Mixed, default: undefined },
+      /** Denormalized per-docId open counts for links-doc-video-qr. */
+      docOpenTotals: { type: mongoose.Schema.Types.Mixed, default: undefined },
+      /** Denormalized per-videoId play counts for links-doc-video-qr. */
+      videoPlayTotals: { type: mongoose.Schema.Types.Mixed, default: undefined },
     },
 
     thumbnailUrl: { type: String, default: null },

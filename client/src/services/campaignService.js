@@ -12,10 +12,10 @@ export const campaignService = {
    * uploadToCloudinary — uploads a file directly to Cloudinary CDN.
    * Uses a server-generated signature — our API secret never touches the client.
    *
-   * @param {File}     file
-   * @param {'image'|'video'} resourceType
-   * @param {Function} onProgress  — called with 0-100 progress value
-   * @returns {{ url, publicId, thumbnailUrl }}
+   * @param {File}                  file
+   * @param {'image'|'video'|'raw'} resourceType
+   * @param {Function}              onProgress  — called with 0-100 progress value
+   * @returns {{ url, publicId, thumbnailUrl, bytes }}
    */
   uploadToCloudinary: async (file, resourceType, onProgress) => {
     const sig = await campaignService.getUploadSignature(resourceType);
@@ -40,11 +40,30 @@ export const campaignService = {
     return {
       url: res.data.secure_url,
       publicId: res.data.public_id,
-      // For videos Cloudinary auto-generates a thumbnail at the .jpg URL
+      // For videos Cloudinary auto-generates a thumbnail at the .jpg URL.
+      // For raw uploads the URL itself is the canonical asset reference.
       thumbnailUrl:
         resourceType === 'video'
           ? res.data.secure_url.replace(/\.[^.]+$/, '.jpg')
           : res.data.secure_url,
+      bytes: typeof res.data.bytes === 'number' ? res.data.bytes : 0,
+    };
+  },
+
+  /**
+   * uploadDocumentToCloudinary — convenience wrapper for `links-doc-video-qr`
+   * doc uploads. Always sends the appropriate resource type for the file
+   * (raw for PDFs/Office, image for JPG/PNG) so previews keep working.
+   */
+  uploadDocumentToCloudinary: async (file, onProgress) => {
+    const isImage = file?.type?.startsWith('image/');
+    const resourceType = isImage ? 'image' : 'raw';
+    const result = await campaignService.uploadToCloudinary(file, resourceType, onProgress);
+    return {
+      ...result,
+      resourceType,
+      mimeType: file?.type || null,
+      bytes: result.bytes || file?.size || 0,
     };
   },
 
@@ -109,6 +128,66 @@ export const campaignService = {
     }
 
     const res = await api.post('/campaigns/links-video', payload);
+    return res.data.data.campaign;
+  },
+
+  /**
+   * createLinksDocVideoCampaign — multi-asset hub variant. We strip empty
+   * fields per-row before sending so the server `.strict()` schema never
+   * rejects legit payloads on a stray "" the wizard didn't trim.
+   */
+  createLinksDocVideoCampaign: async ({
+    campaignName,
+    videoSource,
+    videoItems = [],
+    docItems = [],
+    linkItems,
+    qrDesign,
+    preciseGeoAnalytics,
+  }) => {
+    const cleanVideoItems = videoItems
+      .filter((vi) => vi && vi.label)
+      .map((vi) => {
+        const isUpload = (vi.source || videoSource) === 'upload';
+        const row = {
+          label: String(vi.label).trim(),
+          source: isUpload ? 'upload' : 'link',
+        };
+        if (isUpload) {
+          if (vi.url) row.url = vi.url;
+          if (vi.publicId) row.publicId = vi.publicId;
+        } else if (vi.externalVideoUrl) {
+          row.externalVideoUrl = String(vi.externalVideoUrl).trim();
+        }
+        if (vi.thumbnailUrl) row.thumbnailUrl = vi.thumbnailUrl;
+        return row;
+      });
+
+    const cleanDocItems = docItems
+      .filter((di) => di && di.label && di.url)
+      .map((di) => {
+        const row = {
+          label: String(di.label).trim(),
+          url: di.url,
+        };
+        if (di.publicId) row.publicId = di.publicId;
+        if (di.mimeType) row.mimeType = di.mimeType;
+        if (typeof di.bytes === 'number') row.bytes = di.bytes;
+        if (di.resourceType === 'image' || di.resourceType === 'raw') row.resourceType = di.resourceType;
+        return row;
+      });
+
+    const payload = {
+      campaignName,
+      videoSource,
+      linkItems,
+      qrDesign: qrDesign ?? null,
+      preciseGeoAnalytics: !!preciseGeoAnalytics,
+    };
+    if (cleanVideoItems.length) payload.videoItems = cleanVideoItems;
+    if (cleanDocItems.length) payload.docItems = cleanDocItems;
+
+    const res = await api.post('/campaigns/links-doc-video', payload);
     return res.data.data.campaign;
   },
 

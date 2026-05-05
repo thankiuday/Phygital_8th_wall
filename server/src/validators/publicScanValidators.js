@@ -54,6 +54,12 @@ const publicMultiLinkScanSchema = z
 const publicMultiLinkClickSchema = z
   .object({
     linkId: z.string().trim().min(1).max(64),
+    /**
+     * `'document'` is reserved for the `links-doc-video-qr` hub which fires
+     * the same beacon for doc-opens; the public route resolves the id
+     * against `campaign.docItems` before persisting.
+     */
+    kind: z.enum(['link', 'document']).optional(),
     visitorHash: z.string().trim().min(8).max(128).optional(),
   })
   .strict();
@@ -74,6 +80,12 @@ const publicMultiLinkVideoSchema = z
   .object({
     visitorHash: z.string().trim().min(8).max(128),
     event: z.enum(['play', 'progress', 'ended']),
+    /**
+     * Optional per-asset tag for `links-doc-video-qr` (multi-video hubs).
+     * The public route resolves it against `campaign.videoItems` before
+     * upserting the per-video row.
+     */
+    videoId: z.string().trim().min(8).max(24).optional(),
     positionSec: z.number().min(0).max(14_400).optional(),
     durationSec: z.number().min(0).max(14_400).optional(),
     watchPercent: z.number().min(0).max(100).optional(),

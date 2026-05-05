@@ -20,7 +20,8 @@ const QRCodeDisplay = ({
   const isDynamicQr =
     campaignType === 'single-link-qr'
     || campaignType === 'multiple-links-qr'
-    || campaignType === 'links-video-qr';
+    || campaignType === 'links-video-qr'
+    || campaignType === 'links-doc-video-qr';
 
   const [qrUrl, setQrUrl] = useState(initialQrUrl);
   const [polling, setPolling] = useState(!initialQrUrl);
@@ -72,7 +73,10 @@ const QRCodeDisplay = ({
       if (!ready) return;
 
       if (
-        (type === 'single-link-qr' || type === 'multiple-links-qr' || type === 'links-video-qr')
+        (type === 'single-link-qr'
+          || type === 'multiple-links-qr'
+          || type === 'links-video-qr'
+          || type === 'links-doc-video-qr')
         && redirectUrl
       ) {
         setShareUrl(redirectUrl);
@@ -234,6 +238,7 @@ const QRCodeDisplay = ({
       <p className="text-center text-xs text-[var(--text-muted)]">
         {campaignType === 'multiple-links-qr'
           || campaignType === 'links-video-qr'
+          || campaignType === 'links-doc-video-qr'
           ? 'Print this QR or share the link. When scanned, it opens your link page with video and all destinations.'
           : campaignType === 'single-link-qr'
             ? 'Print this QR or share the link. When scanned, it redirects to your destination URL.'

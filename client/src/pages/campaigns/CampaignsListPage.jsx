@@ -38,13 +38,20 @@ const StatusBadge = ({ status }) => {
 // ---------------------------------------------------------------------------
 // Three-dot action menu per card
 // ---------------------------------------------------------------------------
-const CardMenu = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete }) => {
+const CardMenu = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete, onOpenChange }) => {
   const [open, setOpen] = useState(false);
+  const setMenuOpen = (next) => {
+    setOpen(next);
+    if (typeof onOpenChange === 'function') onOpenChange(next);
+  };
 
   return (
-    <div className="relative">
+    <div className={`relative ${open ? 'z-[120]' : 'z-10'}`}>
       <button
-        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          setMenuOpen(!open);
+        }}
         className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
         aria-label="More options"
       >
@@ -54,21 +61,21 @@ const CardMenu = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete }) =
       <AnimatePresence>
         {open && (
           <>
-            <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
+            <div className="fixed inset-0 z-20" onClick={() => setMenuOpen(false)} />
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: -4 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -4 }}
               transition={{ duration: 0.12 }}
-              className="absolute right-0 top-full z-30 mt-1 w-44 overflow-hidden rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] py-1 shadow-xl"
+              className="absolute bottom-full right-0 z-[130] mb-1 w-44 overflow-hidden rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] py-1 shadow-xl sm:bottom-auto sm:top-full sm:mb-0 sm:mt-1"
             >
               {[
-                { icon: Pencil, label: 'Edit', action: () => { setOpen(false); onEdit(); } },
-                { icon: Copy, label: 'Duplicate', action: () => { setOpen(false); onDuplicate(); } },
+                { icon: Pencil, label: 'Edit', action: () => { setMenuOpen(false); onEdit(); } },
+                { icon: Copy, label: 'Duplicate', action: () => { setMenuOpen(false); onDuplicate(); } },
                 {
                   icon: campaign.status === 'active' ? Pause : Play,
                   label: campaign.status === 'active' ? 'Pause' : 'Activate',
-                  action: () => { setOpen(false); onToggleStatus(); },
+                  action: () => { setMenuOpen(false); onToggleStatus(); },
                 },
               ].map(({ icon: Icon, label, action }) => (
                 <button
@@ -82,7 +89,7 @@ const CardMenu = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete }) =
               ))}
               <div className="mx-2 my-1 border-t border-[var(--border-color)]" />
               <button
-                onClick={() => { setOpen(false); onDelete(); }}
+                onClick={() => { setMenuOpen(false); onDelete(); }}
                 className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/10"
               >
                 <Trash2 size={13} />
@@ -100,10 +107,12 @@ const CardMenu = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete }) =
 // Individual campaign card
 // ---------------------------------------------------------------------------
 const CampaignCard = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete }) => {
+  const [menuOpen, setMenuOpen] = useState(false);
   const isSingleLinkQr = campaign.campaignType === 'single-link-qr';
   const isMultiLinkQr =
     campaign.campaignType === 'multiple-links-qr'
-    || campaign.campaignType === 'links-video-qr';
+    || campaign.campaignType === 'links-video-qr'
+    || campaign.campaignType === 'links-doc-video-qr';
   const trackedRedirectUrl = campaign.redirectSlug
     ? `${resolveRedirectBase()}/r/${campaign.redirectSlug}`
     : null;
@@ -182,7 +191,9 @@ const CampaignCard = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete 
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.25 }}
-      className="glass-card group flex flex-col overflow-hidden"
+      className={`glass-card group relative flex flex-col overflow-visible ${
+        menuOpen ? 'z-[140]' : 'z-10'
+      }`}
     >
       {/* Thumbnail */}
       <div className="relative aspect-video overflow-hidden bg-[var(--surface-3)]">
@@ -217,6 +228,7 @@ const CampaignCard = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete 
             onDuplicate={onDuplicate}
             onToggleStatus={onToggleStatus}
             onDelete={onDelete}
+            onOpenChange={setMenuOpen}
           />
         </div>
 

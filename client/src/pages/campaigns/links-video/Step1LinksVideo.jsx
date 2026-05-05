@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { ArrowRight, QrCode, UploadCloud, Link2, Video as VideoIcon } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowRight, QrCode, UploadCloud, Link2, Video as VideoIcon, ExternalLink } from 'lucide-react';
 import FormInput from '../../../components/ui/FormInput';
 import FileDropZone from '../../../components/ui/FileDropZone';
 import UploadProgress from '../../../components/ui/UploadProgress';
@@ -10,6 +10,30 @@ import { buildLinksVideoPayload, validateLinksVideoForm } from './linksVideoForm
 
 const ACCEPTED_VIDEO_TYPES = 'video/mp4,video/webm,video/quicktime';
 const MAX_VIDEO_MB = 100;
+const YT_ID_RE = /^[A-Za-z0-9_-]{6,32}$/;
+
+const getYoutubeId = (input) => {
+  if (!input) return null;
+  try {
+    const u = new URL(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(input) ? input : `https://${input}`);
+    const host = u.hostname.toLowerCase();
+    if (host === 'youtu.be') {
+      const id = u.pathname.replace(/^\/+/, '').split('/')[0];
+      return YT_ID_RE.test(id) ? id : null;
+    }
+    if (host.endsWith('youtube.com') || host.endsWith('youtube-nocookie.com')) {
+      if (u.pathname === '/watch') {
+        const id = u.searchParams.get('v');
+        return id && YT_ID_RE.test(id) ? id : null;
+      }
+      const m = u.pathname.match(/^\/(?:embed|shorts|live)\/([^/?#]+)/);
+      if (m && YT_ID_RE.test(m[1])) return m[1];
+    }
+  } catch {
+    return null;
+  }
+  return null;
+};
 
 const validateVideoFile = (file) =>
   new Promise((resolve) => {
@@ -72,6 +96,8 @@ const Step1LinksVideo = ({
   const [uploadedVideoPublicId, setUploadedVideoPublicId] = useState('');
   const [uploadedVideoThumbnailUrl, setUploadedVideoThumbnailUrl] = useState('');
   const [externalVideoUrl, setExternalVideoUrl] = useState('');
+  const [linkPreviewMeta, setLinkPreviewMeta] = useState(null);
+  const [linkPreviewLoading, setLinkPreviewLoading] = useState(false);
 
   const embedSrc = useMemo(
     () => (videoSource === 'link' ? toEmbedSrc(externalVideoUrl) : null),
@@ -81,6 +107,67 @@ const Step1LinksVideo = ({
     () => (videoSource === 'link' ? detectVideoHost(externalVideoUrl) : null),
     [videoSource, externalVideoUrl]
   );
+
+  useEffect(() => {
+    let aborted = false;
+    const run = async () => {
+      if (videoSource !== 'link') {
+        setLinkPreviewMeta(null);
+        setLinkPreviewLoading(false);
+        return;
+      }
+      const raw = (externalVideoUrl || '').trim();
+      if (!raw || !embedHost || !embedSrc) {
+        setLinkPreviewMeta(null);
+        setLinkPreviewLoading(false);
+        return;
+      }
+
+      const hostLabel =
+        embedHost === 'youtube'
+          ? 'YouTube'
+          : embedHost === 'vimeo'
+            ? 'Vimeo'
+            : embedHost === 'facebook'
+              ? 'Facebook'
+              : 'Video';
+      const fallback = { title: `Watch video on ${hostLabel}`, author: '', thumbnail: '' };
+      if (embedHost === 'youtube') {
+        const id = getYoutubeId(raw);
+        if (id) fallback.thumbnail = `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
+      }
+      setLinkPreviewMeta(fallback);
+      setLinkPreviewLoading(true);
+
+      if (embedHost !== 'youtube' && embedHost !== 'vimeo') {
+        setLinkPreviewLoading(false);
+        return;
+      }
+
+      try {
+        const canonicalUrl = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(raw) ? raw : `https://${raw}`;
+        const endpoint = `https://${embedHost === 'youtube' ? 'www.youtube.com' : 'vimeo.com'}/oembed?url=${encodeURIComponent(canonicalUrl)}&format=json`;
+        const resp = await fetch(endpoint);
+        if (!resp.ok) throw new Error('oEmbed failed');
+        const data = await resp.json();
+        if (aborted) return;
+        setLinkPreviewMeta({
+          title: data?.title || fallback.title,
+          author: data?.author_name || '',
+          thumbnail: data?.thumbnail_url || fallback.thumbnail || '',
+        });
+      } catch {
+        // Keep fallback preview silently.
+      } finally {
+        if (!aborted) setLinkPreviewLoading(false);
+      }
+    };
+
+    run();
+    return () => {
+      aborted = true;
+    };
+  }, [videoSource, externalVideoUrl, embedHost, embedSrc]);
 
   const clearUploadState = () => {
     if (videoPreview) URL.revokeObjectURL(videoPreview);
@@ -249,17 +336,44 @@ const Step1LinksVideo = ({
             />
             {embedSrc && (
               <div className="overflow-hidden rounded-2xl border border-[var(--border-color)] bg-[var(--surface-2)]">
-                <iframe
-                  title="Video preview"
-                  src={embedSrc}
-                  className="aspect-video w-full"
-                  loading="lazy"
-                  allow="autoplay; fullscreen; picture-in-picture"
-                  referrerPolicy="no-referrer"
-                />
-                <p className="px-3 py-2 text-xs text-[var(--text-muted)]">
-                  Preview source: {embedHost || 'embedded video'}
-                </p>
+                {linkPreviewMeta?.thumbnail ? (
+                  <img
+                    src={linkPreviewMeta.thumbnail}
+                    alt=""
+                    aria-hidden="true"
+                    className="aspect-video w-full object-cover"
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="flex aspect-video w-full items-center justify-center bg-[var(--surface-3)] text-[var(--text-muted)]">
+                    <VideoIcon size={28} />
+                  </div>
+                )}
+                <div className="space-y-1 px-3 py-2.5">
+                  <p className="line-clamp-2 text-sm font-medium text-[var(--text-primary)]">
+                    {linkPreviewMeta?.title || 'Video link preview'}
+                  </p>
+                  <p className="text-xs text-[var(--text-muted)]">
+                    {linkPreviewMeta?.author
+                      ? `${linkPreviewMeta.author} · ${embedHost || 'video source'}`
+                      : `Source: ${embedHost || 'embedded video'}`}
+                  </p>
+                  <div className="pt-1">
+                    <a
+                      href={externalVideoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-brand-400 hover:underline"
+                    >
+                      Open video
+                      <ExternalLink size={12} />
+                    </a>
+                    {linkPreviewLoading && (
+                      <span className="ml-2 text-xs text-[var(--text-muted)]">Loading details…</span>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </div>

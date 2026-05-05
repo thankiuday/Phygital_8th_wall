@@ -15,9 +15,20 @@
 const mongoose = require('mongoose');
 const ScanEvent = require('../models/ScanEvent');
 const LinkClickEvent = require('../models/LinkClickEvent');
+const VideoPlayEvent = require('../models/VideoPlayEvent');
 const Campaign  = require('../models/Campaign');
 const { success } = require('../utils/apiResponse');
 const { AppError } = require('../middleware/errorHandler');
+
+/** Hub types (multi-link, links-video, links-doc-video) — outbound link tap aggregates apply. */
+const MULTI_LINK_TYPES = new Set([
+  'multiple-links-qr',
+  'links-video-qr',
+  'links-doc-video-qr',
+]);
+
+/** Hub types that surface a hero-style watch funnel rolled up across all videos. */
+const VIDEO_HUB_TYPES = new Set(['links-video-qr', 'links-doc-video-qr']);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -267,7 +278,7 @@ exports.getCampaignAnalytics = async (req, res) => {
   // Verify the campaign belongs to this user
   const campaign = await Campaign.findOne(
     { _id: cid, userId: uid },
-    'campaignName status analytics campaignType linkItems'
+    'campaignName status analytics campaignType linkItems videoItems docItems'
   ).lean();
   if (!campaign) throw new AppError('Campaign not found', 404);
 
@@ -275,6 +286,12 @@ exports.getCampaignAnalytics = async (req, res) => {
 
   const linkLabelMap = Object.fromEntries(
     (campaign.linkItems || []).map((it) => [it.linkId, it.label])
+  );
+  const docLabelMap = Object.fromEntries(
+    (campaign.docItems || []).map((it) => [it.docId, it.label])
+  );
+  const videoLabelMap = Object.fromEntries(
+    (campaign.videoItems || []).map((it) => [it.videoId, it.label])
   );
 
   const [
@@ -402,9 +419,17 @@ exports.getCampaignAnalytics = async (req, res) => {
   const periodStats = totals[0]?.period[0] || { scans: 0, uniqueVisitors: 0 };
 
   let multiLinkAnalytics = null;
-  if (campaign.campaignType === 'multiple-links-qr' || campaign.campaignType === 'links-video-qr') {
-    const clickMatch = { campaignId: cid };
-    const clickMatchPeriod = { campaignId: cid, clickedAt: { $gte: since } };
+  if (MULTI_LINK_TYPES.has(campaign.campaignType)) {
+    // Outbound-link aggregates only — `kind: 'document'` rows belong to the
+    // separate documents block. We default to `'link'` (or null/missing) so
+    // pre-migration rows still show up in totals.
+    const linkKindFilter = { $in: ['link', null] };
+    const clickMatch = { campaignId: cid, kind: linkKindFilter };
+    const clickMatchPeriod = {
+      campaignId: cid,
+      kind: linkKindFilter,
+      clickedAt: { $gte: since },
+    };
 
     const [clicksByLinkPeriod, clicksByLinkAllTime, clickTrend] = await Promise.all([
       LinkClickEvent.aggregate([
@@ -446,7 +471,7 @@ exports.getCampaignAnalytics = async (req, res) => {
   }
 
   let videoAnalytics = null;
-  if (campaign.campaignType === 'links-video-qr') {
+  if (VIDEO_HUB_TYPES.has(campaign.campaignType)) {
     const [videoPeriodAgg, watchBucketsAgg, watchTrend] = await Promise.all([
       ScanEvent.aggregate([
         { $match: { ...match, scannedAt: { $gte: since } } },
@@ -562,6 +587,100 @@ exports.getCampaignAnalytics = async (req, res) => {
     };
   }
 
+  // Per-asset analytics (links-doc-video-qr) — top docs / videos plus daily trends.
+  let assetAnalytics = null;
+  if (campaign.campaignType === 'links-doc-video-qr') {
+    const docMatchAll = { campaignId: cid, kind: 'document' };
+    const docMatchPeriod = { ...docMatchAll, clickedAt: { $gte: since } };
+    const playMatchAll = { campaignId: cid };
+    const playMatchPeriod = { ...playMatchAll, occurredAt: { $gte: since } };
+
+    const [
+      docOpensByAssetPeriod,
+      docOpensByAssetAllTime,
+      docOpenTrend,
+      videoPlaysByAssetPeriod,
+      videoPlaysByAssetAllTime,
+      videoPlayTrend,
+    ] = await Promise.all([
+      LinkClickEvent.aggregate([
+        { $match: docMatchPeriod },
+        { $group: { _id: '$linkId', opens: { $sum: 1 } } },
+        { $sort: { opens: -1 } },
+        { $limit: 10 },
+        { $project: { _id: 0, docId: '$_id', opens: 1 } },
+      ]),
+      LinkClickEvent.aggregate([
+        { $match: docMatchAll },
+        { $group: { _id: '$linkId', opens: { $sum: 1 } } },
+        { $sort: { opens: -1 } },
+        { $limit: 10 },
+        { $project: { _id: 0, docId: '$_id', opens: 1 } },
+      ]),
+      LinkClickEvent.aggregate([
+        { $match: docMatchPeriod },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$clickedAt' } },
+            opens: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: 1 } },
+        { $project: { _id: 0, date: '$_id', opens: 1 } },
+      ]),
+      VideoPlayEvent.aggregate([
+        { $match: playMatchPeriod },
+        { $group: { _id: '$videoId', plays: { $sum: 1 } } },
+        { $sort: { plays: -1 } },
+        { $limit: 10 },
+        { $project: { _id: 0, videoId: '$_id', plays: 1 } },
+      ]),
+      VideoPlayEvent.aggregate([
+        { $match: playMatchAll },
+        { $group: { _id: '$videoId', plays: { $sum: 1 } } },
+        { $sort: { plays: -1 } },
+        { $limit: 10 },
+        { $project: { _id: 0, videoId: '$_id', plays: 1 } },
+      ]),
+      VideoPlayEvent.aggregate([
+        { $match: playMatchPeriod },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$occurredAt' } },
+            plays: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: 1 } },
+        { $project: { _id: 0, date: '$_id', plays: 1 } },
+      ]),
+    ]);
+
+    const attachDocLabel = (rows) =>
+      rows.map((r) => ({ ...r, label: docLabelMap[r.docId] || r.docId }));
+    const attachVideoLabel = (rows) =>
+      rows.map((r) => ({ ...r, label: videoLabelMap[r.videoId] || r.videoId }));
+
+    const totalDocOpensPeriod = docOpensByAssetPeriod.reduce(
+      (sum, r) => sum + (r.opens || 0),
+      0
+    );
+    const totalVideoPlaysPeriod = videoPlaysByAssetPeriod.reduce(
+      (sum, r) => sum + (r.plays || 0),
+      0
+    );
+
+    assetAnalytics = {
+      docOpensByAssetPeriod: attachDocLabel(docOpensByAssetPeriod),
+      docOpensByAssetAllTime: attachDocLabel(docOpensByAssetAllTime),
+      docOpenTrend,
+      videoPlaysByAssetPeriod: attachVideoLabel(videoPlaysByAssetPeriod),
+      videoPlaysByAssetAllTime: attachVideoLabel(videoPlaysByAssetAllTime),
+      videoPlayTrend,
+      totalDocOpensPeriod,
+      totalVideoPlaysPeriod,
+    };
+  }
+
   return success(res, {
     campaign: {
       _id:          campaign._id,
@@ -579,6 +698,7 @@ exports.getCampaignAnalytics = async (req, res) => {
     locationBreakdown,
     multiLinkAnalytics,
     videoAnalytics,
+    assetAnalytics,
   });
 };
 
