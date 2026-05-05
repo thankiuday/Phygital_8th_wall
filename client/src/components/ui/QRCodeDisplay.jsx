@@ -18,7 +18,9 @@ const QRCodeDisplay = ({
   redirectSlug = null,
 }) => {
   const isDynamicQr =
-    campaignType === 'single-link-qr' || campaignType === 'multiple-links-qr';
+    campaignType === 'single-link-qr'
+    || campaignType === 'multiple-links-qr'
+    || campaignType === 'links-video-qr';
 
   const [qrUrl, setQrUrl] = useState(initialQrUrl);
   const [polling, setPolling] = useState(!initialQrUrl);
@@ -70,7 +72,7 @@ const QRCodeDisplay = ({
       if (!ready) return;
 
       if (
-        (type === 'single-link-qr' || type === 'multiple-links-qr')
+        (type === 'single-link-qr' || type === 'multiple-links-qr' || type === 'links-video-qr')
         && redirectUrl
       ) {
         setShareUrl(redirectUrl);
@@ -137,7 +139,7 @@ const QRCodeDisplay = ({
       await navigator.share({
         title: campaignName || 'AR Business Card',
         text:
-          campaignType === 'multiple-links-qr'
+          campaignType === 'multiple-links-qr' || campaignType === 'links-video-qr'
             ? 'Scan this QR code to open my link page.'
             : campaignType === 'single-link-qr'
               ? 'Scan this QR code to open the link.'
@@ -231,7 +233,8 @@ const QRCodeDisplay = ({
 
       <p className="text-center text-xs text-[var(--text-muted)]">
         {campaignType === 'multiple-links-qr'
-          ? 'Print this QR or share the link. When scanned, it opens your link page with every destination you configured.'
+          || campaignType === 'links-video-qr'
+          ? 'Print this QR or share the link. When scanned, it opens your link page with video and all destinations.'
           : campaignType === 'single-link-qr'
             ? 'Print this QR or share the link. When scanned, it redirects to your destination URL.'
             : 'Print this QR on your business card or share the link. When scanned, it opens your AR experience instantly — no app download needed.'}

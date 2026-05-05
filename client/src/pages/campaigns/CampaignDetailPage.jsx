@@ -50,7 +50,8 @@ const ActionMenu = ({ campaign, actionLoading, onEdit, onDuplicate, onToggleStat
   const [open, setOpen] = useState(false);
   const isDynamicQr =
     campaign.campaignType === 'single-link-qr'
-    || campaign.campaignType === 'multiple-links-qr';
+    || campaign.campaignType === 'multiple-links-qr'
+    || campaign.campaignType === 'links-video-qr';
   const trackedRedirectUrl = campaign.redirectSlug
     ? `${resolveRedirectBase()}/r/${campaign.redirectSlug}`
     : null;
@@ -58,7 +59,9 @@ const ActionMenu = ({ campaign, actionLoading, onEdit, onDuplicate, onToggleStat
     ? `${typeof window !== 'undefined' ? window.location.origin : ''}/l/${campaign.redirectSlug}`
     : null;
   const openDynamicUrl =
-    campaign.campaignType === 'multiple-links-qr' ? hubPreviewUrl : trackedRedirectUrl;
+    (campaign.campaignType === 'multiple-links-qr' || campaign.campaignType === 'links-video-qr')
+      ? hubPreviewUrl
+      : trackedRedirectUrl;
 
   return (
     <div className="relative">
@@ -112,7 +115,9 @@ const ActionMenu = ({ campaign, actionLoading, onEdit, onDuplicate, onToggleStat
                     className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-3)]"
                   >
                     <ExternalLink size={14} />{' '}
-                    {campaign.campaignType === 'multiple-links-qr' ? 'Open link page' : 'Open Link'}
+                    {(campaign.campaignType === 'multiple-links-qr' || campaign.campaignType === 'links-video-qr')
+                      ? 'Open link page'
+                      : 'Open Link'}
                   </a>
                 ) : null
               ) : (
@@ -269,7 +274,8 @@ const CampaignDetailPage = () => {
 
   const isDynamicQr =
     campaign.campaignType === 'single-link-qr'
-    || campaign.campaignType === 'multiple-links-qr';
+    || campaign.campaignType === 'multiple-links-qr'
+    || campaign.campaignType === 'links-video-qr';
   const trackedRedirectUrl = campaign.redirectSlug
     ? `${resolveRedirectBase()}/r/${campaign.redirectSlug}`
     : null;
@@ -277,7 +283,9 @@ const CampaignDetailPage = () => {
     ? `${window.location.origin}/l/${campaign.redirectSlug}`
     : null;
   const openDynamicUrl =
-    campaign.campaignType === 'multiple-links-qr' ? hubPreviewUrl : trackedRedirectUrl;
+    (campaign.campaignType === 'multiple-links-qr' || campaign.campaignType === 'links-video-qr')
+      ? hubPreviewUrl
+      : trackedRedirectUrl;
 
   return (
     <div className="mx-auto max-w-4xl space-y-4 p-4 sm:space-y-5 sm:p-6">
@@ -313,7 +321,9 @@ const CampaignDetailPage = () => {
                 className="flex items-center gap-1.5 rounded-xl border border-[var(--border-color)] px-3 py-2 text-sm text-[var(--text-secondary)] hover:border-brand-500/50 hover:text-brand-400"
               >
                 <ExternalLink size={14} />{' '}
-                {campaign.campaignType === 'multiple-links-qr' ? 'Open link page' : 'Open Link'}
+                {(campaign.campaignType === 'multiple-links-qr' || campaign.campaignType === 'links-video-qr')
+                  ? 'Open link page'
+                  : 'Open Link'}
               </a>
             ) : null
           ) : (
@@ -508,6 +518,70 @@ const CampaignDetailPage = () => {
           )}
 
           {campaign.campaignType === 'multiple-links-qr'
+            && Array.isArray(campaign.linkItems)
+            && campaign.linkItems.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="glass-card p-4 sm:p-5"
+            >
+              <div className="mb-3 flex items-center gap-2">
+                <ExternalLink size={16} className="text-brand-400" />
+                <h4 className="text-sm font-semibold text-[var(--text-primary)]">Hub links</h4>
+              </div>
+              <ul className="space-y-2">
+                {campaign.linkItems.map((it) => (
+                  <li
+                    key={it.linkId}
+                    className="rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                  >
+                    <span className="font-medium">{it.label}</span>
+                    <span className="mt-0.5 block truncate text-xs text-[var(--text-muted)]">
+                      {it.kind} · {it.value}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+          )}
+
+          {campaign.campaignType === 'links-video-qr' && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.18 }}
+              className="glass-card p-4 sm:p-5"
+            >
+              <div className="mb-3 flex items-center gap-2">
+                <VideoIcon size={16} className="text-brand-400" />
+                <h4 className="text-sm font-semibold text-[var(--text-primary)]">Hero video</h4>
+              </div>
+              {campaign.videoSource === 'upload' && campaign.videoUrl ? (
+                <video
+                  src={campaign.videoUrl}
+                  poster={campaign.thumbnailUrl || undefined}
+                  controls
+                  playsInline
+                  className="max-h-64 w-full rounded-xl border border-[var(--border-color)] object-contain"
+                />
+              ) : campaign.externalVideoUrl ? (
+                <a
+                  href={campaign.externalVideoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-3 py-2 text-sm text-brand-400 hover:underline"
+                >
+                  <ExternalLink size={14} />
+                  Watch external video
+                </a>
+              ) : (
+                <p className="text-sm text-[var(--text-muted)]">No video configured.</p>
+              )}
+            </motion.div>
+          )}
+
+          {(campaign.campaignType === 'links-video-qr')
             && Array.isArray(campaign.linkItems)
             && campaign.linkItems.length > 0 && (
             <motion.div

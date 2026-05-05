@@ -43,8 +43,9 @@ const campaignSchema = new mongoose.Schema(
     campaignType: {
       type: String,
       enum: {
-        values: ['ar-card', 'single-link-qr', 'multiple-links-qr'],
-        message: 'campaignType must be one of: ar-card, single-link-qr, multiple-links-qr',
+        values: ['ar-card', 'single-link-qr', 'multiple-links-qr', 'links-video-qr'],
+        message:
+          'campaignType must be one of: ar-card, single-link-qr, multiple-links-qr, links-video-qr',
       },
       default: 'ar-card',
       required: true,
@@ -114,8 +115,8 @@ const campaignSchema = new mongoose.Schema(
     preciseGeoAnalytics: { type: Boolean, default: false },
 
     /**
-     * Hub links for `multiple-links-qr` — resolved hrefs are built server-side
-     * for public meta and click validation.
+     * Hub links for `multiple-links-qr` and `links-video-qr` — resolved hrefs
+     * are built server-side for public meta and click validation.
      */
     linkItems: {
       type: [
@@ -127,6 +128,24 @@ const campaignSchema = new mongoose.Schema(
         },
       ],
       default: undefined,
+    },
+
+    /**
+     * Hero-video source for `links-video-qr`. `'upload'` → reuse `videoUrl`
+     * (Cloudinary CDN). `'link'` → store the original public URL on
+     * `externalVideoUrl`; the public meta endpoint resolves a sandboxed
+     * iframe src via `toEmbedSrc()`.
+     */
+    videoSource: {
+      type: String,
+      enum: ['upload', 'link'],
+      default: null,
+    },
+    externalVideoUrl: {
+      type: String,
+      default: null,
+      trim: true,
+      maxlength: [2048, 'externalVideoUrl cannot exceed 2048 characters'],
     },
 
     status: {

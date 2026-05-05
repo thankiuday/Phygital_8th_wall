@@ -16,11 +16,16 @@ const {
   publicMultiLinkScanSchema,
   publicMultiLinkClickSchema,
   publicMultiLinkSessionSchema,
+  publicMultiLinkVideoSchema,
 } = require('../validators/publicScanValidators');
 const { toPublicLinkList } = require('../utils/linkItemResolver');
 const { SLUG_RE } = require('../constants/singleLinkSlug');
 const { dynamicQrMetaCache } = require('../utils/redirectCache');
+const { toEmbedSrc, detectVideoHost } = require('../utils/videoEmbed');
 const logger = require('../config/logger');
+
+/** Campaign types that funnel through the multi-link hub + analytics path. */
+const HUB_CAMPAIGN_TYPES = ['multiple-links-qr', 'links-video-qr'];
 
 /* ── Generous rate limit — AR scans can come in bursts ──────────── */
 const publicLimiter = rateLimit({
@@ -148,9 +153,10 @@ router.get('/dynamic-qr/:slug/meta', singleLinkSlugLimiter, async (req, res) => 
   const campaign = await Campaign.findOne(
     {
       redirectSlug: slug,
-      campaignType: { $in: ['single-link-qr', 'multiple-links-qr'] },
+      campaignType: { $in: ['single-link-qr', 'multiple-links-qr', 'links-video-qr'] },
     },
-    'campaignName campaignType destinationUrl preciseGeoAnalytics redirectSlug linkItems status'
+    'campaignName campaignType destinationUrl preciseGeoAnalytics redirectSlug linkItems '
+      + 'videoSource videoUrl externalVideoUrl thumbnailUrl status'
   ).lean();
 
   if (!campaign) throw new AppError('Link not found', 404);
@@ -169,10 +175,12 @@ router.get('/dynamic-qr/:slug/meta', singleLinkSlugLimiter, async (req, res) => 
     return success(res, payload);
   }
 
-  // multiple-links-qr — hub still reachable when paused (visitor sees owner message)
+  // Hub-based types (multiple-links-qr + links-video-qr) — paused state still
+  // resolves to a friendly "owner paused" page so we always reply with cached
+  // structure rather than 404.
   if (campaign.status === 'paused') {
     const payload = {
-      campaignType: 'multiple-links-qr',
+      campaignType: campaign.campaignType,
       campaignName: campaign.campaignName,
       status: 'paused',
       paused: true,
@@ -185,6 +193,35 @@ router.get('/dynamic-qr/:slug/meta', singleLinkSlugLimiter, async (req, res) => 
   }
 
   if (campaign.status !== 'active') throw new AppError('Link not found', 404);
+
+  if (campaign.campaignType === 'links-video-qr') {
+    const embedSrc =
+      campaign.videoSource === 'link' && campaign.externalVideoUrl
+        ? toEmbedSrc(campaign.externalVideoUrl)
+        : null;
+    const embedHost =
+      campaign.videoSource === 'link' && campaign.externalVideoUrl
+        ? detectVideoHost(campaign.externalVideoUrl)
+        : null;
+
+    const payload = {
+      campaignType: 'links-video-qr',
+      campaignName: campaign.campaignName,
+      videoSource: campaign.videoSource,
+      videoUrl: campaign.videoSource === 'upload' ? campaign.videoUrl : null,
+      externalVideoUrl:
+        campaign.videoSource === 'link' ? campaign.externalVideoUrl : null,
+      embedSrc,
+      embedHost,
+      thumbnailUrl: campaign.thumbnailUrl || null,
+      links: toPublicLinkList(campaign.linkItems || []),
+      preciseGeoAnalytics: !!campaign.preciseGeoAnalytics,
+      slug: campaign.redirectSlug,
+    };
+
+    await dynamicQrMetaCache.set(slug, payload);
+    return success(res, payload);
+  }
 
   const payload = {
     campaignType: 'multiple-links-qr',
@@ -211,7 +248,11 @@ router.post(
     if (!SLUG_RE.test(slug)) throw new AppError('Invalid link code', 400);
 
     const campaign = await Campaign.findOne(
-      { redirectSlug: slug, status: 'active', campaignType: 'multiple-links-qr' },
+      {
+        redirectSlug: slug,
+        status: 'active',
+        campaignType: { $in: HUB_CAMPAIGN_TYPES },
+      },
       '_id preciseGeoAnalytics'
     ).lean();
 
@@ -254,7 +295,11 @@ const updateMultiLinkSession = async (req, res) => {
   if (!SLUG_RE.test(slug)) throw new AppError('Invalid link code', 400);
 
   const campaign = await Campaign.findOne(
-    { redirectSlug: slug, status: 'active', campaignType: 'multiple-links-qr' },
+    {
+      redirectSlug: slug,
+      status: 'active',
+      campaignType: { $in: HUB_CAMPAIGN_TYPES },
+    },
     '_id'
   ).lean();
 
@@ -301,7 +346,11 @@ router.post(
     if (!SLUG_RE.test(slug)) throw new AppError('Invalid link code', 400);
 
     const campaign = await Campaign.findOne(
-      { redirectSlug: slug, status: 'active', campaignType: 'multiple-links-qr' },
+      {
+        redirectSlug: slug,
+        status: 'active',
+        campaignType: { $in: HUB_CAMPAIGN_TYPES },
+      },
       '_id userId linkItems'
     ).lean();
 
@@ -327,6 +376,82 @@ router.post(
     });
 
     return success(res, {}, 'Click recorded');
+  }
+);
+
+router.post(
+  '/multi-link/:slug/video',
+  singleLinkSlugLimiter,
+  validate(publicMultiLinkVideoSchema),
+  async (req, res) => {
+    const { slug } = req.params;
+    if (!SLUG_RE.test(slug)) throw new AppError('Invalid link code', 400);
+
+    const campaign = await Campaign.findOne(
+      {
+        redirectSlug: slug,
+        status: 'active',
+        campaignType: 'links-video-qr',
+      },
+      '_id userId'
+    ).lean();
+
+    if (!campaign) throw new AppError('Link not found', 404);
+
+    const {
+      visitorHash,
+      event,
+      positionSec,
+      durationSec,
+      watchPercent,
+    } = req.body;
+
+    const maxPercent = (() => {
+      if (event === 'ended') return 100;
+      if (typeof watchPercent === 'number') return Math.max(0, Math.min(100, watchPercent));
+      if (typeof durationSec === 'number' && durationSec > 0 && typeof positionSec === 'number') {
+        return Math.max(0, Math.min(100, (positionSec / durationSec) * 100));
+      }
+      return 0;
+    })();
+
+    const maxSec = typeof positionSec === 'number'
+      ? Math.max(0, positionSec)
+      : 0;
+
+    const update = { $set: { videoPlayed: true } };
+    if (event === 'progress' || event === 'ended') {
+      update.$max = {
+        videoWatchedSec: maxSec,
+        videoWatchPercent: maxPercent,
+      };
+    }
+
+    await ScanEvent.findOneAndUpdate(
+      {
+        campaignId: campaign._id,
+        visitorHash,
+      },
+      {
+        ...update,
+        $setOnInsert: {
+          campaignId: campaign._id,
+          userId: campaign.userId,
+          visitorHash,
+          deviceType: 'unknown',
+          browser: 'unknown',
+          os: 'unknown',
+          geoSource: 'ip',
+          sessionDurationMs: 0,
+          videoWatchPercent: 0,
+          videoWatchedSec: 0,
+          scannedAt: new Date(),
+        },
+      },
+      { sort: { scannedAt: -1 }, upsert: true }
+    );
+
+    return success(res, {}, 'Video event recorded');
   }
 );
 

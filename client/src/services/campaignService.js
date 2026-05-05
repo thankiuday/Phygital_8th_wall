@@ -80,6 +80,38 @@ export const campaignService = {
     return res.data.data.campaign;
   },
 
+  createLinksVideoCampaign: async ({
+    campaignName,
+    videoSource,
+    videoUrl,
+    videoPublicId,
+    externalVideoUrl,
+    thumbnailUrl,
+    linkItems,
+    qrDesign,
+    preciseGeoAnalytics,
+  }) => {
+    const payload = {
+      campaignName,
+      videoSource,
+      linkItems,
+      qrDesign: qrDesign ?? null,
+      preciseGeoAnalytics: !!preciseGeoAnalytics,
+    };
+
+    if (videoSource === 'upload') {
+      payload.videoUrl = videoUrl || undefined;
+      payload.videoPublicId = videoPublicId || undefined;
+      payload.thumbnailUrl = thumbnailUrl || undefined;
+    } else if (videoSource === 'link') {
+      payload.externalVideoUrl = externalVideoUrl || undefined;
+      payload.thumbnailUrl = thumbnailUrl || undefined;
+    }
+
+    const res = await api.post('/campaigns/links-video', payload);
+    return res.data.data.campaign;
+  },
+
   getCampaigns: async (params = {}) => {
     const res = await api.get('/campaigns', { params });
     return res.data.data;

@@ -41,6 +41,54 @@ const geoSourceLabel = (raw) => {
   return 'Approx (IP)';
 };
 
+// Per-campaign-type display configuration. Drives header copy, stat tile
+// labels/visibility, section visibility, and empty-state hints so each
+// campaign type only renders metrics that actually apply to it.
+const TYPE_CONFIG = {
+  'ar-card': {
+    headerSub: 'Scan performance for this campaign',
+    scanLabel: 'Total scans',
+    showAvgSession: true,
+    avgSessionSub: 'Time in AR',
+    showVideoCompletion: true,
+    showLinkClicksTile: false,
+    locationsTitle: 'Top scan locations',
+    scanEmptyHint: "Once someone scans this campaign's QR code, the trend will populate here.",
+  },
+  'single-link-qr': {
+    headerSub: 'Redirects from this dynamic QR',
+    scanLabel: 'Total scans',
+    showAvgSession: false,
+    avgSessionSub: '',
+    showVideoCompletion: false,
+    showLinkClicksTile: false,
+    locationsTitle: 'Top scan locations',
+    scanEmptyHint: 'Once someone scans your QR, redirects appear here.',
+  },
+  'multiple-links-qr': {
+    headerSub: 'Hub visits, sessions, and outbound link taps',
+    scanLabel: 'Hub visits',
+    showAvgSession: true,
+    avgSessionSub: 'Time on link page',
+    showVideoCompletion: false,
+    showLinkClicksTile: true,
+    locationsTitle: 'Top visitor locations',
+    scanEmptyHint: 'Visits appear after someone opens your link page.',
+  },
+  'links-video-qr': {
+    headerSub: 'Hub visits, video plays, and outbound link taps',
+    scanLabel: 'Hub visits',
+    showAvgSession: true,
+    avgSessionSub: 'Time on link page',
+    showVideoCompletion: false,
+    showLinkClicksTile: true,
+    locationsTitle: 'Top visitor locations',
+    scanEmptyHint: 'Visits appear after someone opens your link page.',
+  },
+};
+
+const DEFAULT_TYPE_CONFIG = TYPE_CONFIG['ar-card'];
+
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
@@ -132,7 +180,10 @@ const CampaignAnalyticsPage = () => {
   const locations   = campaignData?.locationBreakdown || [];
   const campaign    = campaignData?.campaign;
   const multiLink   = campaignData?.multiLinkAnalytics;
-  const isMultiLinkHub = campaign?.campaignType === 'multiple-links-qr';
+  const videoAnalytics = campaignData?.videoAnalytics;
+  const campaignType = campaign?.campaignType;
+  const typeConfig = TYPE_CONFIG[campaignType] || DEFAULT_TYPE_CONFIG;
+  const isLinksVideo = campaignType === 'links-video-qr';
 
   const periodLinkClicks = useMemo(() => {
     if (!multiLink?.clicksByLinkPeriod?.length) return 0;
@@ -142,6 +193,12 @@ const CampaignAnalyticsPage = () => {
   const fmtDuration = (ms) => {
     if (!ms) return '—';
     const s = Math.round(ms / 1000);
+    return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+  };
+
+  const fmtSeconds = (sec) => {
+    if (!sec) return '0s';
+    const s = Math.round(sec);
     return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
   };
 
@@ -176,9 +233,7 @@ const CampaignAnalyticsPage = () => {
               {campaign?.campaignName || 'Campaign Analytics'}
             </h1>
             <p className="mt-1 text-sm text-[var(--text-muted)]">
-              {isMultiLinkHub
-                ? 'Hub visits, sessions, and outbound link taps'
-                : 'Scan performance for this campaign'}
+              {typeConfig.headerSub}
             </p>
           </div>
 
@@ -217,7 +272,7 @@ const CampaignAnalyticsPage = () => {
           <>
             <StatCard
               icon={ScanLine}
-              label={isMultiLinkHub ? 'Hub visits' : 'Total scans'}
+              label={typeConfig.scanLabel}
               value={stats.totalScans?.toLocaleString()}
               sub={`+${periodStats.scans || 0} this period`}
               accent="#7c3aed"
@@ -229,27 +284,30 @@ const CampaignAnalyticsPage = () => {
               sub={`+${periodStats.uniqueVisitors || 0} this period`}
               accent="#06b6d4"
             />
-            <StatCard
-              icon={Clock}
-              label="Avg Session"
-              value={fmtDuration(stats.avgSessionDuration)}
-              sub={isMultiLinkHub ? 'Time on link page' : 'Time in AR'}
-              accent="#10b981"
-            />
-            {isMultiLinkHub ? (
+            {typeConfig.showAvgSession && (
               <StatCard
-                icon={MousePointerClick}
-                label="Link clicks"
-                value={periodLinkClicks.toLocaleString()}
-                sub="Outbound taps (this period)"
-                accent="#f59e0b"
+                icon={Clock}
+                label="Avg Session"
+                value={fmtDuration(stats.avgSessionDuration)}
+                sub={typeConfig.avgSessionSub}
+                accent="#10b981"
               />
-            ) : (
+            )}
+            {typeConfig.showVideoCompletion && (
               <StatCard
                 icon={PlayCircle}
                 label="Video Completion"
                 value={stats.avgVideoWatchPercent ? `${stats.avgVideoWatchPercent}%` : '—'}
                 sub="Avg watch %"
+                accent="#f59e0b"
+              />
+            )}
+            {typeConfig.showLinkClicksTile && (
+              <StatCard
+                icon={MousePointerClick}
+                label="Link clicks"
+                value={periodLinkClicks.toLocaleString()}
+                sub="Outbound taps (this period)"
                 accent="#f59e0b"
               />
             )}
@@ -270,9 +328,7 @@ const CampaignAnalyticsPage = () => {
             <BarChart3 size={28} className="text-[var(--text-muted)]/60" />
             <p className="text-sm font-medium text-[var(--text-secondary)]">No scans yet for this period</p>
             <p className="max-w-xs text-xs text-[var(--text-muted)]">
-              {isMultiLinkHub
-                ? 'Visits appear after someone opens your link hub from the QR code.'
-                : "Once someone scans this campaign's QR code, the trend will populate here."}
+              {typeConfig.scanEmptyHint}
             </p>
           </div>
         ) : (
@@ -321,7 +377,7 @@ const CampaignAnalyticsPage = () => {
       </div>
 
       {/* ── Multi-link: clicks by link + click trend ───────────────────── */}
-      {isMultiLinkHub && (
+      {typeConfig.showLinkClicksTile && (
         <>
           <div className="glass-card p-5">
             <div className="mb-4 flex items-center gap-2">
@@ -415,6 +471,96 @@ const CampaignAnalyticsPage = () => {
         </>
       )}
 
+      {isLinksVideo && videoAnalytics && (
+        <>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              icon={PlayCircle}
+              label="Play Rate"
+              value={videoAnalytics?.playRatePeriod != null ? `${videoAnalytics.playRatePeriod}%` : '—'}
+              sub="Plays / hub visits (period)"
+              accent="#f59e0b"
+            />
+            <StatCard
+              icon={PlayCircle}
+              label="Video Plays"
+              value={(videoAnalytics?.totalPlaysPeriod || 0).toLocaleString()}
+              sub="This period"
+              accent="#7c3aed"
+            />
+            <StatCard
+              icon={Clock}
+              label="Avg Watch %"
+              value={videoAnalytics?.avgWatchPercent ? `${videoAnalytics.avgWatchPercent}%` : '—'}
+              sub="Across viewers"
+              accent="#06b6d4"
+            />
+            <StatCard
+              icon={Clock}
+              label="Avg Watch Time"
+              value={fmtSeconds(videoAnalytics?.avgWatchSec || 0)}
+              sub="Across viewers"
+              accent="#10b981"
+            />
+          </div>
+
+          <div className="glass-card p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-[var(--text-primary)]">Watch funnel</h2>
+              <span className="text-xs text-[var(--text-muted)]">Last {period}</span>
+            </div>
+            {!videoAnalytics?.watchPercentBuckets?.length ? (
+              <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-[var(--border-color)] text-sm text-[var(--text-muted)]">
+                No video watch data yet
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={videoAnalytics.watchPercentBuckets} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid-stroke)" />
+                  <XAxis dataKey="bucket" tick={{ fill: 'var(--text-muted)', fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis allowDecimals={false} width={yAxisWidth} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} />
+                  <Bar dataKey="visitors" name="Visitors" fill="#7c3aed" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          <div className="glass-card p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-[var(--text-primary)]">Watch trend</h2>
+              <span className="text-xs text-[var(--text-muted)]">Last {period}</span>
+            </div>
+            {!videoAnalytics?.watchTrend?.length ? (
+              <div className="flex h-56 items-center justify-center rounded-xl border border-dashed border-[var(--border-color)] text-sm text-[var(--text-muted)]">
+                No video trend data yet
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={videoAnalytics.watchTrend} margin={chartMargin}>
+                  <defs>
+                    <linearGradient id="cGradPlays" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.45} />
+                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="cGradCompletions" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid-stroke)" />
+                  <XAxis dataKey="date" tickFormatter={(d) => d.slice(5)} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis allowDecimals={false} width={yAxisWidth} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} />
+                  <Area type="monotone" dataKey="plays" stroke="#f59e0b" strokeWidth={2} fill="url(#cGradPlays)" name="Plays" dot={false} />
+                  <Area type="monotone" dataKey="completions" stroke="#10b981" strokeWidth={2} fill="url(#cGradCompletions)" name="Completions" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </>
+      )}
+
       {/* ── Device + Browser ────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="glass-card p-5">
@@ -494,7 +640,7 @@ const CampaignAnalyticsPage = () => {
         <div className="mb-4 flex items-center gap-2">
           <MapPin size={16} className="text-brand-400" />
           <h2 className="text-base font-semibold text-[var(--text-primary)]">
-            {isMultiLinkHub ? 'Top visitor locations' : 'Top scan locations'}
+            {typeConfig.locationsTitle}
           </h2>
         </div>
         {isLoadingCamp ? (

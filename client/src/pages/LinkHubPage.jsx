@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import publicApi from '../services/publicApi';
 import SEOHead from '../components/ui/SEOHead';
+import HubVideoPlayer from '../components/hub/HubVideoPlayer';
 
 const KIND_ICONS = {
   contact: Phone,
@@ -72,14 +73,20 @@ const LinkHubPage = () => {
           window.location.replace(data.destinationUrl);
           return;
         }
-        if (data.campaignType === 'multiple-links-qr' && (data.paused || data.status === 'paused')) {
+        if (
+          (data.campaignType === 'multiple-links-qr' || data.campaignType === 'links-video-qr')
+          && (data.paused || data.status === 'paused')
+        ) {
           if (!cancelled) {
             setMeta(data);
             setPhase('paused');
           }
           return;
         }
-        if (data.campaignType !== 'multiple-links-qr' || !Array.isArray(data.links)) {
+        if (
+          (data.campaignType !== 'multiple-links-qr' && data.campaignType !== 'links-video-qr')
+          || !Array.isArray(data.links)
+        ) {
           throw new Error('This page is not available.');
         }
         let vh = sessionStorage.getItem(visitorStorageKey);
@@ -203,6 +210,32 @@ const LinkHubPage = () => {
     [slug]
   );
 
+  const onVideoEvent = useCallback(
+    (evt) => {
+      const vh = visitorHashRef.current;
+      if (!vh || !slug) return;
+      const url = `${publicApiBase()}/public/multi-link/${encodeURIComponent(slug)}/video`;
+      const body = JSON.stringify({
+        visitorHash: vh,
+        event: evt?.event || 'progress',
+        positionSec: typeof evt?.positionSec === 'number' ? evt.positionSec : undefined,
+        durationSec: typeof evt?.durationSec === 'number' ? evt.durationSec : undefined,
+        watchPercent: typeof evt?.watchPercent === 'number' ? evt.watchPercent : undefined,
+      });
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
+      } else {
+        fetch(url, {
+          method: 'POST',
+          body,
+          headers: { 'Content-Type': 'application/json' },
+          keepalive: true,
+        }).catch(() => {});
+      }
+    },
+    [slug]
+  );
+
   if (phase === 'loading') {
     return (
       <div className="min-h-screen bg-[var(--bg-primary)] px-4 py-10 text-[var(--text-primary)]">
@@ -252,6 +285,7 @@ const LinkHubPage = () => {
   }
 
   const { campaignName, links } = meta;
+  const hasHeroVideo = meta.campaignType === 'links-video-qr';
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
@@ -263,6 +297,20 @@ const LinkHubPage = () => {
           </h1>
           <p className="mt-1 text-sm text-[var(--text-muted)]">Tap a link below</p>
         </header>
+
+        {hasHeroVideo && (
+          <div className="mb-5">
+            <HubVideoPlayer
+              source={meta.videoSource}
+              videoUrl={meta.videoUrl}
+              externalVideoUrl={meta.externalVideoUrl}
+              embedSrc={meta.embedSrc}
+              embedHost={meta.embedHost}
+              thumbnailUrl={meta.thumbnailUrl}
+              onEvent={onVideoEvent}
+            />
+          </div>
+        )}
 
         <ul className="flex flex-col gap-3">
           {links.map((link) => {

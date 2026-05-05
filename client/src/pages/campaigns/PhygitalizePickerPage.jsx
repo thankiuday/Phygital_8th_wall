@@ -29,6 +29,7 @@ const SECTIONS = [
         description: 'A single QR that surfaces curated links alongside a hero video.',
         icon: Video,
         to: '/dashboard/campaigns/new/phygital-qr/links-video',
+        available: true,
       },
       {
         id: 'links-doc-video',

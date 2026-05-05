@@ -50,6 +50,10 @@ const scanEventSchema = new mongoose.Schema(
 
     // Engagement
     sessionDurationMs: { type: Number, default: 0 },
+    /** Whether the visitor played the hero video at least once in this session. */
+    videoPlayed: { type: Boolean, default: false, index: true },
+    /** Maximum playback position reached in seconds (per visitor session). */
+    videoWatchedSec: { type: Number, default: 0, min: 0 },
     videoWatchPercent: { type: Number, default: 0, min: 0, max: 100 },
 
     scannedAt: { type: Date, default: Date.now, index: true },
@@ -59,6 +63,7 @@ const scanEventSchema = new mongoose.Schema(
 
 scanEventSchema.index({ userId: 1, scannedAt: -1 });
 scanEventSchema.index({ campaignId: 1, scannedAt: -1 });
+scanEventSchema.index({ campaignId: 1, videoPlayed: 1 });
 
 const ScanEvent = mongoose.model('ScanEvent', scanEventSchema);
 module.exports = ScanEvent;

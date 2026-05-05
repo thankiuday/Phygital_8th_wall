@@ -101,7 +101,9 @@ const CardMenu = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete }) =
 // ---------------------------------------------------------------------------
 const CampaignCard = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete }) => {
   const isSingleLinkQr = campaign.campaignType === 'single-link-qr';
-  const isMultiLinkQr = campaign.campaignType === 'multiple-links-qr';
+  const isMultiLinkQr =
+    campaign.campaignType === 'multiple-links-qr'
+    || campaign.campaignType === 'links-video-qr';
   const trackedRedirectUrl = campaign.redirectSlug
     ? `${resolveRedirectBase()}/r/${campaign.redirectSlug}`
     : null;

@@ -402,7 +402,7 @@ exports.getCampaignAnalytics = async (req, res) => {
   const periodStats = totals[0]?.period[0] || { scans: 0, uniqueVisitors: 0 };
 
   let multiLinkAnalytics = null;
-  if (campaign.campaignType === 'multiple-links-qr') {
+  if (campaign.campaignType === 'multiple-links-qr' || campaign.campaignType === 'links-video-qr') {
     const clickMatch = { campaignId: cid };
     const clickMatchPeriod = { campaignId: cid, clickedAt: { $gte: since } };
 
@@ -445,6 +445,123 @@ exports.getCampaignAnalytics = async (req, res) => {
     };
   }
 
+  let videoAnalytics = null;
+  if (campaign.campaignType === 'links-video-qr') {
+    const [videoPeriodAgg, watchBucketsAgg, watchTrend] = await Promise.all([
+      ScanEvent.aggregate([
+        { $match: { ...match, scannedAt: { $gte: since } } },
+        {
+          $group: {
+            _id: null,
+            plays: {
+              $addToSet: {
+                $cond: [
+                  { $eq: ['$videoPlayed', true] },
+                  { $ifNull: ['$visitorHash', null] },
+                  '$$REMOVE',
+                ],
+              },
+            },
+            completions: {
+              $addToSet: {
+                $cond: [
+                  { $gte: ['$videoWatchPercent', 95] },
+                  { $ifNull: ['$visitorHash', null] },
+                  '$$REMOVE',
+                ],
+              },
+            },
+            avgWatchPercent: {
+              $avg: {
+                $cond: [{ $eq: ['$videoPlayed', true] }, '$videoWatchPercent', null],
+              },
+            },
+            avgWatchSec: {
+              $avg: {
+                $cond: [{ $eq: ['$videoPlayed', true] }, '$videoWatchedSec', null],
+              },
+            },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            totalPlaysPeriod: { $size: '$plays' },
+            totalCompletionsPeriod: { $size: '$completions' },
+            avgWatchPercent: { $round: [{ $ifNull: ['$avgWatchPercent', 0] }, 1] },
+            avgWatchSec: { $round: [{ $ifNull: ['$avgWatchSec', 0] }, 0] },
+          },
+        },
+      ]),
+      ScanEvent.aggregate([
+        { $match: { ...match, scannedAt: { $gte: since }, videoPlayed: true } },
+        {
+          $bucket: {
+            groupBy: '$videoWatchPercent',
+            boundaries: [0, 25, 50, 75, 95, 101],
+            default: 'other',
+            output: { visitors: { $addToSet: '$visitorHash' } },
+          },
+        },
+      ]),
+      ScanEvent.aggregate([
+        { $match: { ...match, scannedAt: { $gte: since }, videoPlayed: true } },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$scannedAt' } },
+            plays: { $sum: 1 },
+            completions: { $sum: { $cond: [{ $gte: ['$videoWatchPercent', 95] }, 1, 0] } },
+          },
+        },
+        { $sort: { _id: 1 } },
+        { $project: { _id: 0, date: '$_id', plays: 1, completions: 1 } },
+      ]),
+    ]);
+
+    const periodRow = videoPeriodAgg[0] || {
+      totalPlaysPeriod: 0,
+      totalCompletionsPeriod: 0,
+      avgWatchPercent: 0,
+      avgWatchSec: 0,
+    };
+
+    const totalPlaysAllTime = await ScanEvent.aggregate([
+      { $match: { ...match, videoPlayed: true } },
+      { $group: { _id: '$visitorHash' } },
+      { $count: 'count' },
+    ]);
+
+    const bucketMap = new Map(
+      watchBucketsAgg
+        .filter((b) => b._id !== 'other')
+        .map((b) => [String(b._id), Array.isArray(b.visitors) ? b.visitors.filter(Boolean).length : 0])
+    );
+
+    const watchPercentBuckets = [
+      { bucket: 'started', visitors: periodRow.totalPlaysPeriod || 0 },
+      { bucket: '25%', visitors: bucketMap.get('25') || 0 },
+      { bucket: '50%', visitors: bucketMap.get('50') || 0 },
+      { bucket: '75%', visitors: bucketMap.get('75') || 0 },
+      { bucket: 'completed', visitors: bucketMap.get('95') || 0 },
+    ];
+
+    const scansDenominator = periodStats.scans || 0;
+    const playRatePeriod = scansDenominator > 0
+      ? Number(((periodRow.totalPlaysPeriod / scansDenominator) * 100).toFixed(1))
+      : null;
+
+    videoAnalytics = {
+      playRatePeriod,
+      totalPlaysAllTime: totalPlaysAllTime[0]?.count || 0,
+      totalPlaysPeriod: periodRow.totalPlaysPeriod || 0,
+      totalCompletionsPeriod: periodRow.totalCompletionsPeriod || 0,
+      avgWatchPercent: periodRow.avgWatchPercent || 0,
+      avgWatchSec: periodRow.avgWatchSec || 0,
+      watchPercentBuckets,
+      watchTrend,
+    };
+  }
+
   return success(res, {
     campaign: {
       _id:          campaign._id,
@@ -461,6 +578,7 @@ exports.getCampaignAnalytics = async (req, res) => {
     hourlyHeatmap,
     locationBreakdown,
     multiLinkAnalytics,
+    videoAnalytics,
   });
 };
 

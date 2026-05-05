@@ -10,7 +10,7 @@ import {
 
 /**
  * EditCampaignModal — inline modal to rename a campaign, toggle status, and
- * for multiple-links-qr: edit hub links + precise geo.
+ * for multiple-links-qr / links-video-qr: edit hub links + precise geo.
  *
  * Props:
  *   campaign    {object}    Campaign document to edit
@@ -24,9 +24,11 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
   const [error, setError]     = useState('');
   const inputRef              = useRef(null);
 
-  const isMultiLink = campaign.campaignType === 'multiple-links-qr';
+  const hasLinkItems =
+    campaign.campaignType === 'multiple-links-qr'
+    || campaign.campaignType === 'links-video-qr';
   const [linkRows, setLinkRows] = useState(() =>
-    isMultiLink ? campaignLinkItemsToRows(campaign.linkItems) : []
+    hasLinkItems ? campaignLinkItemsToRows(campaign.linkItems) : []
   );
   const [linkError, setLinkError] = useState('');
   const [preciseGeo, setPreciseGeo] = useState(!!campaign.preciseGeoAnalytics);
@@ -36,7 +38,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
     setStatus(campaign.status);
     setError('');
     setLinkError('');
-    if (campaign.campaignType === 'multiple-links-qr') {
+    if (campaign.campaignType === 'multiple-links-qr' || campaign.campaignType === 'links-video-qr') {
       setLinkRows(campaignLinkItemsToRows(campaign.linkItems));
       setPreciseGeo(!!campaign.preciseGeoAnalytics);
     } else {
@@ -69,7 +71,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
     if (!trimmed) { setError('Campaign name cannot be empty.'); return; }
     if (trimmed.length > 100) { setError('Name must be 100 characters or fewer.'); return; }
 
-    if (isMultiLink) {
+    if (hasLinkItems) {
       const lerr = validateLinkRows(linkRows);
       if (lerr) {
         setLinkError(lerr);
@@ -85,7 +87,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
     if (trimmed !== campaign.campaignName) updates.campaignName = trimmed;
     if (status !== campaign.status)       updates.status = status;
 
-    if (isMultiLink) {
+    if (hasLinkItems) {
       updates.linkItems = rowsToApiLinkItems(linkRows);
       if (preciseGeo !== !!campaign.preciseGeoAnalytics) {
         updates.preciseGeoAnalytics = preciseGeo;
@@ -113,7 +115,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
     { value: 'paused', label: 'Paused', color: 'text-yellow-400', bg: 'bg-yellow-500/10 border-yellow-500/30' },
   ];
 
-  const panelMaxW = isMultiLink ? 'max-w-lg' : 'max-w-md';
+  const panelMaxW = hasLinkItems ? 'max-w-lg' : 'max-w-md';
 
   return (
     <AnimatePresence>
@@ -141,7 +143,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
           {/* Header */}
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--border-color)] px-6 py-4">
             <h2 id="edit-campaign-title" className="text-base font-semibold text-[var(--text-primary)]">
-              {isMultiLink ? 'Edit campaign & links' : 'Edit Campaign'}
+              {hasLinkItems ? 'Edit campaign & links' : 'Edit Campaign'}
             </h2>
             <button
               onClick={onClose}
@@ -196,7 +198,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
                 </div>
               </div>
 
-              {isMultiLink && (
+              {hasLinkItems && (
                 <>
                   <div className="border-t border-[var(--border-color)] pt-5">
                     <p className="mb-3 text-xs font-medium text-[var(--text-secondary)]">

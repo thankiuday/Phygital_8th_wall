@@ -66,9 +66,24 @@ const publicMultiLinkSessionSchema = z
   })
   .strict();
 
+/**
+ * POST /api/public/multi-link/:slug/video (sendBeacon-friendly)
+ * Captures hero-video engagement milestones for links-video-qr campaigns.
+ */
+const publicMultiLinkVideoSchema = z
+  .object({
+    visitorHash: z.string().trim().min(8).max(128),
+    event: z.enum(['play', 'progress', 'ended']),
+    positionSec: z.number().min(0).max(14_400).optional(),
+    durationSec: z.number().min(0).max(14_400).optional(),
+    watchPercent: z.number().min(0).max(100).optional(),
+  })
+  .strict();
+
 module.exports = {
   publicSingleLinkScanSchema,
   publicMultiLinkScanSchema,
   publicMultiLinkClickSchema,
   publicMultiLinkSessionSchema,
+  publicMultiLinkVideoSchema,
 };

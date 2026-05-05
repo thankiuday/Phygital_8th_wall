@@ -219,6 +219,54 @@ const createMultipleLinksCampaign = async (req, res) => {
 };
 
 /* ─────────────────────────────────────────
+   POST /api/campaigns/links-video
+   Hub page with a hero video (uploaded to Cloudinary OR pasted public URL)
+   above a curated link list. Same redirect/hub plumbing as multiple-links-qr.
+   ───────────────────────────────────────── */
+const createLinksVideoCampaign = async (req, res) => {
+  const {
+    campaignName,
+    videoSource,
+    videoUrl,
+    videoPublicId,
+    externalVideoUrl,
+    thumbnailUrl,
+    linkItems,
+    qrDesign,
+    preciseGeoAnalytics,
+  } = req.body;
+
+  if (qrDesign && JSON.stringify(qrDesign).length > MAX_QR_DESIGN_BYTES) {
+    throw new AppError(
+      `qrDesign payload exceeds ${MAX_QR_DESIGN_BYTES} bytes`,
+      413
+    );
+  }
+
+  const persistedItems = await persistLinkItemsFromBody(linkItems);
+  const redirectSlug = await generateUniqueSlug();
+
+  const campaign = await Campaign.create({
+    userId: req.user._id,
+    campaignType: 'links-video-qr',
+    campaignName: campaignName.trim(),
+    videoSource,
+    // Only the field that matches the source is persisted; the other stays null.
+    videoUrl: videoSource === 'upload' ? videoUrl : null,
+    videoPublicId: videoSource === 'upload' ? (videoPublicId || null) : null,
+    externalVideoUrl: videoSource === 'link' ? externalVideoUrl : null,
+    thumbnailUrl: thumbnailUrl || null,
+    linkItems: persistedItems,
+    qrDesign: qrDesign || null,
+    redirectSlug,
+    preciseGeoAnalytics: !!preciseGeoAnalytics,
+    status: 'active',
+  });
+
+  return created(res, { campaign }, 'Links + Video QR campaign created successfully');
+};
+
+/* ─────────────────────────────────────────
    GET /api/campaigns
    ───────────────────────────────────────── */
 const getCampaigns = async (req, res) => {
@@ -230,7 +278,7 @@ const getCampaigns = async (req, res) => {
   }
   if (
     campaignType
-    && ['ar-card', 'single-link-qr', 'multiple-links-qr'].includes(campaignType)
+    && ['ar-card', 'single-link-qr', 'multiple-links-qr', 'links-video-qr'].includes(campaignType)
   ) {
     filter.campaignType = campaignType;
   }
@@ -278,7 +326,7 @@ const getCampaign = async (req, res) => {
 const updateCampaign = async (req, res) => {
   const existing = await Campaign.findOne(
     { _id: req.params.id, userId: req.user._id },
-    'campaignType redirectSlug status linkItems analytics.linkClickTotals'
+    'campaignType redirectSlug status linkItems analytics.linkClickTotals videoSource'
   ).lean();
   if (!existing) throw new AppError('Campaign not found', 404);
 
@@ -289,46 +337,76 @@ const updateCampaign = async (req, res) => {
     qrDesign,
     preciseGeoAnalytics,
     linkItems,
+    videoSource,
+    videoUrl,
+    videoPublicId,
+    externalVideoUrl,
+    thumbnailUrl,
   } = req.body;
   const updates = {};
 
   if (campaignName !== undefined) updates.campaignName = campaignName;
   if (status !== undefined) updates.status = status;
 
+  const applyQrDesign = () => {
+    if (qrDesign === undefined) return;
+    if (qrDesign && JSON.stringify(qrDesign).length > MAX_QR_DESIGN_BYTES) {
+      throw new AppError(
+        `qrDesign payload exceeds ${MAX_QR_DESIGN_BYTES} bytes`,
+        413
+      );
+    }
+    updates.qrDesign = qrDesign;
+  };
+
+  const applyLinkItemsMerge = async () => {
+    if (linkItems === undefined) return;
+    const merged = await mergeLinkItemsForUpdate(existing.linkItems, linkItems);
+    updates.linkItems = merged;
+    updates['analytics.linkClickTotals'] = pruneLinkClickTotals(
+      existing.analytics?.linkClickTotals,
+      merged.map((m) => m.linkId)
+    );
+  };
+
   // Type-gated fields — silently ignored on the wrong type to keep the contract
   // forgiving (the frontend re-uses one PATCH for all campaign types).
   if (existing.campaignType === 'single-link-qr') {
     if (destinationUrl !== undefined) updates.destinationUrl = destinationUrl;
     if (preciseGeoAnalytics !== undefined) updates.preciseGeoAnalytics = !!preciseGeoAnalytics;
-    if (qrDesign !== undefined) {
-      if (qrDesign && JSON.stringify(qrDesign).length > MAX_QR_DESIGN_BYTES) {
-        throw new AppError(
-          `qrDesign payload exceeds ${MAX_QR_DESIGN_BYTES} bytes`,
-          413
-        );
-      }
-      updates.qrDesign = qrDesign;
-    }
+    applyQrDesign();
   }
 
   if (existing.campaignType === 'multiple-links-qr') {
     if (preciseGeoAnalytics !== undefined) updates.preciseGeoAnalytics = !!preciseGeoAnalytics;
-    if (qrDesign !== undefined) {
-      if (qrDesign && JSON.stringify(qrDesign).length > MAX_QR_DESIGN_BYTES) {
-        throw new AppError(
-          `qrDesign payload exceeds ${MAX_QR_DESIGN_BYTES} bytes`,
-          413
-        );
+    applyQrDesign();
+    await applyLinkItemsMerge();
+  }
+
+  if (existing.campaignType === 'links-video-qr') {
+    if (preciseGeoAnalytics !== undefined) updates.preciseGeoAnalytics = !!preciseGeoAnalytics;
+    applyQrDesign();
+    await applyLinkItemsMerge();
+    if (thumbnailUrl !== undefined) updates.thumbnailUrl = thumbnailUrl;
+
+    // Video source can be swapped post-create; clear the unused side so we
+    // never serve stale data from the public meta endpoint.
+    const nextSource =
+      videoSource !== undefined ? videoSource : existing.videoSource;
+    if (videoSource !== undefined) updates.videoSource = videoSource;
+
+    if (nextSource === 'upload') {
+      if (videoUrl !== undefined) updates.videoUrl = videoUrl;
+      if (videoPublicId !== undefined) updates.videoPublicId = videoPublicId;
+      if (videoSource === 'upload') {
+        updates.externalVideoUrl = null;
       }
-      updates.qrDesign = qrDesign;
-    }
-    if (linkItems !== undefined) {
-      const merged = await mergeLinkItemsForUpdate(existing.linkItems, linkItems);
-      updates.linkItems = merged;
-      updates['analytics.linkClickTotals'] = pruneLinkClickTotals(
-        existing.analytics?.linkClickTotals,
-        merged.map((m) => m.linkId)
-      );
+    } else if (nextSource === 'link') {
+      if (externalVideoUrl !== undefined) updates.externalVideoUrl = externalVideoUrl;
+      if (videoSource === 'link') {
+        updates.videoUrl = null;
+        updates.videoPublicId = null;
+      }
     }
   }
 
@@ -346,7 +424,8 @@ const updateCampaign = async (req, res) => {
   // destination / hub data / status.
   if (
     (existing.campaignType === 'single-link-qr'
-      || existing.campaignType === 'multiple-links-qr')
+      || existing.campaignType === 'multiple-links-qr'
+      || existing.campaignType === 'links-video-qr')
     && existing.redirectSlug
   ) {
     redirectCache.evict(existing.redirectSlug).catch(() => {});
@@ -429,6 +508,33 @@ const duplicateCampaign = async (req, res) => {
     return created(res, { campaign: copy }, 'Campaign duplicated successfully');
   }
 
+  if (original.campaignType === 'links-video-qr') {
+    const { nanoid } = await import('nanoid');
+    const redirectSlug = await generateUniqueSlug();
+    const items = (original.linkItems || []).map((it) => ({
+      linkId: nanoid(12),
+      kind: it.kind,
+      label: it.label,
+      value: it.value,
+    }));
+    const copy = await Campaign.create({
+      userId: original.userId,
+      campaignType: 'links-video-qr',
+      campaignName: `Copy of ${original.campaignName}`,
+      videoSource: original.videoSource,
+      videoUrl: original.videoUrl,
+      videoPublicId: original.videoPublicId,
+      externalVideoUrl: original.externalVideoUrl,
+      thumbnailUrl: original.thumbnailUrl,
+      linkItems: items,
+      qrDesign: original.qrDesign,
+      redirectSlug,
+      preciseGeoAnalytics: !!original.preciseGeoAnalytics,
+      status: 'active',
+    });
+    return created(res, { campaign: copy }, 'Campaign duplicated successfully');
+  }
+
   const copy = await Campaign.create({
     userId: original.userId,
     campaignType: 'ar-card',
@@ -474,6 +580,7 @@ const getCampaignQR = async (req, res) => {
   if (
     campaign.campaignType === 'single-link-qr'
     || campaign.campaignType === 'multiple-links-qr'
+    || campaign.campaignType === 'links-video-qr'
   ) {
     const apiBase = process.env.PUBLIC_REDIRECT_BASE
       || process.env.API_URL
@@ -511,6 +618,7 @@ module.exports = {
   createCampaign,
   createSingleLinkCampaign,
   createMultipleLinksCampaign,
+  createLinksVideoCampaign,
   getCampaigns,
   getCampaign,
   updateCampaign,

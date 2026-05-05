@@ -2,6 +2,7 @@
 
 const { z } = require('zod');
 const { safeUrl } = require('./safeUrl');
+const { isAllowedVideoHost } = require('../utils/videoEmbed');
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Strict qrDesign schema — every property is whitelisted by name and shape.
@@ -218,6 +219,96 @@ const createMultipleLinksOnlySchema = z
   .strict();
 
 /**
+ * externalVideoUrl — allowlisted public video provider URL (YouTube / Vimeo /
+ * Facebook). Reuses `safeUrl` for SSRF / scheme defense, then enforces the
+ * curated host allowlist defined in `utils/videoEmbed`.
+ */
+const externalVideoUrlField = z
+  .string({ required_error: 'externalVideoUrl is required' })
+  .min(1, 'externalVideoUrl is required')
+  .max(2048, 'externalVideoUrl cannot exceed 2048 characters')
+  .transform((val, ctx) => {
+    let normalized;
+    try {
+      normalized = safeUrl(val);
+    } catch (err) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: err.message });
+      return z.NEVER;
+    }
+    if (!isAllowedVideoHost(normalized)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Only YouTube, Vimeo, or Facebook video URLs are supported',
+      });
+      return z.NEVER;
+    }
+    return normalized;
+  });
+
+const cloudinaryUrlField = z
+  .string()
+  .min(1, 'videoUrl is required')
+  .max(2048, 'videoUrl cannot exceed 2048 characters')
+  .url('videoUrl must be a valid URL');
+
+/**
+ * POST /api/campaigns/links-video — dedicated route mirroring multiple-links.
+ *
+ * Conditional `superRefine`:
+ *   videoSource === 'upload' → requires `videoUrl` (Cloudinary).
+ *   videoSource === 'link'   → requires `externalVideoUrl` (allowlisted host).
+ */
+const createLinksVideoOnlySchema = z
+  .object({
+    campaignName: campaignNameField,
+    videoSource: z.enum(['upload', 'link'], {
+      required_error: 'videoSource is required',
+      invalid_type_error: 'videoSource must be "upload" or "link"',
+    }),
+    videoUrl: cloudinaryUrlField.optional(),
+    videoPublicId: z.string().min(1).max(256).optional(),
+    externalVideoUrl: externalVideoUrlField.optional(),
+    thumbnailUrl: z.string().url().nullable().optional(),
+    linkItems: linkItemsField,
+    qrDesign: qrDesignSchema.nullable().optional(),
+    preciseGeoAnalytics: z.boolean().optional(),
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    if (data.videoSource === 'upload') {
+      if (!data.videoUrl) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'videoUrl is required when videoSource is "upload"',
+          path: ['videoUrl'],
+        });
+      }
+      if (data.externalVideoUrl) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'externalVideoUrl must not be set when videoSource is "upload"',
+          path: ['externalVideoUrl'],
+        });
+      }
+    } else if (data.videoSource === 'link') {
+      if (!data.externalVideoUrl) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'externalVideoUrl is required when videoSource is "link"',
+          path: ['externalVideoUrl'],
+        });
+      }
+      if (data.videoUrl || data.videoPublicId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'videoUrl/videoPublicId must not be set when videoSource is "link"',
+          path: ['videoUrl'],
+        });
+      }
+    }
+  });
+
+/**
  * Strip Cloudinary fields so single-link `.strict()` payloads never carry stray keys.
  */
 const stripArMediaFields = (obj) => {
@@ -303,6 +394,12 @@ const updateCampaignSchema = z
       .optional(),
     qrDesign: qrDesignSchema.nullable().optional(),
     linkItems: linkItemsPatchField.optional(),
+    /* ── links-video-qr fields (controller gates by campaignType) ── */
+    videoSource: z.enum(['upload', 'link']).optional(),
+    videoUrl: cloudinaryUrlField.nullable().optional(),
+    videoPublicId: z.string().min(1).max(256).nullable().optional(),
+    externalVideoUrl: externalVideoUrlField.nullable().optional(),
+    thumbnailUrl: z.string().url().nullable().optional(),
   })
   .strict()
   .refine((d) => Object.keys(d).length > 0, { message: 'No valid fields to update' });
@@ -316,5 +413,6 @@ module.exports = {
   createCampaignSchema,
   createSingleLinkOnlySchema,
   createMultipleLinksOnlySchema,
+  createLinksVideoOnlySchema,
   updateCampaignSchema,
 };
