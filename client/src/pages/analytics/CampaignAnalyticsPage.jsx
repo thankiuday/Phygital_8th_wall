@@ -213,7 +213,8 @@ const CampaignAnalyticsPage = () => {
   };
 
   const fmtSeconds = (sec) => {
-    if (!sec) return '0s';
+    if (sec == null) return '—';
+    if (sec === 0) return '0s';
     const s = Math.round(sec);
     return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
   };
@@ -525,14 +526,14 @@ const CampaignAnalyticsPage = () => {
             <StatCard
               icon={Clock}
               label="Avg Watch %"
-              value={videoAnalytics?.avgWatchPercent ? `${videoAnalytics.avgWatchPercent}%` : '—'}
+              value={videoAnalytics?.avgWatchPercent != null ? `${videoAnalytics.avgWatchPercent}%` : '—'}
               sub="Across viewers"
               accent="#06b6d4"
             />
             <StatCard
               icon={Clock}
               label="Avg Watch Time"
-              value={fmtSeconds(videoAnalytics?.avgWatchSec || 0)}
+              value={fmtSeconds(videoAnalytics?.avgWatchSec)}
               sub="Across viewers"
               accent="#10b981"
             />

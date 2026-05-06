@@ -472,40 +472,37 @@ exports.getCampaignAnalytics = async (req, res) => {
 
   let videoAnalytics = null;
   if (VIDEO_HUB_TYPES.has(campaign.campaignType)) {
+    const usesPerAssetVideoTelemetry = campaign.campaignType === 'links-doc-video-qr';
+    const videoEventModel = usesPerAssetVideoTelemetry ? VideoPlayEvent : ScanEvent;
+    const dateField = usesPerAssetVideoTelemetry ? 'occurredAt' : 'scannedAt';
+    const watchPercentField = usesPerAssetVideoTelemetry ? '$watchPercent' : '$videoWatchPercent';
+    const watchSecField = usesPerAssetVideoTelemetry ? '$watchedSec' : '$videoWatchedSec';
+    const baseVideoMatch = usesPerAssetVideoTelemetry
+      ? { campaignId: cid }
+      : { ...match, videoPlayed: true };
+    const periodVideoMatch = {
+      ...baseVideoMatch,
+      [dateField]: { $gte: since },
+    };
+
     const [videoPeriodAgg, watchBucketsAgg, watchTrend] = await Promise.all([
-      ScanEvent.aggregate([
-        { $match: { ...match, scannedAt: { $gte: since } } },
+      videoEventModel.aggregate([
+        { $match: periodVideoMatch },
         {
           $group: {
             _id: null,
-            plays: {
-              $addToSet: {
-                $cond: [
-                  { $eq: ['$videoPlayed', true] },
-                  { $ifNull: ['$visitorHash', null] },
-                  '$$REMOVE',
-                ],
-              },
-            },
+            plays: { $addToSet: { $ifNull: ['$visitorHash', null] } },
             completions: {
               $addToSet: {
                 $cond: [
-                  { $gte: ['$videoWatchPercent', 95] },
+                  { $gte: [watchPercentField, 95] },
                   { $ifNull: ['$visitorHash', null] },
                   '$$REMOVE',
                 ],
               },
             },
-            avgWatchPercent: {
-              $avg: {
-                $cond: [{ $eq: ['$videoPlayed', true] }, '$videoWatchPercent', null],
-              },
-            },
-            avgWatchSec: {
-              $avg: {
-                $cond: [{ $eq: ['$videoPlayed', true] }, '$videoWatchedSec', null],
-              },
-            },
+            avgWatchPercent: { $avg: watchPercentField },
+            avgWatchSec: { $avg: watchSecField },
           },
         },
         {
@@ -513,29 +510,41 @@ exports.getCampaignAnalytics = async (req, res) => {
             _id: 0,
             totalPlaysPeriod: { $size: '$plays' },
             totalCompletionsPeriod: { $size: '$completions' },
-            avgWatchPercent: { $round: [{ $ifNull: ['$avgWatchPercent', 0] }, 1] },
-            avgWatchSec: { $round: [{ $ifNull: ['$avgWatchSec', 0] }, 0] },
+            avgWatchPercent: {
+              $cond: [
+                { $gt: [{ $size: '$plays' }, 0] },
+                { $round: [{ $ifNull: ['$avgWatchPercent', 0] }, 1] },
+                null,
+              ],
+            },
+            avgWatchSec: {
+              $cond: [
+                { $gt: [{ $size: '$plays' }, 0] },
+                { $round: [{ $ifNull: ['$avgWatchSec', 0] }, 0] },
+                null,
+              ],
+            },
           },
         },
       ]),
-      ScanEvent.aggregate([
-        { $match: { ...match, scannedAt: { $gte: since }, videoPlayed: true } },
+      videoEventModel.aggregate([
+        { $match: periodVideoMatch },
         {
           $bucket: {
-            groupBy: '$videoWatchPercent',
+            groupBy: watchPercentField,
             boundaries: [0, 25, 50, 75, 95, 101],
             default: 'other',
             output: { visitors: { $addToSet: '$visitorHash' } },
           },
         },
       ]),
-      ScanEvent.aggregate([
-        { $match: { ...match, scannedAt: { $gte: since }, videoPlayed: true } },
+      videoEventModel.aggregate([
+        { $match: periodVideoMatch },
         {
           $group: {
-            _id: { $dateToString: { format: '%Y-%m-%d', date: '$scannedAt' } },
+            _id: { $dateToString: { format: '%Y-%m-%d', date: `$${dateField}` } },
             plays: { $sum: 1 },
-            completions: { $sum: { $cond: [{ $gte: ['$videoWatchPercent', 95] }, 1, 0] } },
+            completions: { $sum: { $cond: [{ $gte: [watchPercentField, 95] }, 1, 0] } },
           },
         },
         { $sort: { _id: 1 } },
@@ -550,8 +559,8 @@ exports.getCampaignAnalytics = async (req, res) => {
       avgWatchSec: 0,
     };
 
-    const totalPlaysAllTime = await ScanEvent.aggregate([
-      { $match: { ...match, videoPlayed: true } },
+    const totalPlaysAllTime = await videoEventModel.aggregate([
+      { $match: baseVideoMatch },
       { $group: { _id: '$visitorHash' } },
       { $count: 'count' },
     ]);
@@ -580,8 +589,8 @@ exports.getCampaignAnalytics = async (req, res) => {
       totalPlaysAllTime: totalPlaysAllTime[0]?.count || 0,
       totalPlaysPeriod: periodRow.totalPlaysPeriod || 0,
       totalCompletionsPeriod: periodRow.totalCompletionsPeriod || 0,
-      avgWatchPercent: periodRow.avgWatchPercent || 0,
-      avgWatchSec: periodRow.avgWatchSec || 0,
+      avgWatchPercent: periodRow.avgWatchPercent ?? null,
+      avgWatchSec: periodRow.avgWatchSec ?? null,
       watchPercentBuckets,
       watchTrend,
     };
