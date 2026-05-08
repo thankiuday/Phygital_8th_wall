@@ -115,7 +115,13 @@ const createArCardCampaign = async (req, res) => {
 };
 
 const createSingleLinkCampaign = async (req, res) => {
-  const { campaignName, destinationUrl, qrDesign, preciseGeoAnalytics } = req.body;
+  const {
+    campaignName,
+    destinationUrl,
+    qrDesign,
+    preciseGeoAnalytics,
+    redirectSlug: requestedRedirectSlug,
+  } = req.body;
 
   if (qrDesign && JSON.stringify(qrDesign).length > MAX_QR_DESIGN_BYTES) {
     throw new AppError(
@@ -124,7 +130,15 @@ const createSingleLinkCampaign = async (req, res) => {
     );
   }
 
-  const redirectSlug = await generateUniqueSlug();
+  let redirectSlug = requestedRedirectSlug || null;
+  if (redirectSlug) {
+    const exists = await Campaign.exists({ redirectSlug });
+    if (exists) {
+      throw new AppError('Generated QR slug expired. Please retry once.', 409);
+    }
+  } else {
+    redirectSlug = await generateUniqueSlug();
+  }
 
   const campaign = await Campaign.create({
     userId: req.user._id,

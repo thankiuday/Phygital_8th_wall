@@ -39,10 +39,19 @@ const resolveClientAppBase = () => {
   return typeof window !== 'undefined' ? window.location.origin : '';
 };
 
-// Stable placeholder slug while in the wizard so the QR's encoded length
-// matches the eventual server-issued slug (8 chars).  Length stability matters
-// because the QR matrix density changes with payload length.
-const PLACEHOLDER_SLUG = 'preview1';
+const REDIRECT_SLUG_ALPHABET = '23456789abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ';
+const generatePreviewSlug = () => {
+  if (typeof window !== 'undefined' && window.crypto?.getRandomValues) {
+    const bytes = new Uint8Array(8);
+    window.crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => REDIRECT_SLUG_ALPHABET[b % REDIRECT_SLUG_ALPHABET.length]).join('');
+  }
+  let out = '';
+  for (let i = 0; i < 8; i += 1) {
+    out += REDIRECT_SLUG_ALPHABET[Math.floor(Math.random() * REDIRECT_SLUG_ALPHABET.length)];
+  }
+  return out;
+};
 
 const seedCampaignName = (user) => {
   const firstName = user?.name?.split(' ')[0] || 'My';
@@ -58,6 +67,7 @@ const SingleLinkQrWizard = () => {
   const [campaignName, setCampaignName] = useState('');
   const [destinationUrl, setDestinationUrl] = useState('');
   const [design, setDesign] = useState(DEFAULT_DESIGN);
+  const [redirectSlug] = useState(() => generatePreviewSlug());
   const [preciseGeoAnalytics, setPreciseGeoAnalytics] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -73,9 +83,9 @@ const SingleLinkQrWizard = () => {
   const encodedData = useMemo(
     () =>
       preciseGeoAnalytics
-        ? `${clientAppBase}/open/${PLACEHOLDER_SLUG}`
-        : `${redirectBase}/r/${PLACEHOLDER_SLUG}`,
-    [redirectBase, clientAppBase, preciseGeoAnalytics]
+        ? `${clientAppBase}/open/${redirectSlug}`
+        : `${redirectBase}/r/${redirectSlug}`,
+    [redirectBase, clientAppBase, preciseGeoAnalytics, redirectSlug]
   );
 
   const handleStep1Continue = ({ campaignName: name, destinationUrl: url, preciseGeoAnalytics: pg }) => {
@@ -94,6 +104,7 @@ const SingleLinkQrWizard = () => {
         destinationUrl,
         qrDesign: qrDesignPayload,
         preciseGeoAnalytics,
+        redirectSlug,
       });
       navigate(`/dashboard/campaigns/${campaign._id}`);
     } catch (err) {

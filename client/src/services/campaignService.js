@@ -78,13 +78,20 @@ export const campaignService = {
    * flow.  Server returns the persisted campaign including the assigned
    * `redirectSlug` which the client can use to encode the printed QR.
    */
-  createSingleLinkCampaign: async ({ campaignName, destinationUrl, qrDesign, preciseGeoAnalytics }) => {
+  createSingleLinkCampaign: async ({
+    campaignName,
+    destinationUrl,
+    qrDesign,
+    preciseGeoAnalytics,
+    redirectSlug,
+  }) => {
     // Dedicated route — never relies on `campaignType` surviving proxies / caching.
     const res = await api.post('/campaigns/single-link', {
       campaignName,
       destinationUrl,
       qrDesign: qrDesign ?? null,
       preciseGeoAnalytics: !!preciseGeoAnalytics,
+      redirectSlug: redirectSlug || undefined,
     });
     return res.data.data.campaign;
   },

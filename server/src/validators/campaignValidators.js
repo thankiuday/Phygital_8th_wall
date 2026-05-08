@@ -168,6 +168,13 @@ const createSingleLinkOnlySchema = z
     destinationUrl: destinationUrlField,
     qrDesign: qrDesignSchema.nullable().optional(),
     preciseGeoAnalytics: z.boolean().optional(),
+    // Optional client-seeded immutable slug so wizard-downloaded QRs can
+    // match the eventually persisted campaign redirect URL.
+    redirectSlug: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9]{8}$/, 'redirectSlug must be 8 alphanumeric characters')
+      .optional(),
   })
   .strict();
 
