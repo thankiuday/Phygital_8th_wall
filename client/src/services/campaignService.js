@@ -259,7 +259,9 @@ export const campaignService = {
    * `getCardRenderStatus` until both come back ready.
    */
   renderCardImage: async (id, { size } = {}) => {
-    const res = await api.post(`/campaigns/${id}/card-image`, null, {
+    // Send an object body (not literal `null`) so strict JSON parsers on
+    // some deployments don't reject the request before it reaches controller logic.
+    const res = await api.post(`/campaigns/${id}/card-image`, {}, {
       params: size ? { size } : {},
     });
     return res.data.data;
