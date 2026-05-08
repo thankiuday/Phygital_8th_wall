@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto = require('crypto');
 const Campaign = require('../models/Campaign');
 const ScanEvent = require('../models/ScanEvent');
 const LinkClickEvent = require('../models/LinkClickEvent');
@@ -8,7 +9,9 @@ const { AppError } = require('../middleware/errorHandler');
 const { success, created } = require('../utils/apiResponse');
 const { generateUploadSignature, deleteCloudinaryAsset } = require('../services/cloudinaryService');
 const { generateQRCode } = require('../services/qrService');
-const { redirectCache, dynamicQrMetaCache } = require('../utils/redirectCache');
+const { redirectCache, dynamicQrMetaCache, cardMetaCache } = require('../utils/redirectCache');
+const { renderCardPng } = require('../services/cardPrintService');
+const { CARD_SIZE_IDS, DEFAULT_CARD_SIZE } = require('../constants/cardSizes');
 const logger = require('../config/logger');
 const { resolveLinkHref } = require('../utils/linkItemResolver');
 
@@ -401,6 +404,225 @@ const createLinksDocVideoCampaign = async (req, res) => {
   return created(res, { campaign }, 'Links + Doc + Video QR campaign created successfully');
 };
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   digital-business-card — personalized identity card hub
+   Creation, slug allocation, and per-section id assignment.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+const DEFAULT_CARD_DESIGN = Object.freeze({
+  template: 'professional',
+  colors: { primary: '#3b82f6', secondary: '#1d4ed8', background: '#030712' },
+  font: 'Inter',
+  layout: 'left-aligned',
+  corners: 'rounded',
+  spacing: 'normal',
+});
+
+const DEFAULT_CARD_PRINT_SETTINGS = Object.freeze({
+  cardSize: DEFAULT_CARD_SIZE,
+  theme: 'white',
+  qrPosition: 'bottom-right',
+  includeQr: true,
+  displayFields: ['name', 'jobTitle', 'company', 'phone', 'email', 'website'],
+  profileZoom: 1.0,
+  profileCropX: 50,
+  profileCropY: 50,
+});
+
+/** Slugify a free-text string into kebab-case (3-60 chars). */
+const slugifyForCard = (raw) => {
+  const base = String(raw || '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 50);
+  if (base.length >= 3) return base;
+  return null;
+};
+
+/** Pick a unique cardSlug. Adds a short nanoid suffix on collision. */
+const generateUniqueCardSlug = async (preferred, fallbackName) => {
+  const { nanoid } = await import('nanoid');
+  const candidates = [];
+  if (preferred) candidates.push(preferred);
+  const slugified = slugifyForCard(fallbackName);
+  if (slugified) candidates.push(slugified);
+
+  for (const candidate of candidates) {
+    const exists = await Campaign.exists({ cardSlug: candidate });
+    if (!exists) return candidate;
+    // Try with a short nanoid suffix to disambiguate.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const suffix = nanoid(8).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8) || 'card';
+      const next = `${candidate}-${suffix}`.slice(0, 60);
+      const taken = await Campaign.exists({ cardSlug: next });
+      if (!taken) return next;
+    }
+  }
+  // Final fallback: pure nanoid
+  return `card-${nanoid(10).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10)}`;
+};
+
+const ensureSectionIds = async (sections) => {
+  if (!Array.isArray(sections) || sections.length === 0) return [];
+  const { nanoid } = await import('nanoid');
+  return sections.map((sec) => ({
+    ...sec,
+    id: sec.id || nanoid(10),
+  }));
+};
+
+/**
+ * Hash the user-visible inputs to the print PNG so unchanged renders can
+ * be served from the Cloudinary cache without launching Chromium again.
+ * Order-independent: we serialize with sorted keys so trivial reordering
+ * doesn't bust the cache.
+ */
+const stableStringify = (val) => {
+  if (val === null || typeof val !== 'object') return JSON.stringify(val);
+  if (Array.isArray(val)) return `[${val.map(stableStringify).join(',')}]`;
+  const keys = Object.keys(val).sort();
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(val[k])}`).join(',')}}`;
+};
+
+const buildCardRenderHash = (campaign, printSettingsOverride = {}, face = 'front') => {
+  const settings = { ...DEFAULT_CARD_PRINT_SETTINGS, ...(campaign.cardPrintSettings || {}), ...printSettingsOverride };
+  const payload = {
+    content: campaign.cardContent || {},
+    design: campaign.cardDesign || {},
+    print: settings,
+    slug: campaign.cardSlug || campaign.redirectSlug || '',
+    face,
+  };
+  return crypto.createHash('sha256').update(stableStringify(payload)).digest('hex').slice(0, 32);
+};
+
+/* ─────────────────────────────────────────
+   POST /api/campaigns/digital-business-card
+   Creates a Personalized Identity card. Mirrors the dedicated-route pattern
+   used by other hub types and additionally allocates a friendly `cardSlug`
+   on top of the immutable 8-char `redirectSlug` (used for QR encoding).
+   ───────────────────────────────────────── */
+const createDigitalBusinessCardCampaign = async (req, res) => {
+  const {
+    campaignName,
+    cardSlug,
+    visibility,
+    cardContent,
+    cardDesign,
+    cardPrintSettings,
+    qrDesign,
+    preciseGeoAnalytics,
+  } = req.body;
+
+  if (qrDesign && JSON.stringify(qrDesign).length > MAX_QR_DESIGN_BYTES) {
+    throw new AppError(
+      `qrDesign payload exceeds ${MAX_QR_DESIGN_BYTES} bytes`,
+      413
+    );
+  }
+
+  const sections = await ensureSectionIds(cardContent?.sections);
+  const sealedContent = { ...cardContent, sections };
+
+  const [redirectSlug, allocatedCardSlug] = await Promise.all([
+    generateUniqueSlug(),
+    generateUniqueCardSlug(cardSlug, cardContent?.fullName || campaignName),
+  ]);
+
+  const campaign = await Campaign.create({
+    userId: req.user._id,
+    campaignType: 'digital-business-card',
+    campaignName: campaignName.trim(),
+    cardSlug: allocatedCardSlug,
+    visibility: visibility || 'public',
+    cardContent: sealedContent,
+    cardDesign: { ...DEFAULT_CARD_DESIGN, ...(cardDesign || {}) },
+    cardPrintSettings: { ...DEFAULT_CARD_PRINT_SETTINGS, ...(cardPrintSettings || {}) },
+    qrDesign: qrDesign || null,
+    redirectSlug,
+    preciseGeoAnalytics: !!preciseGeoAnalytics,
+    status: 'active',
+  });
+
+  return created(res, { campaign }, 'Digital Business Card created successfully');
+};
+
+/* ─────────────────────────────────────────
+   GET /api/campaigns/check-card-slug?slug=&excludeId=
+   Used by the wizard's debounced availability check.
+   ───────────────────────────────────────── */
+const checkCardSlugAvailability = async (req, res) => {
+  const slug = String(req.query.slug || '').trim().toLowerCase();
+  if (!/^[a-z0-9](?:[a-z0-9-]{1,58}[a-z0-9])?$/.test(slug)) {
+    return success(res, { available: false, reason: 'invalid' });
+  }
+  const filter = { cardSlug: slug, isDeleted: { $ne: true } };
+  if (req.query.excludeId) filter._id = { $ne: req.query.excludeId };
+  const taken = await Campaign.exists(filter);
+  return success(res, { available: !taken });
+};
+
+/* ─────────────────────────────────────────
+   POST /api/campaigns/:id/card-image
+   Returns a high-resolution PNG of the card at the requested size. Tries
+   the Cloudinary cache first; otherwise renders via Puppeteer (or enqueues
+   a render job when REDIS_URL is set). Always emits a `print-download`
+   action telemetry row regardless of cache hit.
+   ───────────────────────────────────────── */
+const renderCampaignCardImage = async (req, res) => {
+  const campaign = await Campaign.findOne(
+    { _id: req.params.id, userId: req.user._id, isDeleted: { $ne: true } },
+    'campaignType cardSlug redirectSlug cardContent cardDesign cardPrintSettings'
+  ).lean();
+  if (!campaign) throw new AppError('Campaign not found', 404);
+  if (campaign.campaignType !== 'digital-business-card') {
+    throw new AppError('This endpoint is only available for digital business cards', 400);
+  }
+
+  const sizeOverride = String(req.query.size || '').trim();
+  const size = CARD_SIZE_IDS.includes(sizeOverride)
+    ? sizeOverride
+    : (campaign.cardPrintSettings?.cardSize || DEFAULT_CARD_SIZE);
+
+  // Render both faces in parallel. Each face has its own deterministic
+  // hash so cache hits are independent — re-rendering the front does not
+  // bust the back, and vice versa.
+  const renderFace = (face) => renderCardPng({
+    campaignId: String(campaign._id),
+    userId: String(req.user._id),
+    cardSlug: campaign.cardSlug || campaign.redirectSlug,
+    size,
+    face,
+    renderHash: buildCardRenderHash(campaign, { cardSize: size }, face),
+  });
+
+  const [front, back] = await Promise.all([renderFace('front'), renderFace('back')]);
+
+  // The aggregate status is "ready" only when both faces are ready in this
+  // round-trip. If either is queued, the client polls each jobId.
+  const status = front.status === 'ready' && back.status === 'ready' ? 'ready' : 'pending';
+
+  // Telemetry: record a print download (best-effort; never block the response).
+  LinkClickEvent.create({
+    campaignId: campaign._id,
+    userId: req.user._id,
+    linkId: 'print-download',
+    kind: 'link',
+    visitorHash: null,
+    clickedAt: new Date(),
+  }).catch(() => {});
+  Campaign.updateOne(
+    { _id: campaign._id },
+    { $inc: { [`analytics.cardActionTotals.print-download`]: 1 } }
+  ).catch(() => {});
+
+  return success(res, { status, front, back }, 'Card image ready');
+};
+
 /* ─────────────────────────────────────────
    POST /api/campaigns/links-video
    Hub page with a hero video (uploaded to Cloudinary OR pasted public URL)
@@ -455,7 +677,8 @@ const createLinksVideoCampaign = async (req, res) => {
 const getCampaigns = async (req, res) => {
   const { status, campaignType, page = 1, limit = 12 } = req.query;
 
-  const filter = { userId: req.user._id };
+  // Soft-delete filter applied to every dashboard query.
+  const filter = { userId: req.user._id, isDeleted: { $ne: true } };
   if (status && ['draft', 'active', 'paused'].includes(status)) {
     filter.status = status;
   }
@@ -467,6 +690,7 @@ const getCampaigns = async (req, res) => {
       'multiple-links-qr',
       'links-video-qr',
       'links-doc-video-qr',
+      'digital-business-card',
     ].includes(campaignType)
   ) {
     filter.campaignType = campaignType;
@@ -501,6 +725,7 @@ const getCampaign = async (req, res) => {
   const campaign = await Campaign.findOne({
     _id: req.params.id,
     userId: req.user._id,
+    isDeleted: { $ne: true },
   }).lean();
 
   if (!campaign) throw new AppError('Campaign not found', 404);
@@ -514,10 +739,14 @@ const getCampaign = async (req, res) => {
    ───────────────────────────────────────── */
 const updateCampaign = async (req, res) => {
   const existing = await Campaign.findOne(
-    { _id: req.params.id, userId: req.user._id },
+    { _id: req.params.id, userId: req.user._id, isDeleted: { $ne: true } },
     [
       'campaignType',
       'redirectSlug',
+      'cardSlug',
+      'cardContent',
+      'cardDesign',
+      'cardPrintSettings',
       'status',
       'linkItems',
       'videoSource',
@@ -544,8 +773,14 @@ const updateCampaign = async (req, res) => {
     thumbnailUrl,
     videoItems,
     docItems,
+    cardSlug,
+    visibility,
+    cardContent,
+    cardDesign,
+    cardPrintSettings,
   } = req.body;
   const updates = {};
+  let previousCardSlug = null;
 
   if (campaignName !== undefined) updates.campaignName = campaignName;
   if (status !== undefined) updates.status = status;
@@ -656,6 +891,54 @@ const updateCampaign = async (req, res) => {
     }
   }
 
+  if (existing.campaignType === 'digital-business-card') {
+    if (visibility !== undefined) updates.visibility = visibility;
+    applyQrDesign();
+
+    if (cardSlug !== undefined && cardSlug !== existing.cardSlug) {
+      // Verify uniqueness — a kebab-case rename must not collide with another
+      // user's card. We accept the new slug as-is; Zod already validated
+      // shape and length.
+      const taken = await Campaign.exists({
+        cardSlug,
+        _id: { $ne: existing._id },
+        isDeleted: { $ne: true },
+      });
+      if (taken) {
+        throw new AppError('That custom URL is already taken', 409);
+      }
+      previousCardSlug = existing.cardSlug;
+      updates.cardSlug = cardSlug;
+    }
+
+    if (cardContent !== undefined) {
+      const sections = await ensureSectionIds(cardContent.sections);
+      updates.cardContent = { ...cardContent, sections };
+
+      // Cloudinary cleanup for swapped profile/banner images.
+      const oldProfileId = existing.cardContent?.profileImagePublicId;
+      const newProfileId = cardContent?.profileImagePublicId;
+      if (oldProfileId && oldProfileId !== newProfileId) {
+        deleteCloudinaryAsset(oldProfileId, 'image').catch(() => {});
+      }
+      const oldBannerId = existing.cardContent?.bannerImagePublicId;
+      const newBannerId = cardContent?.bannerImagePublicId;
+      if (oldBannerId && oldBannerId !== newBannerId) {
+        deleteCloudinaryAsset(oldBannerId, 'image').catch(() => {});
+      }
+    }
+    if (cardDesign !== undefined) {
+      updates.cardDesign = { ...DEFAULT_CARD_DESIGN, ...(existing.cardDesign || {}), ...cardDesign };
+    }
+    if (cardPrintSettings !== undefined) {
+      updates.cardPrintSettings = {
+        ...DEFAULT_CARD_PRINT_SETTINGS,
+        ...(existing.cardPrintSettings || {}),
+        ...cardPrintSettings,
+      };
+    }
+  }
+
   if (Object.keys(updates).length === 0) {
     throw new AppError('No valid fields to update', 400);
   }
@@ -679,15 +962,45 @@ const updateCampaign = async (req, res) => {
     dynamicQrMetaCache.evict(existing.redirectSlug).catch(() => {});
   }
 
+  if (existing.campaignType === 'digital-business-card') {
+    if (existing.redirectSlug) redirectCache.evict(existing.redirectSlug).catch(() => {});
+    if (existing.cardSlug) cardMetaCache.evict(existing.cardSlug).catch(() => {});
+    if (previousCardSlug) cardMetaCache.evict(previousCardSlug).catch(() => {});
+  }
+
   return success(res, { campaign }, 'Campaign updated');
 };
 
 /* ─────────────────────────────────────────
    DELETE /api/campaigns/:id
+   Soft delete — flips `isDeleted=true` and clears slug caches. Hard delete
+   (Cloudinary cleanup + analytics row removal) runs in the daily purge cron
+   after a 7-day grace window so users can restore accidental deletions.
+   `?hard=1` forces an immediate hard-delete (admin/test path).
    ───────────────────────────────────────── */
 const deleteCampaign = async (req, res) => {
-  const campaign = await Campaign.findOne({ _id: req.params.id, userId: req.user._id });
+  const campaign = await Campaign.findOne({
+    _id: req.params.id,
+    userId: req.user._id,
+    isDeleted: { $ne: true },
+  });
   if (!campaign) throw new AppError('Campaign not found', 404);
+
+  const hardDelete = req.query.hard === '1' || req.query.hard === 'true';
+
+  if (campaign.redirectSlug) {
+    redirectCache.evict(campaign.redirectSlug).catch(() => {});
+    dynamicQrMetaCache.evict(campaign.redirectSlug).catch(() => {});
+  }
+  if (campaign.cardSlug) cardMetaCache.evict(campaign.cardSlug).catch(() => {});
+
+  if (!hardDelete) {
+    campaign.isDeleted = true;
+    campaign.deletedAt = new Date();
+    campaign.status = 'paused';
+    await campaign.save({ validateModifiedOnly: true });
+    return success(res, { soft: true }, 'Campaign deleted');
+  }
 
   // Cloudinary cleanup for assets we own. Everything is best-effort and
   // intentionally non-fatal so user deletion never gets stuck on third-party IO.
@@ -714,6 +1027,25 @@ const deleteCampaign = async (req, res) => {
       );
     }
   }
+  // digital-business-card profile / banner / gallery cleanup
+  if (campaign.campaignType === 'digital-business-card') {
+    if (campaign.cardContent?.profileImagePublicId) {
+      cloudinaryDeletes.push(deleteCloudinaryAsset(campaign.cardContent.profileImagePublicId, 'image'));
+    }
+    if (campaign.cardContent?.bannerImagePublicId) {
+      cloudinaryDeletes.push(deleteCloudinaryAsset(campaign.cardContent.bannerImagePublicId, 'image'));
+    }
+    for (const sec of campaign.cardContent?.sections || []) {
+      if (sec.type === 'imageGallery' && Array.isArray(sec.images)) {
+        for (const img of sec.images) {
+          if (img.publicId) cloudinaryDeletes.push(deleteCloudinaryAsset(img.publicId, 'image'));
+        }
+      }
+      if (sec.type === 'video' && sec.source === 'upload' && sec.publicId) {
+        cloudinaryDeletes.push(deleteCloudinaryAsset(sec.publicId, 'video'));
+      }
+    }
+  }
   if (cloudinaryDeletes.length) {
     const results = await Promise.allSettled(cloudinaryDeletes);
     results.forEach((r) => {
@@ -726,11 +1058,6 @@ const deleteCampaign = async (req, res) => {
     });
   }
 
-  if (campaign.redirectSlug) {
-    redirectCache.evict(campaign.redirectSlug).catch(() => {});
-    dynamicQrMetaCache.evict(campaign.redirectSlug).catch(() => {});
-  }
-
   // Delete all dependent analytics rows so no orphaned records remain.
   await Promise.all([
     ScanEvent.deleteMany({ campaignId: campaign._id }),
@@ -740,7 +1067,7 @@ const deleteCampaign = async (req, res) => {
 
   await campaign.deleteOne();
 
-  return success(res, {}, 'Campaign deleted');
+  return success(res, { hard: true }, 'Campaign permanently deleted');
 };
 
 /* ─────────────────────────────────────────
@@ -750,6 +1077,7 @@ const duplicateCampaign = async (req, res) => {
   const original = await Campaign.findOne({
     _id: req.params.id,
     userId: req.user._id,
+    isDeleted: { $ne: true },
   }).lean();
 
   if (!original) throw new AppError('Campaign not found', 404);
@@ -810,6 +1138,30 @@ const duplicateCampaign = async (req, res) => {
       externalVideoUrl: original.externalVideoUrl,
       thumbnailUrl: original.thumbnailUrl,
       linkItems: items,
+      qrDesign: original.qrDesign,
+      redirectSlug,
+      preciseGeoAnalytics: !!original.preciseGeoAnalytics,
+      status: 'active',
+    });
+    return created(res, { campaign: copy }, 'Campaign duplicated successfully');
+  }
+
+  if (original.campaignType === 'digital-business-card') {
+    const newName = `Copy of ${original.campaignName}`;
+    const [redirectSlug, allocatedCardSlug] = await Promise.all([
+      generateUniqueSlug(),
+      generateUniqueCardSlug(null, newName),
+    ]);
+    const sections = await ensureSectionIds(original.cardContent?.sections);
+    const copy = await Campaign.create({
+      userId: original.userId,
+      campaignType: 'digital-business-card',
+      campaignName: newName,
+      cardSlug: allocatedCardSlug,
+      visibility: original.visibility || 'public',
+      cardContent: { ...(original.cardContent || {}), sections },
+      cardDesign: original.cardDesign,
+      cardPrintSettings: original.cardPrintSettings,
       qrDesign: original.qrDesign,
       redirectSlug,
       preciseGeoAnalytics: !!original.preciseGeoAnalytics,
@@ -901,8 +1253,8 @@ const duplicateCampaign = async (req, res) => {
    ───────────────────────────────────────── */
 const getCampaignQR = async (req, res) => {
   const campaign = await Campaign.findOne(
-    { _id: req.params.id, userId: req.user._id },
-    'qrCodeUrl qrPublicId campaignName campaignType redirectSlug qrDesign preciseGeoAnalytics'
+    { _id: req.params.id, userId: req.user._id, isDeleted: { $ne: true } },
+    'qrCodeUrl qrPublicId campaignName campaignType redirectSlug cardSlug qrDesign preciseGeoAnalytics'
   ).lean();
 
   if (!campaign) throw new AppError('Campaign not found', 404);
@@ -936,6 +1288,32 @@ const getCampaignQR = async (req, res) => {
     });
   }
 
+  if (campaign.campaignType === 'digital-business-card') {
+    const apiBase = process.env.PUBLIC_REDIRECT_BASE
+      || process.env.API_URL
+      || `${req.protocol}://${req.get('host')}`;
+    const apiRoot = apiBase.replace(/\/$/, '');
+    const clientBase = (process.env.CLIENT_URL || '').replace(/\/$/, '');
+
+    // QR encodes the API short URL (8-char redirectSlug); /r/:slug 302's to
+    // the friendly /card/:cardSlug. The client UI also surfaces the friendly
+    // public URL for sharing.
+    const redirectUrl = `${apiRoot}/r/${campaign.redirectSlug}`;
+    const publicUrl = clientBase && campaign.cardSlug
+      ? `${clientBase}/card/${campaign.cardSlug}`
+      : null;
+
+    return success(res, {
+      campaignType: campaign.campaignType,
+      redirectUrl,
+      redirectSlug: campaign.redirectSlug,
+      cardSlug: campaign.cardSlug,
+      publicUrl,
+      qrDesign: campaign.qrDesign,
+      ready: true,
+    });
+  }
+
   return success(res, {
     campaignType: 'ar-card',
     qrCodeUrl: campaign.qrCodeUrl,
@@ -951,6 +1329,9 @@ module.exports = {
   createMultipleLinksCampaign,
   createLinksVideoCampaign,
   createLinksDocVideoCampaign,
+  createDigitalBusinessCardCampaign,
+  checkCardSlugAvailability,
+  renderCampaignCardImage,
   getCampaigns,
   getCampaign,
   updateCampaign,

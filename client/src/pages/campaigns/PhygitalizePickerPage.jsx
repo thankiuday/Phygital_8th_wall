@@ -12,6 +12,19 @@ import {
   Sparkles,
   ArrowRight,
 } from 'lucide-react';
+import Icon3D, { ICON3D_PRESETS } from '../../components/ui/Icon3D';
+
+const ICON_ACCENTS = {
+  'links-video': ICON3D_PRESETS.violet,
+  'links-doc-video': ICON3D_PRESETS.cyan,
+  'single-link': ICON3D_PRESETS.emerald,
+  'multiple-links': ICON3D_PRESETS.amber,
+  'personalized-identity': ICON3D_PRESETS.rose,
+  'ar-business-card': ICON3D_PRESETS.brand,
+  'phygital-qr': ICON3D_PRESETS.violet,
+  'dynamic-qr': ICON3D_PRESETS.cyan,
+  'digital-business-cards': ICON3D_PRESETS.rose,
+};
 
 /* ── Section + card data ─────────────────────────────────────────── */
 // `available: true` drives the green badge + copy; routes may still point at
@@ -77,6 +90,7 @@ const SECTIONS = [
         description: 'A branded digital card with your photo, contacts, and social links.',
         icon: User,
         to: '/dashboard/campaigns/new/digital-business-card/personalized-identity',
+        available: true,
       },
       {
         id: 'ar-business-card',
@@ -93,6 +107,7 @@ const SECTIONS = [
 /* ── Single campaign-type card ───────────────────────────────────── */
 const TypeCard = ({ card, index }) => {
   const Icon = card.icon;
+  const accent = ICON_ACCENTS[card.id] || ICON3D_PRESETS.brand;
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -104,9 +119,7 @@ const TypeCard = ({ card, index }) => {
         className="group glass-card relative flex h-full flex-col gap-3 p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-500/40 hover:shadow-glow"
       >
         <div className="flex items-start justify-between gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-400 transition-colors group-hover:bg-brand-500/20">
-            <Icon size={20} />
-          </div>
+          <Icon3D icon={Icon} accent={accent} size={20} className="h-11 w-11" />
           {card.available ? (
             <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-400">
               Available
@@ -137,11 +150,9 @@ const TypeCard = ({ card, index }) => {
 };
 
 /* ── Section header ──────────────────────────────────────────────── */
-const SectionHeader = ({ icon: Icon, title, subtitle }) => (
+const SectionHeader = ({ icon: Icon, title, subtitle, accent }) => (
   <div className="flex items-start gap-3">
-    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-white shadow-glow">
-      <Icon size={18} />
-    </div>
+    <Icon3D icon={Icon} accent={accent || ICON3D_PRESETS.brand} size={18} className="h-10 w-10" />
     <div className="min-w-0">
       <h2 className="text-lg font-bold text-[var(--text-primary)] sm:text-xl">{title}</h2>
       <p className="text-sm text-[var(--text-muted)]">{subtitle}</p>
@@ -181,6 +192,7 @@ const PhygitalizePickerPage = () => (
             icon={section.icon}
             title={section.title}
             subtitle={section.subtitle}
+            accent={ICON_ACCENTS[section.id]}
           />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {section.cards.map((card, idx) => (

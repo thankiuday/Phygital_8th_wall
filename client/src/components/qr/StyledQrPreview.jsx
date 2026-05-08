@@ -43,8 +43,10 @@ const StyledQrPreview = ({ options, downloadRef, className = '' }) => {
     qrRef.current = qr;
 
     if (downloadRef) {
-      downloadRef.current = (opts) =>
+      const downloadWithApi = (opts) =>
         qr.download(opts || { name: 'qr', extension: 'png' });
+      downloadWithApi.getRawData = (extension = 'png') => qr.getRawData(extension);
+      downloadRef.current = downloadWithApi;
     }
 
     return () => {

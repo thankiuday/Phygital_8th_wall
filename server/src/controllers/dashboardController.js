@@ -32,10 +32,10 @@ const getDashboardStats = async (req, res) => {
     scanTrend,
   ] = await Promise.all([
     // 1. Total campaigns owned by user
-    Campaign.countDocuments({ userId }),
+    Campaign.countDocuments({ userId, isDeleted: { $ne: true } }),
 
     // 2. Active campaigns
-    Campaign.countDocuments({ userId, status: 'active' }),
+    Campaign.countDocuments({ userId, status: 'active', isDeleted: { $ne: true } }),
 
     // 3. Total lifetime scans across all user campaigns
     ScanEvent.countDocuments({ userId }),
@@ -47,7 +47,7 @@ const getDashboardStats = async (req, res) => {
     ScanEvent.countDocuments({ userId, scannedAt: { $gte: weekStart } }),
 
     // 6. 5 most recent campaigns with their scan counts
-    Campaign.find({ userId })
+    Campaign.find({ userId, isDeleted: { $ne: true } })
       .sort({ createdAt: -1 })
       .limit(5)
       .select('campaignName status thumbnailUrl analytics createdAt')

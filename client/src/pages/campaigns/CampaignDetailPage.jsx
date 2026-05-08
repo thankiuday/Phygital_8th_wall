@@ -57,18 +57,27 @@ const ActionMenu = ({ campaign, actionLoading, onEdit, onDuplicate, onToggleStat
     campaign.campaignType === 'single-link-qr'
     || campaign.campaignType === 'multiple-links-qr'
     || campaign.campaignType === 'links-video-qr'
-    || campaign.campaignType === 'links-doc-video-qr';
+    || campaign.campaignType === 'links-doc-video-qr'
+    || campaign.campaignType === 'digital-business-card';
   const isHubType =
     campaign.campaignType === 'multiple-links-qr'
     || campaign.campaignType === 'links-video-qr'
     || campaign.campaignType === 'links-doc-video-qr';
+  const isDigitalCard = campaign.campaignType === 'digital-business-card';
   const trackedRedirectUrl = campaign.redirectSlug
     ? `${resolveRedirectBase()}/r/${campaign.redirectSlug}`
     : null;
   const hubPreviewUrl = campaign.redirectSlug
     ? `${typeof window !== 'undefined' ? window.location.origin : ''}/l/${campaign.redirectSlug}`
     : null;
-  const openDynamicUrl = isHubType ? hubPreviewUrl : trackedRedirectUrl;
+  const cardPreviewUrl = isDigitalCard && campaign.cardSlug
+    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/card/${campaign.cardSlug}`
+    : null;
+  const openDynamicUrl = isDigitalCard
+    ? cardPreviewUrl
+    : isHubType
+      ? hubPreviewUrl
+      : trackedRedirectUrl;
 
   return (
     <div className="relative">
@@ -281,19 +290,28 @@ const CampaignDetailPage = () => {
     campaign.campaignType === 'single-link-qr'
     || campaign.campaignType === 'multiple-links-qr'
     || campaign.campaignType === 'links-video-qr'
-    || campaign.campaignType === 'links-doc-video-qr';
+    || campaign.campaignType === 'links-doc-video-qr'
+    || campaign.campaignType === 'digital-business-card';
   const isHubType =
     campaign.campaignType === 'multiple-links-qr'
     || campaign.campaignType === 'links-video-qr'
     || campaign.campaignType === 'links-doc-video-qr';
   const isLinksDocVideo = campaign.campaignType === 'links-doc-video-qr';
+  const isDigitalCard = campaign.campaignType === 'digital-business-card';
   const trackedRedirectUrl = campaign.redirectSlug
     ? `${resolveRedirectBase()}/r/${campaign.redirectSlug}`
     : null;
   const hubPreviewUrl = campaign.redirectSlug
     ? `${window.location.origin}/l/${campaign.redirectSlug}`
     : null;
-  const openDynamicUrl = isHubType ? hubPreviewUrl : trackedRedirectUrl;
+  const cardPreviewUrl = isDigitalCard && campaign.cardSlug
+    ? `${window.location.origin}/card/${campaign.cardSlug}`
+    : null;
+  const openDynamicUrl = isDigitalCard
+    ? cardPreviewUrl
+    : isHubType
+      ? hubPreviewUrl
+      : trackedRedirectUrl;
 
   return (
     <div className="mx-auto max-w-4xl space-y-4 p-4 sm:space-y-5 sm:p-6">
@@ -521,6 +539,49 @@ const CampaignDetailPage = () => {
               >
                 {campaign.destinationUrl}
               </a>
+            </motion.div>
+          )}
+
+          {isDigitalCard && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="glass-card space-y-3 p-4 sm:p-5"
+            >
+              <div className="flex items-center gap-2">
+                <ExternalLink size={16} className="text-brand-400" />
+                <h4 className="text-sm font-semibold text-[var(--text-primary)]">Digital Business Card</h4>
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div className="rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] p-3">
+                  <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">Public URL</div>
+                  {cardPreviewUrl ? (
+                    <a
+                      href={cardPreviewUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 block truncate text-sm text-brand-400 hover:underline"
+                    >
+                      {cardPreviewUrl}
+                    </a>
+                  ) : (
+                    <div className="mt-1 text-sm text-[var(--text-muted)]">Not yet allocated</div>
+                  )}
+                </div>
+                <div className="rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] p-3">
+                  <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">Visibility</div>
+                  <div className="mt-1 text-sm text-[var(--text-primary)] capitalize">
+                    {campaign.visibility || 'public'}
+                  </div>
+                </div>
+              </div>
+              {(campaign.cardContent?.fullName || campaign.cardContent?.jobTitle) && (
+                <div className="rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] p-3 text-sm text-[var(--text-secondary)]">
+                  <div className="font-semibold text-[var(--text-primary)]">{campaign.cardContent?.fullName}</div>
+                  <div className="text-xs">{campaign.cardContent?.jobTitle}{campaign.cardContent?.company ? ` · ${campaign.cardContent.company}` : ''}</div>
+                </div>
+              )}
             </motion.div>
           )}
 

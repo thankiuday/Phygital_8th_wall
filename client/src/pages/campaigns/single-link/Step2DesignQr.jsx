@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { createPortal } from 'react-dom';
 import {
   ArrowLeft,
   ChevronDown,
@@ -12,6 +13,7 @@ import {
   Eye,
   QrCode as QrCodeIcon,
   Download,
+  X,
 } from 'lucide-react';
 import StyledQrPreview from '../../../components/qr/StyledQrPreview';
 import QrFrame from '../../../components/qr/QrFrame';
@@ -86,7 +88,7 @@ const SelectTile = ({ label, sub, selected, onClick, ariaLabel }) => (
     {sub && (
       <div className="text-xs font-bold text-[var(--text-primary)]">{sub}</div>
     )}
-    <div className="text-xs text-[var(--text-secondary)]">{label}</div>
+    <div className="break-words text-xs leading-tight text-[var(--text-secondary)]">{label}</div>
     {selected && (
       <span className="absolute right-2 top-2 inline-block h-2.5 w-2.5 rounded-full bg-brand-400 ring-2 ring-brand-400/30" />
     )}
@@ -98,7 +100,7 @@ const SelectTile = ({ label, sub, selected, onClick, ariaLabel }) => (
 const ColorField = ({ label, value, onChange }) => (
   <div className="flex flex-col gap-1.5">
     <span className="text-xs font-medium text-[var(--text-secondary)]">{label}</span>
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-0 items-center gap-2">
       <input
         type="color"
         value={value}
@@ -110,7 +112,7 @@ const ColorField = ({ label, value, onChange }) => (
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="input-base !py-2 font-mono text-xs"
+        className="input-base !w-auto min-w-0 flex-1 !py-2 font-mono text-xs"
         aria-label={`${label} hex value`}
         spellCheck={false}
       />
@@ -158,6 +160,53 @@ const readAndDownscaleLogo = (file) => new Promise((resolve, reject) => {
   reader.readAsDataURL(file);
 });
 
+const roundedRect = (ctx, x, y, width, height, radius) => {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  ctx.lineTo(x + r, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+};
+
+const blobToImage = (blob) => new Promise((resolve, reject) => {
+  const objectUrl = URL.createObjectURL(blob);
+  const img = new Image();
+  img.onload = () => {
+    URL.revokeObjectURL(objectUrl);
+    resolve(img);
+  };
+  img.onerror = () => {
+    URL.revokeObjectURL(objectUrl);
+    reject(new Error('Could not decode QR image for download'));
+  };
+  img.src = objectUrl;
+});
+
+const canvasToBlob = (canvas) => new Promise((resolve, reject) => {
+  canvas.toBlob((blob) => {
+    if (!blob) return reject(new Error('Could not generate image'));
+    resolve(blob);
+  }, 'image/png');
+});
+
+const triggerBlobDownload = (blob, filename) => {
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(objectUrl);
+};
+
 /* ── Main Step 2 component ───────────────────────────────────────── */
 
 const Step2DesignQr = ({
@@ -169,7 +218,9 @@ const Step2DesignQr = ({
   isSubmitting,
   submitError,
 }) => {
+  const canPortal = typeof window !== 'undefined' && !!window.document?.body;
   const [previewMode, setPreviewMode] = useState('preview'); // 'preview' | 'qr'
+  const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
   const [logoError, setLogoError] = useState('');
   const downloadRef = useRef(null);
 
@@ -182,6 +233,10 @@ const Step2DesignQr = ({
   const qrOptions = useMemo(
     () => buildQrOptions(debouncedDesign, encodedData),
     [debouncedDesign, encodedData]
+  );
+  const previewQrOptions = useMemo(
+    () => ({ ...qrOptions, width: 224, height: 224 }),
+    [qrOptions]
   );
 
   const set = (patch) => onDesignChange({ ...design, ...patch });
@@ -200,14 +255,146 @@ const Step2DesignQr = ({
     onSubmit(buildQrDesignPayload(design));
   };
 
-  const handleDownload = () => {
-    downloadRef.current?.({ name: 'qr', extension: 'png' });
+  const handleDownload = async () => {
+    const downloadApi = downloadRef.current;
+    if (!downloadApi) return;
+    if (design.frame === 'none') {
+      downloadApi({ name: 'qr', extension: 'png' });
+      return;
+    }
+
+    try {
+      const qrBlob = await downloadApi.getRawData?.('png');
+      if (!qrBlob) {
+        downloadApi({ name: 'qr', extension: 'png' });
+        return;
+      }
+      const qrImg = await blobToImage(qrBlob);
+      const qrSize = 224;
+      const color = design.dotsUseGradient ? design.dotsGradientStart : design.dotsColor;
+      const caption = (design.frameCaption || 'Scan me!').slice(0, 40);
+      const captionW = 96;
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        downloadApi({ name: 'qr', extension: 'png' });
+        return;
+      }
+
+      let width = qrSize;
+      let height = qrSize;
+      if (design.frame === 'bottom-bar') height = qrSize + 56;
+      if (design.frame === 'bottom-arrow') height = qrSize + 64;
+      if (design.frame === 'right-arrow') width = qrSize + captionW + 16;
+
+      canvas.width = width;
+      canvas.height = height;
+      ctx.clearRect(0, 0, width, height);
+      ctx.drawImage(qrImg, 0, 0, qrSize, qrSize);
+
+      // Common rounded border around the QR square.
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = color;
+      roundedRect(ctx, 3, 3, qrSize - 6, qrSize - 6, 16);
+      ctx.stroke();
+
+      ctx.fillStyle = color;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = '700 24px Inter, Arial, sans-serif';
+
+      if (design.frame === 'bottom-bar') {
+        roundedRect(ctx, 0, qrSize + 12, qrSize, 44, 16);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(caption, qrSize / 2, qrSize + 34);
+      } else if (design.frame === 'bottom-arrow') {
+        ctx.beginPath();
+        ctx.moveTo(qrSize / 2 - 12, qrSize + 2);
+        ctx.lineTo(qrSize / 2 + 12, qrSize + 2);
+        ctx.lineTo(qrSize / 2, qrSize + 14);
+        ctx.closePath();
+        ctx.fill();
+        roundedRect(ctx, 0, qrSize + 28, qrSize, 36, 18);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(caption, qrSize / 2, qrSize + 46);
+      } else if (design.frame === 'right-arrow') {
+        ctx.beginPath();
+        ctx.moveTo(qrSize + 2, qrSize / 2 - 12);
+        ctx.lineTo(qrSize + 14, qrSize / 2);
+        ctx.lineTo(qrSize + 2, qrSize / 2 + 12);
+        ctx.closePath();
+        ctx.fill();
+        roundedRect(ctx, qrSize + 16, qrSize / 2 - 18, captionW, 36, 18);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(caption, qrSize + 16 + captionW / 2, qrSize / 2);
+      }
+
+      const framedBlob = await canvasToBlob(canvas);
+      triggerBlobDownload(framedBlob, 'qr-framed.png');
+    } catch {
+      downloadApi({ name: 'qr', extension: 'png' });
+    }
   };
 
+  const PreviewPanel = () => (
+    <>
+      <div className="glass-card p-4">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-semibold text-[var(--text-primary)]">Live Preview</p>
+          <div className="flex rounded-lg bg-[var(--surface-2)] p-0.5 text-xs">
+            <button
+              type="button"
+              onClick={() => setPreviewMode('preview')}
+              className={`flex items-center gap-1 rounded-md px-2.5 py-1 ${
+                previewMode === 'preview' ? 'bg-brand-600 text-white' : 'text-[var(--text-secondary)]'
+              }`}
+              aria-pressed={previewMode === 'preview'}
+            >
+              <Eye size={12} /> Preview
+            </button>
+            <button
+              type="button"
+              onClick={() => setPreviewMode('qr')}
+              className={`flex items-center gap-1 rounded-md px-2.5 py-1 ${
+                previewMode === 'qr' ? 'bg-brand-600 text-white' : 'text-[var(--text-secondary)]'
+              }`}
+              aria-pressed={previewMode === 'qr'}
+            >
+              <QrCodeIcon size={12} /> QR code
+            </button>
+          </div>
+        </div>
+        <p className="mt-1 text-xs text-[var(--text-muted)]">
+          Preview your QR code design in real-time.
+        </p>
+      </div>
+
+      {previewMode === 'preview' ? (
+        <div className="flex max-w-full justify-center overflow-hidden rounded-3xl border border-[var(--border-color)] bg-white p-3 shadow-xl sm:p-6 dark:bg-zinc-900">
+          <QrFrame
+            variant={design.frame}
+            caption={design.frameCaption}
+            color={design.dotsUseGradient ? design.dotsGradientStart : design.dotsColor}
+            size={224}
+          >
+            <StyledQrPreview options={previewQrOptions} downloadRef={downloadRef} />
+          </QrFrame>
+        </div>
+      ) : (
+        <div className="flex max-w-full justify-center overflow-hidden rounded-2xl border border-[var(--border-color)] bg-white p-3 sm:p-6">
+          <StyledQrPreview options={previewQrOptions} downloadRef={downloadRef} />
+        </div>
+      )}
+    </>
+  );
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+    <div className="grid min-w-0 max-w-full gap-6 overflow-x-hidden lg:grid-cols-[minmax(0,1fr)_360px]">
       {/* ── Left column: controls ────────────────────────────────── */}
-      <div className="space-y-4">
+      <div className="min-w-0 space-y-4 pb-20 lg:pb-0">
         <div>
           <h2 className="text-lg font-semibold text-[var(--text-primary)]">Step 2: Design the QR</h2>
           <p className="text-sm text-[var(--text-secondary)]">
@@ -222,7 +409,7 @@ const Step2DesignQr = ({
           defaultOpen
         >
           <p className="mb-2 text-xs font-medium text-[var(--text-secondary)]">Frame style</p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4">
             {FRAME_OPTIONS.map((f, i) => (
               <SelectTile
                 key={f.value}
@@ -258,11 +445,11 @@ const Step2DesignQr = ({
           defaultOpen
         >
           <p className="mb-2 text-xs font-medium text-[var(--text-secondary)]">Pattern style</p>
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+          <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
             {DOT_TYPES.map((d) => (
               <SelectTile
                 key={d.value}
-                label={d.label.slice(0, 1).toUpperCase()}
+                label={d.label}
                 sub=""
                 selected={design.dotsType === d.value}
                 onClick={() => set({ dotsType: d.value })}
@@ -285,7 +472,7 @@ const Step2DesignQr = ({
           </div>
 
           {design.dotsUseGradient ? (
-            <div className="mt-3 grid grid-cols-2 gap-3">
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <ColorField
                 label="Gradient start"
                 value={design.dotsGradientStart}
@@ -443,21 +630,21 @@ const Step2DesignQr = ({
           </div>
         )}
 
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+        <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
           <button
             type="button"
             onClick={onBack}
-            className="flex min-h-[44px] items-center gap-1.5 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] hover:border-brand-500/40"
+            className="hidden min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] hover:border-brand-500/40 sm:flex sm:w-auto"
             disabled={isSubmitting}
           >
             <ArrowLeft size={15} /> Back
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             <button
               type="button"
               onClick={handleDownload}
-              className="flex min-h-[44px] items-center gap-1.5 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] hover:border-brand-500/40"
+              className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] hover:border-brand-500/40 sm:w-auto"
               disabled={isSubmitting}
             >
               <Download size={15} /> Download preview
@@ -466,7 +653,7 @@ const Step2DesignQr = ({
               type="button"
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className="flex min-h-[44px] items-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-glow transition-all hover:bg-brand-500 hover:shadow-glow-lg disabled:opacity-60"
+              className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-glow transition-all hover:bg-brand-500 hover:shadow-glow-lg disabled:opacity-60 sm:w-auto"
             >
               {isSubmitting ? (
                 <>
@@ -483,55 +670,67 @@ const Step2DesignQr = ({
       </div>
 
       {/* ── Right column: preview ────────────────────────────────── */}
-      <div className="space-y-4">
-        <div className="glass-card p-4">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-semibold text-[var(--text-primary)]">Live Preview</p>
-            <div className="flex rounded-lg bg-[var(--surface-2)] p-0.5 text-xs">
-              <button
-                type="button"
-                onClick={() => setPreviewMode('preview')}
-                className={`flex items-center gap-1 rounded-md px-2.5 py-1 ${
-                  previewMode === 'preview' ? 'bg-brand-600 text-white' : 'text-[var(--text-secondary)]'
-                }`}
-                aria-pressed={previewMode === 'preview'}
-              >
-                <Eye size={12} /> Preview
-              </button>
-              <button
-                type="button"
-                onClick={() => setPreviewMode('qr')}
-                className={`flex items-center gap-1 rounded-md px-2.5 py-1 ${
-                  previewMode === 'qr' ? 'bg-brand-600 text-white' : 'text-[var(--text-secondary)]'
-                }`}
-                aria-pressed={previewMode === 'qr'}
-              >
-                <QrCodeIcon size={12} /> QR code
-              </button>
-            </div>
-          </div>
-          <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Preview your QR code design in real-time.
-          </p>
-        </div>
-
-        {previewMode === 'preview' ? (
-          <div className="flex justify-center rounded-3xl border border-[var(--border-color)] bg-white p-6 shadow-xl dark:bg-zinc-900">
-            <QrFrame
-              variant={design.frame}
-              caption={design.frameCaption}
-              color={design.dotsUseGradient ? design.dotsGradientStart : design.dotsColor}
-              size={224}
-            >
-              <StyledQrPreview options={qrOptions} downloadRef={downloadRef} />
-            </QrFrame>
-          </div>
-        ) : (
-          <div className="flex justify-center rounded-2xl border border-[var(--border-color)] bg-white p-6">
-            <StyledQrPreview options={qrOptions} downloadRef={downloadRef} />
-          </div>
-        )}
+      <div className="hidden space-y-4 lg:block">
+        <PreviewPanel />
       </div>
+
+      {/* Mobile sticky preview trigger + bottom drawer */}
+      {canPortal && createPortal(
+        <div className="fixed inset-x-0 bottom-0 z-[70] border-t border-[var(--border-color)]/60 bg-[var(--surface-solid)]/95 px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-sm lg:hidden">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={onBack}
+              disabled={isSubmitting}
+              className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-3 py-2.5 text-sm font-medium text-[var(--text-secondary)]"
+            >
+              <ArrowLeft size={15} /> Back
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobilePreviewOpen((v) => !v)}
+              className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-fuchsia-500 px-3 py-2.5 text-sm font-semibold text-white shadow-glow"
+            >
+              <Eye size={15} />
+              {mobilePreviewOpen ? 'Hide Preview' : 'Live Preview'}
+            </button>
+          </div>
+        </div>,
+        window.document.body
+      )}
+
+      {mobilePreviewOpen && canPortal && createPortal(
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            onClick={() => setMobilePreviewOpen(false)}
+            className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-[2px] lg:hidden"
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 24 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="fixed inset-0 z-[90] flex items-center justify-center px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] lg:hidden"
+          >
+            <div className="relative max-h-[88vh] w-full max-w-sm overflow-y-auto rounded-2xl border border-[var(--border-color)] bg-[var(--surface-solid)] p-4 shadow-2xl">
+              {/* centered close button */}
+              <button
+                type="button"
+                onClick={() => setMobilePreviewOpen(false)}
+                className="sticky left-1/2 top-0 z-10 mb-2 inline-flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border border-[var(--border-color)] bg-[var(--surface-2)] text-[var(--text-secondary)] shadow-sm"
+                aria-label="Close preview"
+              >
+                <X size={16} />
+              </button>
+              <div className="space-y-4">
+                <PreviewPanel />
+              </div>
+            </div>
+          </motion.div>
+        </>,
+        window.document.body
+      )}
     </div>
   );
 };

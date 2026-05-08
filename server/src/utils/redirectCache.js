@@ -111,8 +111,16 @@ const createSlugCache = (keyPrefix) => {
 
 const redirectCache = createSlugCache('qr:slug:');
 const dynamicQrMetaCache = createSlugCache('qr:meta:');
+/**
+ * Public meta cache for digital-business-card hubs at /card/:slug. Cards are
+ * read-heavy (one user shares the link, many strangers scan) so we want to
+ * keep Mongo cold on the hot path. Eviction happens in the controller on
+ * updateCampaign / deleteCampaign / cardSlug rename.
+ */
+const cardMetaCache = createSlugCache('qr:card:meta:');
 
 logger.info(`redirectCache: backend=${redirectCache.backend}`);
 logger.info(`dynamicQrMetaCache: backend=${dynamicQrMetaCache.backend}`);
+logger.info(`cardMetaCache: backend=${cardMetaCache.backend}`);
 
-module.exports = { redirectCache, dynamicQrMetaCache };
+module.exports = { redirectCache, dynamicQrMetaCache, cardMetaCache };

@@ -33,6 +33,9 @@ const SingleLinkQrWizard     = lazy(() => import('./pages/campaigns/SingleLinkQr
 const MultipleLinksQrWizard  = lazy(() => import('./pages/campaigns/MultipleLinksQrWizard'));
 const LinksVideoQrWizard     = lazy(() => import('./pages/campaigns/LinksVideoQrWizard'));
 const LinksDocVideoQrWizard  = lazy(() => import('./pages/campaigns/LinksDocVideoQrWizard'));
+const DigitalBusinessCardWizard = lazy(() => import('./pages/campaigns/DigitalBusinessCardWizard'));
+const DigitalCardPublicPage  = lazy(() => import('./pages/DigitalCardPublicPage'));
+const DigitalCardPrintPage   = lazy(() => import('./pages/DigitalCardPrintPage'));
 const LinkHubPage            = lazy(() => import('./pages/LinkHubPage'));
 const CampaignDetailPage     = lazy(() => import('./pages/campaigns/CampaignDetailPage'));
 const AnalyticsPage          = lazy(() => import('./pages/analytics/AnalyticsPage'));
@@ -106,7 +109,7 @@ function App() {
               <Route path="campaigns/new/phygital-qr/links-doc-video"  element={<RouteLoader><LinksDocVideoQrWizard /></RouteLoader>} />
               <Route path="campaigns/new/dynamic-qr/single-link"       element={<RouteLoader><SingleLinkQrWizard /></RouteLoader>} />
               <Route path="campaigns/new/dynamic-qr/multiple-links"    element={<RouteLoader><MultipleLinksQrWizard /></RouteLoader>} />
-              <Route path="campaigns/new/digital-business-card/personalized-identity" element={<RouteLoader><ComingSoonPage type="Personalized Identity Card" /></RouteLoader>} />
+              <Route path="campaigns/new/digital-business-card/personalized-identity" element={<RouteLoader><DigitalBusinessCardWizard /></RouteLoader>} />
               <Route path="campaigns/new/digital-business-card/ar"     element={<RouteLoader><NewCampaignPage /></RouteLoader>} />
               <Route path="campaigns/:id"        element={<RouteLoader><CampaignDetailPage /></RouteLoader>} />
               <Route path="campaigns/:id/analytics" element={<RouteLoader><CampaignAnalyticsPage /></RouteLoader>} />
@@ -134,6 +137,26 @@ function App() {
               element={
                 <Suspense fallback={<RouteSkeleton />}>
                   <LinkHubPage />
+                </Suspense>
+              }
+            />
+
+            {/* ── Public digital business card hub ──────────────────── */}
+            <Route
+              path="/card/:slug"
+              element={
+                <Suspense fallback={<RouteSkeleton />}>
+                  <DigitalCardPublicPage />
+                </Suspense>
+              }
+            />
+
+            {/* ── Print render route (Puppeteer hits this) ──────────── */}
+            <Route
+              path="/print/card/:id"
+              element={
+                <Suspense fallback={<RouteSkeleton />}>
+                  <DigitalCardPrintPage />
                 </Suspense>
               }
             />

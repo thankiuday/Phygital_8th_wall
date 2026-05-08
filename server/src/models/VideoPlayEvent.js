@@ -48,4 +48,14 @@ videoPlayEventSchema.index(
   { unique: true, sparse: true }
 );
 
+/** Retention TTL — see ScanEvent for rationale. */
+const RETENTION_DAYS = Math.max(
+  30,
+  Number(process.env.ANALYTICS_RETENTION_DAYS) || 365
+);
+videoPlayEventSchema.index(
+  { occurredAt: 1 },
+  { expireAfterSeconds: RETENTION_DAYS * 24 * 60 * 60, name: 'occurredAt_ttl' }
+);
+
 module.exports = mongoose.model('VideoPlayEvent', videoPlayEventSchema);

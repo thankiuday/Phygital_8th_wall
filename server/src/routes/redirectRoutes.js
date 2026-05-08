@@ -55,6 +55,7 @@ router.get('/:slug', slugLimiter, async (req, res) => {
     camp = await Campaign.findOne(
       {
         redirectSlug: slug,
+        isDeleted: { $ne: true },
         $or: [
           { campaignType: 'single-link-qr', status: 'active' },
           {
@@ -63,9 +64,14 @@ router.get('/:slug', slugLimiter, async (req, res) => {
             },
             status: { $in: ['active', 'paused'] },
           },
+          {
+            campaignType: 'digital-business-card',
+            status: { $in: ['active', 'paused'] },
+            visibility: { $ne: 'private' },
+          },
         ],
       },
-      'destinationUrl campaignType _id'
+      'destinationUrl campaignType cardSlug visibility _id'
     ).lean();
 
     if (camp) {
@@ -98,6 +104,24 @@ router.get('/:slug', slugLimiter, async (req, res) => {
     res.set('Cache-Control', 'no-store, private');
     res.set('Referrer-Policy', 'no-referrer');
     return res.redirect(302, `${clientBase}/l/${slug}`);
+  }
+
+  if (camp.campaignType === 'digital-business-card') {
+    if (!clientBase) {
+      logger.error('redirect.cardMissingClientUrl', { slug });
+      return res
+        .status(503)
+        .type('html')
+        .send('<!doctype html><meta charset="utf-8"><title>Unavailable</title><h1>Card is not configured.</h1>');
+    }
+    // Friendly cardSlug if set; fall back to the immutable redirectSlug so a
+    // brand-new card (cardSlug not yet customised) still resolves.
+    const target = camp.cardSlug || slug;
+    res.set('Cache-Control', 'no-store, private');
+    res.set('Referrer-Policy', 'no-referrer');
+    // Fire scan telemetry through the public /card/:slug/scan path on the
+    // client side instead — keeping all the geo/UA enrichment in one place.
+    return res.redirect(302, `${clientBase}/card/${target}`);
   }
 
   scanQueue.enqueue({

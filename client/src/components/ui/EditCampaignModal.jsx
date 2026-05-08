@@ -20,10 +20,12 @@ import {
 const EditCampaignModal = ({ campaign, onSave, onClose }) => {
   const [name, setName]       = useState(campaign.campaignName);
   const [status, setStatus]   = useState(campaign.status);
+  const [destinationUrl, setDestinationUrl] = useState(campaign.destinationUrl || '');
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState('');
   const inputRef              = useRef(null);
 
+  const isSingleLink = campaign.campaignType === 'single-link-qr';
   const hasLinkItems =
     campaign.campaignType === 'multiple-links-qr'
     || campaign.campaignType === 'links-video-qr'
@@ -37,6 +39,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
   useEffect(() => {
     setName(campaign.campaignName);
     setStatus(campaign.status);
+    setDestinationUrl(campaign.destinationUrl || '');
     setError('');
     setLinkError('');
     if (
@@ -53,6 +56,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
     campaign._id,
     campaign.campaignName,
     campaign.status,
+    campaign.destinationUrl,
     campaign.campaignType,
     campaign.linkItems,
     campaign.preciseGeoAnalytics,
@@ -75,6 +79,23 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
     const trimmed = name.trim();
     if (!trimmed) { setError('Campaign name cannot be empty.'); return; }
     if (trimmed.length > 100) { setError('Name must be 100 characters or fewer.'); return; }
+    if (isSingleLink) {
+      const cleanedUrl = String(destinationUrl || '').trim();
+      if (!cleanedUrl) {
+        setError('Destination URL cannot be empty.');
+        return;
+      }
+      try {
+        const parsed = new URL(cleanedUrl);
+        if (!/^https?:$/.test(parsed.protocol)) {
+          setError('Destination URL must start with http:// or https://');
+          return;
+        }
+      } catch {
+        setError('Please enter a valid destination URL.');
+        return;
+      }
+    }
 
     if (hasLinkItems) {
       const lerr = validateLinkRows(linkRows);
@@ -91,6 +112,12 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
     const updates = {};
     if (trimmed !== campaign.campaignName) updates.campaignName = trimmed;
     if (status !== campaign.status)       updates.status = status;
+    if (isSingleLink) {
+      const cleanedUrl = String(destinationUrl || '').trim();
+      if (cleanedUrl && cleanedUrl !== (campaign.destinationUrl || '')) {
+        updates.destinationUrl = cleanedUrl;
+      }
+    }
 
     if (hasLinkItems) {
       updates.linkItems = rowsToApiLinkItems(linkRows);
@@ -202,6 +229,27 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
                   ))}
                 </div>
               </div>
+
+              {isSingleLink && (
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-[var(--text-secondary)]">
+                    Destination URL
+                  </label>
+                  <input
+                    type="url"
+                    value={destinationUrl}
+                    onChange={(e) => {
+                      setDestinationUrl(e.target.value);
+                      setError('');
+                    }}
+                    placeholder="https://example.com"
+                    className="w-full rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-3.5 py-2.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30"
+                  />
+                  <p className="text-xs text-[var(--text-muted)]">
+                    Updating this URL keeps the same QR code active — only the redirect destination changes.
+                  </p>
+                </div>
+              )}
 
               {hasLinkItems && (
                 <>

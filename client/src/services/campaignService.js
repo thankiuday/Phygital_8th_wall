@@ -191,6 +191,67 @@ export const campaignService = {
     return res.data.data.campaign;
   },
 
+  /**
+   * createDigitalBusinessCardCampaign — full payload create. The wizard's
+   * draft store is kept client-side; this method translates the draft into
+   * the server-strict shape (trimming nullable image fields the user never
+   * touched).
+   */
+  createDigitalBusinessCardCampaign: async ({
+    campaignName,
+    cardSlug,
+    visibility,
+    cardContent,
+    cardDesign,
+    cardPrintSettings,
+    qrDesign,
+    preciseGeoAnalytics,
+  }) => {
+    const payload = {
+      campaignName,
+      cardSlug: cardSlug || undefined,
+      visibility: visibility || 'public',
+      cardContent,
+      cardDesign,
+      cardPrintSettings,
+      qrDesign: qrDesign ?? null,
+      preciseGeoAnalytics: !!preciseGeoAnalytics,
+    };
+    const res = await api.post('/campaigns/digital-business-card', payload);
+    return res.data.data.campaign;
+  },
+
+  /** GET /api/campaigns/check-card-slug?slug=…&excludeId=… */
+  checkCardSlugAvailability: async (slug, excludeId) => {
+    const params = { slug };
+    if (excludeId) params.excludeId = excludeId;
+    const res = await api.get('/campaigns/check-card-slug', { params });
+    return res.data.data;
+  },
+
+  /**
+   * Render front + back PNGs in parallel. Server returns a single envelope:
+   *   {
+   *     status: 'ready' | 'pending',
+   *     front:  { status, url?, public_id?, jobId?, filename, face: 'front' },
+   *     back:   { status, url?, public_id?, jobId?, filename, face: 'back'  },
+   *   }
+   * The aggregate `status` is "ready" only when both faces resolved in the
+   * same round-trip; otherwise the client polls each face's `jobId` via
+   * `getCardRenderStatus` until both come back ready.
+   */
+  renderCardImage: async (id, { size } = {}) => {
+    const res = await api.post(`/campaigns/${id}/card-image`, null, {
+      params: size ? { size } : {},
+    });
+    return res.data.data;
+  },
+
+  getCardRenderStatus: async (jobId) => {
+    const res = await api.get(`/public/card-render/status/${jobId}`);
+    return res.data.data;
+  },
+
   getCampaigns: async (params = {}) => {
     const res = await api.get('/campaigns', { params });
     return res.data.data;

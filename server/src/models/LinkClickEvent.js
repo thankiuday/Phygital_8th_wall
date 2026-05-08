@@ -46,4 +46,14 @@ linkClickEventSchema.index({ campaignId: 1, clickedAt: -1 });
 linkClickEventSchema.index({ campaignId: 1, linkId: 1, clickedAt: -1 });
 linkClickEventSchema.index({ campaignId: 1, kind: 1, clickedAt: -1 });
 
+/** Retention TTL — see ScanEvent for rationale. */
+const RETENTION_DAYS = Math.max(
+  30,
+  Number(process.env.ANALYTICS_RETENTION_DAYS) || 365
+);
+linkClickEventSchema.index(
+  { clickedAt: 1 },
+  { expireAfterSeconds: RETENTION_DAYS * 24 * 60 * 60, name: 'clickedAt_ttl' }
+);
+
 module.exports = mongoose.model('LinkClickEvent', linkClickEventSchema);

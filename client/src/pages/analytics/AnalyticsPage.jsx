@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import useAnalyticsStore from '../../store/useAnalyticsStore';
 import useIsMobile from '../../hooks/useIsMobile';
+import Icon3D, { ICON3D_PRESETS } from '../../components/ui/Icon3D';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -42,12 +43,7 @@ const CHART_TOOLTIP_STYLE = {
 const StatCard = ({ icon: Icon, label, value, sub, accent }) => (
   <div className="glass-card flex flex-col gap-3 p-5">
     <div className="flex items-start justify-between">
-      <div
-        className="flex h-10 w-10 items-center justify-center rounded-xl"
-        style={{ background: `${accent}22`, border: `1px solid ${accent}44` }}
-      >
-        <Icon size={18} style={{ color: accent }} />
-      </div>
+      <Icon3D icon={Icon} size={16} className="h-10 w-10" accent={accent} />
     </div>
     <div>
       <p className="text-2xl font-bold text-[var(--text-primary)]">{value ?? '—'}</p>
@@ -184,28 +180,28 @@ const AnalyticsPage = () => {
               label="Total Scans"
               value={stats.totalScans?.toLocaleString()}
               sub={`+${period_stats.scans?.toLocaleString() || 0} this period`}
-              accent="#7c3aed"
+              accent={ICON3D_PRESETS.violet}
             />
             <StatCard
               icon={Users}
               label="Unique Visitors"
               value={stats.uniqueVisitors?.toLocaleString()}
               sub={`+${period_stats.uniqueVisitors?.toLocaleString() || 0} this period`}
-              accent="#06b6d4"
+              accent={ICON3D_PRESETS.cyan}
             />
             <StatCard
               icon={Clock}
               label="Avg Session"
               value={fmtDuration(stats.avgSessionDuration)}
               sub="Time spent in AR"
-              accent="#10b981"
+              accent={ICON3D_PRESETS.emerald}
             />
             <StatCard
               icon={PlayCircle}
               label="Video Completion"
               value={stats.avgVideoWatchPercent ? `${stats.avgVideoWatchPercent}%` : '—'}
               sub="Average watch %"
-              accent="#f59e0b"
+              accent={ICON3D_PRESETS.amber}
             />
           </>
         )}
@@ -296,7 +292,7 @@ const AnalyticsPage = () => {
         {/* Device pie */}
         <div className="glass-card p-5">
           <div className="mb-4 flex items-center gap-2">
-            <Smartphone size={16} className="text-brand-400" />
+            <Icon3D icon={Smartphone} size={12} className="h-7 w-7" accent={ICON3D_PRESETS.violet} rounded="rounded-lg" />
             <SectionTitle>Device Types</SectionTitle>
           </div>
           {isLoading || !devices.length ? (
@@ -350,7 +346,7 @@ const AnalyticsPage = () => {
         {/* Browser bar chart */}
         <div className="glass-card p-5">
           <div className="mb-4 flex items-center gap-2">
-            <Monitor size={16} className="text-accent-400" />
+            <Icon3D icon={Monitor} size={12} className="h-7 w-7" accent={ICON3D_PRESETS.cyan} rounded="rounded-lg" />
             <SectionTitle>Browsers</SectionTitle>
           </div>
           {isLoading || !browsers.length ? (
@@ -392,7 +388,7 @@ const AnalyticsPage = () => {
       {/* ── Hourly heatmap ──────────────────────────────────────────────── */}
       <div className="glass-card p-5">
         <div className="mb-4 flex items-center gap-2">
-          <BarChart3 size={16} className="text-brand-400" />
+          <Icon3D icon={BarChart3} size={12} className="h-7 w-7" accent={ICON3D_PRESETS.brand} rounded="rounded-lg" />
           <SectionTitle>Scans by Hour of Day</SectionTitle>
         </div>
         {isLoading ? <ChartSkeleton h="h-16" /> : <HourlyHeatmap data={hourly} />}

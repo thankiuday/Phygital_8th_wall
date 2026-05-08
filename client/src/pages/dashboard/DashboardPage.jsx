@@ -23,6 +23,7 @@ import {
 import useAuthStore from '../../store/useAuthStore';
 import useDashboardStore from '../../store/useDashboardStore';
 import useIsMobile from '../../hooks/useIsMobile';
+import Icon3D, { ICON3D_PRESETS } from '../../components/ui/Icon3D';
 
 /* ── Animation variants ──────────────────────────────────────────── */
 const fadeUp = (delay = 0) => ({
@@ -54,9 +55,7 @@ const StatCard = ({ icon: Icon, label, value, sub, color, delay }) => (
           <p className="mt-1 truncate text-xs text-[var(--text-muted)]">{sub}</p>
         )}
       </div>
-      <div className={`ml-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl sm:h-10 sm:w-10 ${color}`}>
-        <Icon size={18} className="opacity-90 sm:text-[20px]" />
-      </div>
+      <Icon3D icon={Icon} size={16} className="ml-3 h-9 w-9 sm:h-10 sm:w-10" accent={color} />
     </div>
   </motion.div>
 );
@@ -115,7 +114,7 @@ const DashboardPage = () => {
       label: 'Campaigns',
       value: stats?.totalCampaigns,
       sub: `${stats?.activeCampaigns ?? '—'} active`,
-      color: 'bg-brand-500/15 text-brand-400',
+      color: ICON3D_PRESETS.violet,
       delay: 0.05,
     },
     {
@@ -123,7 +122,7 @@ const DashboardPage = () => {
       label: 'Total Scans',
       value: stats?.totalScans,
       sub: 'All time',
-      color: 'bg-accent-500/15 text-accent-400',
+      color: ICON3D_PRESETS.cyan,
       delay: 0.1,
     },
     {
@@ -131,7 +130,7 @@ const DashboardPage = () => {
       label: "Today",
       value: stats?.todayScans,
       sub: 'Last 24 hours',
-      color: 'bg-green-500/15 text-green-400',
+      color: ICON3D_PRESETS.emerald,
       delay: 0.15,
     },
     {
@@ -139,7 +138,7 @@ const DashboardPage = () => {
       label: 'This Week',
       value: stats?.weekScans,
       sub: 'Last 7 days',
-      color: 'bg-orange-500/15 text-orange-400',
+      color: ICON3D_PRESETS.amber,
       delay: 0.2,
     },
   ];
@@ -174,15 +173,14 @@ const DashboardPage = () => {
             to="/dashboard/campaigns/new"
             className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-brand-700 shadow-lg transition-all hover:shadow-xl"
           >
-            <PlusCircle size={16} />
+            <Icon3D icon={PlusCircle} size={12} className="h-6 w-6" accent={ICON3D_PRESETS.violet} rounded="rounded-md" />
             Phygitalize now
           </Link>
         </div>
 
-        <Sparkles
-          size={64}
-          className="pointer-events-none absolute -right-4 -top-4 text-white/10"
-        />
+        <div className="pointer-events-none absolute -right-4 -top-4 opacity-60">
+          <Icon3D icon={Sparkles} size={30} className="h-16 w-16" accent={ICON3D_PRESETS.rose} />
+        </div>
       </motion.div>
 
       {/* ── Stat cards grid — 2×2 on mobile, 4 cols on lg ─────────── */}
@@ -295,7 +293,7 @@ const DashboardPage = () => {
           ) : recentCampaigns.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 py-8 text-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-500/10">
-                <QrCode size={24} className="text-brand-400" />
+                <Icon3D icon={QrCode} size={16} className="h-10 w-10" accent={ICON3D_PRESETS.violet} />
               </div>
               <p className="text-sm text-[var(--text-muted)]">No campaigns yet</p>
               <Link

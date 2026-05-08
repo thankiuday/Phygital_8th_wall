@@ -30,6 +30,15 @@ const MULTI_LINK_TYPES = new Set([
 /** Hub types that surface a hero-style watch funnel rolled up across all videos. */
 const VIDEO_HUB_TYPES = new Set(['links-video-qr', 'links-doc-video-qr']);
 
+/** Card-style types — different telemetry surface (action breakdowns, prints). */
+const CARD_TYPES = new Set(['digital-business-card']);
+
+/** Recognized card-action keys; should mirror `cardActionQueue.ALLOWED_ACTIONS`. */
+const CARD_ACTION_KEYS = [
+  'call', 'email', 'whatsapp', 'website', 'social',
+  'galleryView', 'videoPlay', 'docOpen', 'cta', 'print-download',
+];
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -690,6 +699,98 @@ exports.getCampaignAnalytics = async (req, res) => {
     };
   }
 
+  /* Per-type analytics for digital-business-card.
+   * Action telemetry is stored in `LinkClickEvent` with a `linkId` shaped as
+   * `<action>:<target>` (or just `<action>` when no target). We split the
+   * id back out here so the dashboard can show top channels and per-network
+   * social breakdowns without a separate event collection. */
+  let cardAnalytics = null;
+  if (CARD_TYPES.has(campaign.campaignType)) {
+    const cardMatch = { campaignId: cid };
+    const cardMatchPeriod = { ...cardMatch, clickedAt: { $gte: since } };
+
+    const [actionRowsPeriod, actionRowsAllTime, actionTrend] = await Promise.all([
+      LinkClickEvent.aggregate([
+        { $match: cardMatchPeriod },
+        { $group: { _id: '$linkId', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]),
+      LinkClickEvent.aggregate([
+        { $match: cardMatch },
+        { $group: { _id: '$linkId', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]),
+      LinkClickEvent.aggregate([
+        { $match: cardMatchPeriod },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$clickedAt' } },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: 1 } },
+        { $project: { _id: 0, date: '$_id', count: 1 } },
+      ]),
+    ]);
+
+    const splitActionKey = (raw) => {
+      const idx = String(raw).indexOf(':');
+      if (idx === -1) return { action: String(raw), target: null };
+      return { action: String(raw).slice(0, idx), target: String(raw).slice(idx + 1) };
+    };
+
+    const groupRows = (rows) => {
+      const byAction = new Map();
+      const targetsByAction = new Map();
+      for (const r of rows) {
+        const { action, target } = splitActionKey(r._id);
+        byAction.set(action, (byAction.get(action) || 0) + r.count);
+        if (target) {
+          if (!targetsByAction.has(action)) targetsByAction.set(action, new Map());
+          const tmap = targetsByAction.get(action);
+          tmap.set(target, (tmap.get(target) || 0) + r.count);
+        }
+      }
+      const ordered = CARD_ACTION_KEYS
+        .map((key) => ({ action: key, count: byAction.get(key) || 0 }))
+        .filter((row) => row.count > 0)
+        .sort((a, b) => b.count - a.count);
+      const targets = {};
+      for (const [action, tmap] of targetsByAction.entries()) {
+        targets[action] = Array.from(tmap.entries())
+          .map(([target, count]) => ({ target, count }))
+          .sort((a, b) => b.count - a.count);
+      }
+      return { actions: ordered, targets };
+    };
+
+    const periodGroup = groupRows(actionRowsPeriod);
+    const allTimeGroup = groupRows(actionRowsAllTime);
+
+    const actionTotalPeriod = periodGroup.actions.reduce((sum, r) => sum + r.count, 0);
+    const printDownloads =
+      periodGroup.actions.find((r) => r.action === 'print-download')?.count || 0;
+    const printDownloadsAllTime =
+      allTimeGroup.actions.find((r) => r.action === 'print-download')?.count || 0;
+
+    const scansPeriodValue = periodStats?.scans || 0;
+    const actionRatePeriod = scansPeriodValue > 0
+      ? Number(((actionTotalPeriod / scansPeriodValue) * 100).toFixed(1))
+      : null;
+
+    cardAnalytics = {
+      actionTotalsPeriod: periodGroup.actions,
+      actionTotalsAllTime: allTimeGroup.actions,
+      socialBreakdownPeriod: periodGroup.targets.social || [],
+      ctaBreakdownPeriod: periodGroup.targets.cta || [],
+      actionTrend,
+      actionTotalPeriod,
+      actionRatePeriod,
+      printDownloads,
+      printDownloadsAllTime,
+    };
+  }
+
   return success(res, {
     campaign: {
       _id:          campaign._id,
@@ -708,6 +809,7 @@ exports.getCampaignAnalytics = async (req, res) => {
     multiLinkAnalytics,
     videoAnalytics,
     assetAnalytics,
+    cardAnalytics,
   });
 };
 

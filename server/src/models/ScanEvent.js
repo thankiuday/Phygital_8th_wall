@@ -65,5 +65,19 @@ scanEventSchema.index({ userId: 1, scannedAt: -1 });
 scanEventSchema.index({ campaignId: 1, scannedAt: -1 });
 scanEventSchema.index({ campaignId: 1, videoPlayed: 1 });
 
+/**
+ * Retention TTL — expires raw scan rows after `ANALYTICS_RETENTION_DAYS`
+ * (default 365). Aggregated dashboard counters on Campaign.analytics.* are
+ * not affected; only the raw event collection is trimmed.
+ */
+const RETENTION_DAYS = Math.max(
+  30,
+  Number(process.env.ANALYTICS_RETENTION_DAYS) || 365
+);
+scanEventSchema.index(
+  { scannedAt: 1 },
+  { expireAfterSeconds: RETENTION_DAYS * 24 * 60 * 60, name: 'scannedAt_ttl' }
+);
+
 const ScanEvent = mongoose.model('ScanEvent', scanEventSchema);
 module.exports = ScanEvent;

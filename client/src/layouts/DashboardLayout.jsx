@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import Sidebar from '../components/ui/Sidebar';
 import DashboardTopBar from '../components/ui/DashboardTopBar';
+import Footer from '../components/ui/Footer';
 
 /* ── Map route paths/prefixes to readable page titles ────────────── */
 const PAGE_TITLES = {
@@ -118,9 +119,14 @@ const DashboardLayout = () => {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="h-full p-4 md:p-6"
+            className="flex min-h-full flex-col p-4 md:p-6"
           >
-            <Outlet />
+            <div className="flex-1">
+              <Outlet />
+            </div>
+            <div className="mt-8">
+              <Footer />
+            </div>
           </motion.div>
         </main>
       </div>

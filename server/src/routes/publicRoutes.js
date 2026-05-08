@@ -18,12 +18,21 @@ const {
   publicMultiLinkClickSchema,
   publicMultiLinkSessionSchema,
   publicMultiLinkVideoSchema,
+  publicCardScanSchema,
+  publicCardActionSchema,
+  publicCardSessionSchema,
 } = require('../validators/publicScanValidators');
 const { toPublicLinkList } = require('../utils/linkItemResolver');
 const { SLUG_RE } = require('../constants/singleLinkSlug');
-const { dynamicQrMetaCache } = require('../utils/redirectCache');
+const { dynamicQrMetaCache, cardMetaCache } = require('../utils/redirectCache');
 const { toEmbedSrc, detectVideoHost } = require('../utils/videoEmbed');
+const cardActionQueue = require('../utils/cardActionQueue');
+const { cloudinaryTransform } = require('../utils/cloudinaryTransform');
+const { getRenderJobStatus, verifyPrintToken } = require('../services/cardPrintService');
 const logger = require('../config/logger');
+
+/** Friendly user-facing card slug — kebab-case, 3-60 chars (mirrors validator). */
+const CARD_SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{1,58}[a-z0-9])?$/;
 
 /** Campaign types that funnel through the multi-link hub + analytics path. */
 const HUB_CAMPAIGN_TYPES = [
@@ -638,5 +647,239 @@ router.post(
     return success(res, { destinationUrl: campaign.destinationUrl }, 'Scan recorded');
   }
 );
+
+/* ─────────────────────────────────────────
+   Digital Business Card — public meta + telemetry
+   The slug here is the friendly `cardSlug` (kebab-case, 3-60 chars), distinct
+   from the 8-char `redirectSlug` used for the printed QR. Both resolve to
+   the same campaign — `redirectSlug` falls back when no friendly slug is
+   set (e.g. before the user customizes the URL).
+   ───────────────────────────────────────── */
+
+const cardSlugLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 90,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `${getClientIpFromRequest(req)}:${req.params.slug || ''}`,
+  message: 'Too many requests for this card. Please try again shortly.',
+});
+
+const cardActionLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `${getClientIpFromRequest(req)}:${req.params.slug || ''}`,
+  message: 'Too many actions. Please try again shortly.',
+});
+
+/** Common slug-shape guard used by every card endpoint. */
+const isValidCardSlug = (slug) =>
+  typeof slug === 'string' && (CARD_SLUG_RE.test(slug) || SLUG_RE.test(slug));
+
+/**
+ * Apply Cloudinary responsive transforms to every image URL in a card's
+ * public payload so mobile browsers receive WebP/AVIF + right-sized
+ * variants. Server-side transformation keeps the contract opaque to
+ * the client.
+ */
+const applyImageTransforms = (cardContent) => {
+  if (!cardContent) return cardContent;
+  const next = { ...cardContent };
+  if (next.profileImageUrl) {
+    next.profileImageUrl = cloudinaryTransform(next.profileImageUrl, { w: 480, h: 480, crop: 'fill', gravity: 'face' });
+  }
+  if (next.bannerImageUrl) {
+    next.bannerImageUrl = cloudinaryTransform(next.bannerImageUrl, { w: 1200, h: 600, crop: 'fill' });
+  }
+  if (Array.isArray(next.sections)) {
+    next.sections = next.sections.map((sec) => {
+      if (sec.type === 'imageGallery' && Array.isArray(sec.images)) {
+        return {
+          ...sec,
+          images: sec.images.map((img) => ({
+            ...img,
+            url: cloudinaryTransform(img.url, { w: 800 }),
+          })),
+        };
+      }
+      return sec;
+    });
+  }
+  return next;
+};
+
+const findCardCampaign = async (slug) => {
+  const filter = {
+    campaignType: 'digital-business-card',
+    isDeleted: { $ne: true },
+    $or: [{ cardSlug: slug }, { redirectSlug: slug }],
+  };
+  return Campaign.findOne(
+    filter,
+    'campaignName cardSlug redirectSlug visibility status cardContent cardDesign cardPrintSettings preciseGeoAnalytics'
+  ).lean();
+};
+
+/* GET /api/public/card/:slug/meta — public payload for the hub renderer. */
+router.get('/card/:slug/meta', cardSlugLimiter, async (req, res) => {
+  const slug = String(req.params.slug || '').toLowerCase();
+  if (!isValidCardSlug(slug)) throw new AppError('Invalid card link', 400);
+
+  const cached = await cardMetaCache.get(slug);
+  if (cached) return success(res, cached);
+
+  const campaign = await findCardCampaign(slug);
+  if (!campaign) throw new AppError('Card not found', 404);
+  if (campaign.visibility === 'private') {
+    throw new AppError('This card is private', 404);
+  }
+  if (campaign.status === 'draft') throw new AppError('Card not found', 404);
+
+  // Resolve any video sections to embed-safe URLs server-side so the client
+  // never has to parse external URLs.
+  const sections = (campaign.cardContent?.sections || []).map((sec) => {
+    if (sec.type === 'video' && sec.source === 'link' && sec.externalVideoUrl) {
+      return {
+        ...sec,
+        embedSrc: toEmbedSrc(sec.externalVideoUrl),
+        embedHost: detectVideoHost(sec.externalVideoUrl),
+      };
+    }
+    return sec;
+  });
+
+  const cardContent = applyImageTransforms({
+    ...(campaign.cardContent || {}),
+    sections,
+  });
+
+  const payload = {
+    campaignName: campaign.campaignName,
+    cardSlug: campaign.cardSlug,
+    redirectSlug: campaign.redirectSlug,
+    status: campaign.status,
+    paused: campaign.status === 'paused',
+    cardContent,
+    cardDesign: campaign.cardDesign || null,
+  };
+
+  await cardMetaCache.set(slug, payload);
+  return success(res, payload);
+});
+
+/* POST /api/public/card/:slug/scan — first-load telemetry. */
+router.post(
+  '/card/:slug/scan',
+  cardSlugLimiter,
+  validate(publicCardScanSchema),
+  async (req, res) => {
+    const slug = String(req.params.slug || '').toLowerCase();
+    if (!isValidCardSlug(slug)) throw new AppError('Invalid card link', 400);
+
+    const campaign = await findCardCampaign(slug);
+    if (!campaign) throw new AppError('Card not found', 404);
+    if (campaign.visibility === 'private') throw new AppError('Card not found', 404);
+    if (campaign.status !== 'active') return success(res, {}, 'Scan ignored');
+
+    const {
+      visitorHash,
+      deviceType,
+      browser,
+      latitude,
+      longitude,
+      accuracyM,
+      consentVersion,
+    } = req.body;
+
+    scanQueue.enqueue({
+      campaignId: campaign._id,
+      slug,
+      visitorHash,
+      ip: getClientIpFromRequest(req),
+      ua: req.get('user-agent'),
+      cfCountry: getCfIpCountry(req),
+      deviceType,
+      browser,
+      ts: Date.now(),
+      allowBrowserGeo: campaign.preciseGeoAnalytics === true,
+      browserLatitude: latitude,
+      browserLongitude: longitude,
+      browserAccuracyM: accuracyM,
+      consentVersion,
+    });
+
+    return success(res, {}, 'Scan recorded');
+  }
+);
+
+/* POST /api/public/card/:slug/action — call/email/whatsapp/social/etc. */
+router.post(
+  '/card/:slug/action',
+  cardActionLimiter,
+  validate(publicCardActionSchema),
+  async (req, res) => {
+    const slug = String(req.params.slug || '').toLowerCase();
+    if (!isValidCardSlug(slug)) throw new AppError('Invalid card link', 400);
+
+    const campaign = await findCardCampaign(slug);
+    if (!campaign) throw new AppError('Card not found', 404);
+    if (campaign.visibility === 'private') throw new AppError('Card not found', 404);
+    if (campaign.status !== 'active') return success(res, {}, 'Action ignored');
+
+    const { action, target, visitorHash } = req.body;
+    cardActionQueue.enqueue({
+      campaignId: campaign._id,
+      userId: campaign.userId || null,
+      action,
+      target,
+      visitorHash,
+    });
+
+    return res.status(202).json({ status: 'queued' });
+  }
+);
+
+/* POST /api/public/card/:slug/session — total session duration. */
+router.post(
+  '/card/:slug/session',
+  cardActionLimiter,
+  validate(publicCardSessionSchema),
+  async (req, res) => {
+    const slug = String(req.params.slug || '').toLowerCase();
+    if (!isValidCardSlug(slug)) throw new AppError('Invalid card link', 400);
+
+    const campaign = await findCardCampaign(slug);
+    if (!campaign) return success(res, {}, 'No card');
+    if (campaign.visibility === 'private') return success(res, {}, 'No card');
+
+    const { visitorHash, sessionDurationMs } = req.body;
+    if (!visitorHash) return success(res, {}, 'No session data');
+
+    await ScanEvent.findOneAndUpdate(
+      { campaignId: campaign._id, visitorHash },
+      { $max: { sessionDurationMs: Number(sessionDurationMs) || 0 } },
+      { sort: { scannedAt: -1 } }
+    );
+
+    return success(res, {}, 'Session updated');
+  }
+);
+
+/* GET /api/public/card-render/status/:jobId — poll BullMQ job result. */
+router.get('/card-render/status/:jobId', publicLimiter, async (req, res) => {
+  const status = await getRenderJobStatus(req.params.jobId);
+  return success(res, status);
+});
+
+/* GET /api/public/card/print-token/verify?token=&campaignId= — Puppeteer
+ * authenticates against the print page using a short-lived HMAC token rather
+ * than user cookies. Exposed publicly so the print client can show a friendly
+ * "expired" UI rather than a server-side 401. */
+router.get('/card/print-token/verify', publicLimiter, async (req, res) => {
+  const ok = verifyPrintToken(req.query.token, req.query.campaignId);
+  return success(res, { valid: !!ok });
+});
 
 module.exports = router;

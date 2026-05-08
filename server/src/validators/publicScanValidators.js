@@ -92,10 +92,72 @@ const publicMultiLinkVideoSchema = z
   })
   .strict();
 
+/**
+ * POST /api/public/card/:slug/scan — first-load telemetry for digital-business-card.
+ */
+const publicCardScanSchema = z
+  .object({
+    visitorHash: z.string().trim().min(8).max(128),
+    deviceType: z.enum(['mobile', 'tablet', 'desktop', 'unknown']).optional(),
+    browser: z.string().max(64).optional(),
+    latitude: z.number().min(-90).max(90).optional(),
+    longitude: z.number().min(-180).max(180).optional(),
+    accuracyM: z.number().min(0).max(10_000_000).optional(),
+    consentVersion: z.string().max(64).optional(),
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    const hasLat = data.latitude !== undefined;
+    const hasLng = data.longitude !== undefined;
+    if (hasLat !== hasLng) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'latitude and longitude must be sent together',
+        path: ['latitude'],
+      });
+    }
+  });
+
+/**
+ * Card actions — call/email/whatsapp/website + per-network social taps,
+ * gallery views, video plays, doc opens, custom CTA clicks. `target` is an
+ * optional discriminator (e.g. social network name, gallery image index,
+ * custom-link id) so we can break dashboards down by target without a
+ * separate event collection.
+ */
+const publicCardActionSchema = z
+  .object({
+    visitorHash: z.string().trim().min(8).max(128).optional(),
+    action: z.enum([
+      'call',
+      'email',
+      'whatsapp',
+      'website',
+      'social',
+      'galleryView',
+      'videoPlay',
+      'docOpen',
+      'cta',
+      'print-download',
+    ]),
+    target: z.string().trim().max(120).optional(),
+  })
+  .strict();
+
+const publicCardSessionSchema = z
+  .object({
+    visitorHash: z.string().trim().min(8).max(128),
+    sessionDurationMs: z.number().min(0).max(86_400_000).optional(),
+  })
+  .strict();
+
 module.exports = {
   publicSingleLinkScanSchema,
   publicMultiLinkScanSchema,
   publicMultiLinkClickSchema,
   publicMultiLinkSessionSchema,
   publicMultiLinkVideoSchema,
+  publicCardScanSchema,
+  publicCardActionSchema,
+  publicCardSessionSchema,
 };

@@ -456,6 +456,200 @@ const createLinksDocVideoOnlySchema = z
     }
   });
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   digital-business-card — personalized identity card hub
+   - rich profile (image, banner, name, contact, social, sections)
+   - 12 design templates + color/font/layout/corners/spacing
+   - print preset (size, theme, qrPosition, displayFields, profileAdjust)
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/** Friendly URL slug for /card/:cardSlug — kebab-case, 3-60 chars. */
+const cardSlugField = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(3, 'Custom URL must be at least 3 characters')
+  .max(60, 'Custom URL is too long (max 60 characters)')
+  .regex(
+    /^[a-z0-9](?:[a-z0-9-]{1,58}[a-z0-9])?$/,
+    'Custom URL must be lowercase letters, numbers, and hyphens'
+  );
+
+const cardSocialField = z
+  .object({
+    instagram: z.string().trim().max(500).optional().nullable(),
+    linkedin: z.string().trim().max(500).optional().nullable(),
+    twitter: z.string().trim().max(500).optional().nullable(),
+    github: z.string().trim().max(500).optional().nullable(),
+    youtube: z.string().trim().max(500).optional().nullable(),
+    facebook: z.string().trim().max(500).optional().nullable(),
+    telegram: z.string().trim().max(500).optional().nullable(),
+  })
+  .strict()
+  .partial();
+
+const cardContactField = z
+  .object({
+    phone: z.string().trim().max(40).optional().nullable(),
+    email: z.string().trim().max(254).optional().nullable(),
+    whatsapp: z.string().trim().max(40).optional().nullable(),
+    website: z.string().trim().max(2048).optional().nullable(),
+    address: z.string().trim().max(300).optional().nullable(),
+  })
+  .strict()
+  .partial();
+
+/** Discriminated section payloads — keep each shape strict so unknown fields
+ *  can't pollute the rendered card. */
+const cardSectionSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('heading'),
+    id: z.string().trim().max(24).optional(),
+    title: z.string().trim().min(1).max(120),
+  }).strict(),
+  z.object({
+    type: z.literal('text'),
+    id: z.string().trim().max(24).optional(),
+    title: z.string().trim().max(120).optional().nullable(),
+    body: z.string().trim().max(1500),
+  }).strict(),
+  z.object({
+    type: z.literal('about'),
+    id: z.string().trim().max(24).optional(),
+    title: z.string().trim().max(120).optional().nullable(),
+    body: z.string().trim().max(1500),
+  }).strict(),
+  z.object({
+    type: z.literal('imageGallery'),
+    id: z.string().trim().max(24).optional(),
+    title: z.string().trim().max(120).optional().nullable(),
+    images: z
+      .array(
+        z.object({
+          url: z.string().url().max(2048),
+          publicId: z.string().max(256).optional().nullable(),
+          alt: z.string().trim().max(120).optional().nullable(),
+        }).strict()
+      )
+      .max(12, 'Gallery is limited to 12 images'),
+  }).strict(),
+  z.object({
+    type: z.literal('video'),
+    id: z.string().trim().max(24).optional(),
+    title: z.string().trim().max(120).optional().nullable(),
+    source: z.enum(['upload', 'link']),
+    url: cloudinaryUrlField.optional().nullable(),
+    publicId: z.string().min(1).max(256).optional().nullable(),
+    externalVideoUrl: externalVideoUrlField.optional().nullable(),
+    thumbnailUrl: z.string().url().max(2048).optional().nullable(),
+  }).strict(),
+  z.object({
+    type: z.literal('customLinks'),
+    id: z.string().trim().max(24).optional(),
+    title: z.string().trim().max(120).optional().nullable(),
+    items: z
+      .array(
+        z.object({
+          label: z.string().trim().min(1).max(80),
+          url: z.string().trim().min(1).max(2048),
+        }).strict()
+      )
+      .max(12, 'Custom links section is limited to 12 entries'),
+  }).strict(),
+  z.object({
+    type: z.literal('testimonials'),
+    id: z.string().trim().max(24).optional(),
+    title: z.string().trim().max(120).optional().nullable(),
+    items: z
+      .array(
+        z.object({
+          quote: z.string().trim().min(1).max(600),
+          author: z.string().trim().max(120).optional().nullable(),
+          role: z.string().trim().max(120).optional().nullable(),
+          avatarUrl: z.string().url().max(2048).optional().nullable(),
+        }).strict()
+      )
+      .max(8, 'Testimonials section is limited to 8 entries'),
+  }).strict(),
+]);
+
+const cardContentSchema = z
+  .object({
+    profileImageUrl: z.string().url().max(2048).optional().nullable(),
+    profileImagePublicId: z.string().max(256).optional().nullable(),
+    bannerImageUrl: z.string().url().max(2048).optional().nullable(),
+    bannerImagePublicId: z.string().max(256).optional().nullable(),
+    fullName: z.string().trim().min(1, 'Full name is required').max(120),
+    jobTitle: z.string().trim().max(120).optional().nullable(),
+    company: z.string().trim().max(120).optional().nullable(),
+    bio: z.string().trim().max(500).optional().nullable(),
+    tagline: z.string().trim().max(160).optional().nullable(),
+    contact: cardContactField.optional(),
+    social: cardSocialField.optional(),
+    sections: z.array(cardSectionSchema).max(10).optional(),
+  })
+  .strict();
+
+const CARD_TEMPLATE_IDS = z.enum([
+  'professional', 'creative', 'minimal', 'bold', 'elegant', 'dark',
+  'sunset', 'ocean', 'forest', 'neon', 'rose', 'slate',
+]);
+
+const cardDesignSchema = z
+  .object({
+    template: CARD_TEMPLATE_IDS.optional(),
+    colors: z
+      .object({
+        primary: colorHex.optional(),
+        secondary: colorHex.optional(),
+        background: colorHex.optional(),
+      })
+      .strict()
+      .optional(),
+    font: z.enum(['Inter', 'Georgia', 'Trebuchet MS', 'Arial', 'Verdana']).optional(),
+    layout: z.enum(['centered', 'left-aligned', 'cover']).optional(),
+    corners: z.enum(['rounded', 'sharp']).optional(),
+    spacing: z.enum(['compact', 'normal', 'relaxed']).optional(),
+  })
+  .strict();
+
+const CARD_SIZE_IDS = z.enum(['us', 'intl', 'slim-h', 'slim-v', 'square-s', 'square-m']);
+const CARD_DISPLAY_FIELDS = z.enum([
+  'name', 'jobTitle', 'company', 'phone', 'email', 'website', 'address', 'tagline',
+]);
+
+const cardPrintSettingsSchema = z
+  .object({
+    cardSize: CARD_SIZE_IDS.optional(),
+    theme: z.enum(['white', 'black', 'neon']).optional(),
+    qrPosition: z.enum(['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center']).optional(),
+    includeQr: z.boolean().optional(),
+    displayFields: z.array(CARD_DISPLAY_FIELDS).max(8).optional(),
+    profileZoom: z.number().min(0.5).max(2.0).optional(),
+    profileCropX: z.number().min(0).max(100).optional(),
+    profileCropY: z.number().min(0).max(100).optional(),
+  })
+  .strict();
+
+/**
+ * POST /api/campaigns/digital-business-card — dedicated route. Mirrors the
+ * pattern used by other hub types: name + content required; design / print
+ * settings / qr / slug all optional and filled with sensible defaults
+ * server-side when missing.
+ */
+const createDigitalBusinessCardSchema = z
+  .object({
+    campaignName: campaignNameField,
+    cardSlug: cardSlugField.optional(),
+    visibility: z.enum(['public', 'private']).optional(),
+    cardContent: cardContentSchema,
+    cardDesign: cardDesignSchema.optional(),
+    cardPrintSettings: cardPrintSettingsSchema.optional(),
+    qrDesign: qrDesignSchema.nullable().optional(),
+    preciseGeoAnalytics: z.boolean().optional(),
+  })
+  .strict();
+
 /**
  * Strip Cloudinary fields so single-link `.strict()` payloads never carry stray keys.
  */
@@ -551,6 +745,12 @@ const updateCampaignSchema = z
     /* ── links-doc-video-qr (controller gates by campaignType) ── */
     docItems: docItemsPatchField.optional(),
     videoItems: videoItemsPatchField.optional(),
+    /* ── digital-business-card (controller gates by campaignType) ── */
+    cardSlug: cardSlugField.optional(),
+    visibility: z.enum(['public', 'private']).optional(),
+    cardContent: cardContentSchema.optional(),
+    cardDesign: cardDesignSchema.optional(),
+    cardPrintSettings: cardPrintSettingsSchema.optional(),
   })
   .strict()
   .refine((d) => Object.keys(d).length > 0, { message: 'No valid fields to update' });
@@ -572,5 +772,10 @@ module.exports = {
   createMultipleLinksOnlySchema,
   createLinksVideoOnlySchema,
   createLinksDocVideoOnlySchema,
+  createDigitalBusinessCardSchema,
+  cardSlugField,
+  cardContentSchema,
+  cardDesignSchema,
+  cardPrintSettingsSchema,
   updateCampaignSchema,
 };

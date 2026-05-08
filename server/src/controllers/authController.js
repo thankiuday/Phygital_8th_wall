@@ -163,8 +163,8 @@ const getMe = async (req, res) => {
   if (req.query.stats === '1') {
     const uid = user._id;
     const [campaignCount, activeCampaignCount] = await Promise.all([
-      Campaign.countDocuments({ userId: uid }),
-      Campaign.countDocuments({ userId: uid, status: 'active' }),
+      Campaign.countDocuments({ userId: uid, isDeleted: { $ne: true } }),
+      Campaign.countDocuments({ userId: uid, status: 'active', isDeleted: { $ne: true } }),
     ]);
     payload.stats = { campaignCount, activeCampaignCount };
   }

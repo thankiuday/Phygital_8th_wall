@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import useAnalyticsStore from '../../store/useAnalyticsStore';
 import useIsMobile from '../../hooks/useIsMobile';
+import Icon3D, { ICON3D_PRESETS } from '../../components/ui/Icon3D';
 
 // ---------------------------------------------------------------------------
 // Constants (same as AnalyticsPage to keep brand consistent)
@@ -98,6 +99,18 @@ const TYPE_CONFIG = {
     locationsTitle: 'Top visitor locations',
     scanEmptyHint: 'Visits appear after someone opens your link page.',
   },
+  'digital-business-card': {
+    headerSub: 'Card opens, contact taps, and print downloads',
+    scanLabel: 'Card opens',
+    showAvgSession: true,
+    avgSessionSub: 'Time spent on card',
+    showVideoCompletion: false,
+    showLinkClicksTile: false,
+    showAssetTiles: false,
+    showCardActions: true,
+    locationsTitle: 'Top viewer locations',
+    scanEmptyHint: 'Opens appear after someone visits or scans your card.',
+  },
 };
 
 const DEFAULT_TYPE_CONFIG = TYPE_CONFIG['ar-card'];
@@ -108,12 +121,7 @@ const DEFAULT_TYPE_CONFIG = TYPE_CONFIG['ar-card'];
 
 const StatCard = ({ icon: Icon, label, value, sub, accent }) => (
   <div className="glass-card flex flex-col gap-3 p-5">
-    <div
-      className="flex h-10 w-10 items-center justify-center rounded-xl"
-      style={{ background: `${accent}22`, border: `1px solid ${accent}44` }}
-    >
-      <Icon size={18} style={{ color: accent }} />
-    </div>
+    <Icon3D icon={Icon} size={16} className="h-10 w-10" accent={accent} />
     <div>
       <p className="text-2xl font-bold text-[var(--text-primary)]">{value ?? '—'}</p>
       <p className="mt-0.5 text-sm font-medium text-[var(--text-secondary)]">{label}</p>
@@ -195,11 +203,13 @@ const CampaignAnalyticsPage = () => {
   const multiLink   = campaignData?.multiLinkAnalytics;
   const videoAnalytics = campaignData?.videoAnalytics;
   const assetAnalytics = campaignData?.assetAnalytics;
+  const cardAnalytics  = campaignData?.cardAnalytics;
   const campaignType = campaign?.campaignType;
   const typeConfig = TYPE_CONFIG[campaignType] || DEFAULT_TYPE_CONFIG;
   const isVideoHub =
     campaignType === 'links-video-qr' || campaignType === 'links-doc-video-qr';
   const isLinksDocVideo = campaignType === 'links-doc-video-qr';
+  const isDigitalCard = campaignType === 'digital-business-card';
 
   const periodLinkClicks = useMemo(() => {
     if (!multiLink?.clicksByLinkPeriod?.length) return 0;
@@ -231,7 +241,7 @@ const CampaignAnalyticsPage = () => {
         {/* Breadcrumb */}
         <div className="mb-4 flex min-w-0 items-center gap-1.5 text-xs text-[var(--text-muted)]">
           <Link to="/dashboard/analytics" className="inline-flex shrink-0 items-center gap-1 hover:text-brand-400">
-            <ArrowLeft size={12} /> Analytics
+            <Icon3D icon={ArrowLeft} size={9} className="h-4 w-4" accent={ICON3D_PRESETS.slate} rounded="rounded-sm" /> Analytics
           </Link>
           <ChevronRight size={12} className="shrink-0" />
           <Link
@@ -292,14 +302,14 @@ const CampaignAnalyticsPage = () => {
               label={typeConfig.scanLabel}
               value={stats.totalScans?.toLocaleString()}
               sub={`+${periodStats.scans || 0} this period`}
-              accent="#7c3aed"
+              accent={ICON3D_PRESETS.violet}
             />
             <StatCard
               icon={Users}
               label="Unique Visitors"
               value={stats.uniqueVisitors?.toLocaleString()}
               sub={`+${periodStats.uniqueVisitors || 0} this period`}
-              accent="#06b6d4"
+              accent={ICON3D_PRESETS.cyan}
             />
             {typeConfig.showAvgSession && (
               <StatCard
@@ -307,7 +317,7 @@ const CampaignAnalyticsPage = () => {
                 label="Avg Session"
                 value={fmtDuration(stats.avgSessionDuration)}
                 sub={typeConfig.avgSessionSub}
-                accent="#10b981"
+                accent={ICON3D_PRESETS.emerald}
               />
             )}
             {typeConfig.showVideoCompletion && (
@@ -316,7 +326,7 @@ const CampaignAnalyticsPage = () => {
                 label="Video Completion"
                 value={stats.avgVideoWatchPercent ? `${stats.avgVideoWatchPercent}%` : '—'}
                 sub="Avg watch %"
-                accent="#f59e0b"
+                accent={ICON3D_PRESETS.amber}
               />
             )}
             {typeConfig.showLinkClicksTile && (
@@ -325,7 +335,7 @@ const CampaignAnalyticsPage = () => {
                 label="Link clicks"
                 value={periodLinkClicks.toLocaleString()}
                 sub="Outbound taps (this period)"
-                accent="#f59e0b"
+                accent={ICON3D_PRESETS.amber}
               />
             )}
             {typeConfig.showAssetTiles && (
@@ -335,14 +345,14 @@ const CampaignAnalyticsPage = () => {
                   label="Document opens"
                   value={(assetAnalytics?.totalDocOpensPeriod || 0).toLocaleString()}
                   sub="This period"
-                  accent="#ef4444"
+                  accent={ICON3D_PRESETS.rose}
                 />
                 <StatCard
                   icon={Film}
                   label="Video plays"
                   value={(assetAnalytics?.totalVideoPlaysPeriod || 0).toLocaleString()}
                   sub="This period"
-                  accent="#7c3aed"
+                  accent={ICON3D_PRESETS.violet}
                 />
               </>
             )}
@@ -416,7 +426,7 @@ const CampaignAnalyticsPage = () => {
         <>
           <div className="glass-card p-5">
             <div className="mb-4 flex items-center gap-2">
-              <MousePointerClick size={16} className="text-brand-400" />
+            <Icon3D icon={MousePointerClick} size={12} className="h-7 w-7" accent={ICON3D_PRESETS.violet} rounded="rounded-lg" />
               <h2 className="text-base font-semibold text-[var(--text-primary)]">Clicks by link</h2>
               <span className="ml-auto text-xs text-[var(--text-muted)]">Last {period}</span>
             </div>
@@ -514,28 +524,28 @@ const CampaignAnalyticsPage = () => {
               label="Play Rate"
               value={videoAnalytics?.playRatePeriod != null ? `${videoAnalytics.playRatePeriod}%` : '—'}
               sub="Plays / hub visits (period)"
-              accent="#f59e0b"
+              accent={ICON3D_PRESETS.amber}
             />
             <StatCard
               icon={PlayCircle}
               label="Video Plays"
               value={(videoAnalytics?.totalPlaysPeriod || 0).toLocaleString()}
               sub="This period"
-              accent="#7c3aed"
+              accent={ICON3D_PRESETS.violet}
             />
             <StatCard
               icon={Clock}
               label="Avg Watch %"
               value={videoAnalytics?.avgWatchPercent != null ? `${videoAnalytics.avgWatchPercent}%` : '—'}
               sub="Across viewers"
-              accent="#06b6d4"
+              accent={ICON3D_PRESETS.cyan}
             />
             <StatCard
               icon={Clock}
               label="Avg Watch Time"
               value={fmtSeconds(videoAnalytics?.avgWatchSec)}
               sub="Across viewers"
-              accent="#10b981"
+              accent={ICON3D_PRESETS.emerald}
             />
           </div>
 
@@ -602,7 +612,7 @@ const CampaignAnalyticsPage = () => {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="glass-card p-5">
               <div className="mb-4 flex items-center gap-2">
-                <Film size={16} className="text-brand-400" />
+            <Icon3D icon={Film} size={12} className="h-7 w-7" accent={ICON3D_PRESETS.violet} rounded="rounded-lg" />
                 <h2 className="text-base font-semibold text-[var(--text-primary)]">Top videos</h2>
                 <span className="ml-auto text-xs text-[var(--text-muted)]">Last {period}</span>
               </div>
@@ -641,7 +651,7 @@ const CampaignAnalyticsPage = () => {
 
             <div className="glass-card p-5">
               <div className="mb-4 flex items-center gap-2">
-                <FileText size={16} className="text-amber-400" />
+            <Icon3D icon={FileText} size={12} className="h-7 w-7" accent={ICON3D_PRESETS.amber} rounded="rounded-lg" />
                 <h2 className="text-base font-semibold text-[var(--text-primary)]">Top documents</h2>
                 <span className="ml-auto text-xs text-[var(--text-muted)]">Last {period}</span>
               </div>
@@ -745,11 +755,102 @@ const CampaignAnalyticsPage = () => {
         </>
       )}
 
+      {/* ── Digital Business Card analytics ─────────────────────────────── */}
+      {isDigitalCard && cardAnalytics && (
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              icon={MousePointerClick}
+              label="Action taps"
+              value={(cardAnalytics.actionTotalPeriod || 0).toLocaleString()}
+              sub="Period"
+              accent={ICON3D_PRESETS.violet}
+            />
+            <StatCard
+              icon={ScanLine}
+              label="Action rate"
+              value={cardAnalytics.actionRatePeriod != null ? `${cardAnalytics.actionRatePeriod}%` : '—'}
+              sub="Taps / opens"
+              accent={ICON3D_PRESETS.cyan}
+            />
+            <StatCard
+              icon={FileText}
+              label="Print downloads"
+              value={(cardAnalytics.printDownloads || 0).toLocaleString()}
+              sub="Period"
+              accent={ICON3D_PRESETS.emerald}
+            />
+            <StatCard
+              icon={FileText}
+              label="Print downloads (all-time)"
+              value={(cardAnalytics.printDownloadsAllTime || 0).toLocaleString()}
+              accent={ICON3D_PRESETS.amber}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="glass-card p-5">
+              <h2 className="mb-4 text-base font-semibold text-[var(--text-primary)]">Top actions</h2>
+              {!cardAnalytics?.actionTotalsPeriod?.length ? (
+                <ChartSkeleton h="h-40" />
+              ) : (
+                <ResponsiveContainer width="100%" height={Math.min(360, cardAnalytics.actionTotalsPeriod.length * 36 + 40)}>
+                  <BarChart layout="vertical" data={cardAnalytics.actionTotalsPeriod} margin={chartMargin}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid-stroke)" />
+                    <XAxis type="number" allowDecimals={false} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="action" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} width={120} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} />
+                    <Bar dataKey="count" fill="#7c3aed" radius={[0, 6, 6, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+            <div className="glass-card p-5">
+              <h2 className="mb-4 text-base font-semibold text-[var(--text-primary)]">Top social networks</h2>
+              {!cardAnalytics?.socialBreakdownPeriod?.length ? (
+                <p className="text-sm text-[var(--text-muted)]">No social taps yet.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={Math.min(360, cardAnalytics.socialBreakdownPeriod.length * 36 + 40)}>
+                  <BarChart layout="vertical" data={cardAnalytics.socialBreakdownPeriod} margin={chartMargin}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid-stroke)" />
+                    <XAxis type="number" allowDecimals={false} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="target" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} width={120} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} />
+                    <Bar dataKey="count" fill="#06b6d4" radius={[0, 6, 6, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+
+          {cardAnalytics?.actionTrend?.length > 0 && (
+            <div className="glass-card p-5">
+              <h2 className="mb-4 text-base font-semibold text-[var(--text-primary)]">Action trend</h2>
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={cardAnalytics.actionTrend} margin={chartMargin}>
+                  <defs>
+                    <linearGradient id="cardActionGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#7c3aed" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid-stroke)" />
+                  <XAxis dataKey="date" tickFormatter={(d) => d.slice(5)} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis allowDecimals={false} width={yAxisWidth} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} />
+                  <Area type="monotone" dataKey="count" stroke="#7c3aed" strokeWidth={2} fill="url(#cardActionGrad)" name="Actions" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </>
+      )}
+
       {/* ── Device + Browser ────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="glass-card p-5">
           <div className="mb-4 flex items-center gap-2">
-            <Smartphone size={16} className="text-brand-400" />
+          <Icon3D icon={Smartphone} size={12} className="h-7 w-7" accent={ICON3D_PRESETS.violet} rounded="rounded-lg" />
             <h2 className="text-base font-semibold text-[var(--text-primary)]">Device Types</h2>
           </div>
           {isLoadingCamp || !devices.length ? (
@@ -785,7 +886,7 @@ const CampaignAnalyticsPage = () => {
 
         <div className="glass-card p-5">
           <div className="mb-4 flex items-center gap-2">
-            <Monitor size={16} className="text-accent-400" />
+          <Icon3D icon={Monitor} size={12} className="h-7 w-7" accent={ICON3D_PRESETS.cyan} rounded="rounded-lg" />
             <h2 className="text-base font-semibold text-[var(--text-primary)]">Browsers</h2>
           </div>
           {isLoadingCamp || !browsers.length ? (
@@ -813,7 +914,7 @@ const CampaignAnalyticsPage = () => {
       {/* ── Hourly heatmap ──────────────────────────────────────────────── */}
       <div className="glass-card p-5">
         <div className="mb-4 flex items-center gap-2">
-          <BarChart3 size={16} className="text-brand-400" />
+          <Icon3D icon={BarChart3} size={12} className="h-7 w-7" accent={ICON3D_PRESETS.brand} rounded="rounded-lg" />
           <h2 className="text-base font-semibold text-[var(--text-primary)]">Scans by Hour</h2>
         </div>
         {isLoadingCamp ? <ChartSkeleton h="h-16" /> : <HourlyHeatmap data={hourly} />}
@@ -822,7 +923,7 @@ const CampaignAnalyticsPage = () => {
       {/* ── Top locations ─────────────────────────────────────────────── */}
       <div className="glass-card p-5">
         <div className="mb-4 flex items-center gap-2">
-          <MapPin size={16} className="text-brand-400" />
+          <Icon3D icon={MapPin} size={12} className="h-7 w-7" accent={ICON3D_PRESETS.rose} rounded="rounded-lg" />
           <h2 className="text-base font-semibold text-[var(--text-primary)]">
             {typeConfig.locationsTitle}
           </h2>

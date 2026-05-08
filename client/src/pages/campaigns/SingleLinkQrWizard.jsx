@@ -107,7 +107,7 @@ const SingleLinkQrWizard = () => {
   };
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-5xl min-w-0 overflow-x-hidden">
       <div className="mb-6">
         <h2 className="text-xl font-bold text-[var(--text-primary)]">Single Link QR</h2>
         <p className="text-sm text-[var(--text-secondary)]">
@@ -118,7 +118,7 @@ const SingleLinkQrWizard = () => {
 
       <WizardStepBar steps={STEPS} currentStep={step} className="mb-8" />
 
-      <div className="glass-card p-4 md:p-6">
+      <div className="glass-card min-w-0 max-w-full overflow-hidden p-4 md:p-6">
         <AnimatePresence mode="wait">
           <motion.div
             key={step}

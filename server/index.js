@@ -193,12 +193,14 @@ const {
   createMultipleLinksOnlySchema,
   createLinksVideoOnlySchema,
   createLinksDocVideoOnlySchema,
+  createDigitalBusinessCardSchema,
 } = require('./src/validators/campaignValidators');
 const {
   createSingleLinkCampaign,
   createMultipleLinksCampaign,
   createLinksVideoCampaign,
   createLinksDocVideoCampaign,
+  createDigitalBusinessCardCampaign,
 } = require('./src/controllers/campaignController');
 
 /**
@@ -232,6 +234,13 @@ app.post(
   protect,
   validate(createLinksDocVideoOnlySchema),
   createLinksDocVideoCampaign
+);
+
+app.post(
+  '/api/campaigns/digital-business-card',
+  protect,
+  validate(createDigitalBusinessCardSchema),
+  createDigitalBusinessCardCampaign
 );
 
 app.use('/api/auth',      require('./src/routes/authRoutes'));

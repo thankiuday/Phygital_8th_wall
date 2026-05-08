@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import useCampaignStore from '../../store/useCampaignStore';
 import EditCampaignModal from '../../components/ui/EditCampaignModal';
+import Icon3D, { ICON3D_PRESETS } from '../../components/ui/Icon3D';
 
 const resolveRedirectBase = () => {
   if (import.meta.env.VITE_REDIRECT_BASE) {
@@ -55,6 +56,7 @@ const CardMenu = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete, onO
         className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
         aria-label="More options"
       >
+        {/* Keep kebab icon flat for instant recognizability. */}
         <MoreVertical size={18} />
       </button>
 
@@ -83,7 +85,7 @@ const CardMenu = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete, onO
                   onClick={action}
                   className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
                 >
-                  <Icon size={13} />
+                  <Icon3D icon={Icon} size={10} className="h-5 w-5" accent={ICON3D_PRESETS.violet} rounded="rounded-md" />
                   {label}
                 </button>
               ))}
@@ -92,7 +94,7 @@ const CardMenu = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete, onO
                 onClick={() => { setMenuOpen(false); onDelete(); }}
                 className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/10"
               >
-                <Trash2 size={13} />
+                <Icon3D icon={Trash2} size={10} className="h-5 w-5" accent={ICON3D_PRESETS.rose} rounded="rounded-md" />
                 Delete
               </button>
             </motion.div>
@@ -113,6 +115,7 @@ const CampaignCard = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete 
     campaign.campaignType === 'multiple-links-qr'
     || campaign.campaignType === 'links-video-qr'
     || campaign.campaignType === 'links-doc-video-qr';
+  const isDigitalCard = campaign.campaignType === 'digital-business-card';
   const trackedRedirectUrl = campaign.redirectSlug
     ? `${resolveRedirectBase()}/r/${campaign.redirectSlug}`
     : null;
@@ -121,7 +124,31 @@ const CampaignCard = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete 
     : campaign.redirectSlug
       ? `/l/${campaign.redirectSlug}`
       : null;
-  const quickAction = isSingleLinkQr
+  const cardPublicUrl = isDigitalCard && campaign.cardSlug && typeof window !== 'undefined'
+    ? `${window.location.origin}/card/${campaign.cardSlug}`
+    : null;
+  const quickAction = isDigitalCard
+    ? (cardPublicUrl && campaign.status === 'active' ? (
+      <a
+        href={cardPublicUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-lg border border-[var(--border-color)] px-2 py-1.5 text-xs text-[var(--text-muted)] transition-colors hover:border-brand-500/50 hover:text-brand-400"
+        aria-label="Open public card page"
+        title="Open card page"
+      >
+        <ExternalLink size={14} />
+        <span className="hidden sm:inline">Card</span>
+      </a>
+    ) : (
+      <span
+        className="inline-flex min-h-[44px] min-w-[44px] cursor-not-allowed items-center justify-center rounded-lg border border-[var(--border-color)] px-2 py-1.5 text-xs text-[var(--text-muted)] opacity-40"
+        title={campaign.status !== 'active' ? 'Activate the card to open it' : 'No card slug configured'}
+      >
+        <ExternalLink size={14} />
+      </span>
+    ))
+    : isSingleLinkQr
     ? (trackedRedirectUrl ? (
       <a
         href={trackedRedirectUrl}
@@ -205,7 +232,7 @@ const CampaignCard = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete 
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
-            <QrCode size={32} className="text-brand-500/30" />
+            <Icon3D icon={QrCode} size={18} className="h-10 w-10 opacity-70" accent={ICON3D_PRESETS.violet} />
           </div>
         )}
         <div className="absolute left-2.5 top-2.5">
@@ -288,7 +315,7 @@ const EmptyState = ({ filtered }) => (
     className="col-span-full flex flex-col items-center gap-5 py-20 text-center"
   >
     <div className="flex h-20 w-20 items-center justify-center rounded-2xl border border-[var(--border-color)] bg-[var(--surface-2)]">
-      <QrCode size={36} className="text-brand-500/40" />
+      <Icon3D icon={QrCode} size={20} className="h-12 w-12" accent={ICON3D_PRESETS.violet} />
     </div>
     <div>
       <h3 className="text-base font-semibold text-[var(--text-primary)]">
@@ -328,6 +355,7 @@ const TYPE_FILTER_OPTIONS = [
   { value: 'multiple-links-qr', label: 'Multiple Links QR' },
   { value: 'links-video-qr', label: 'Links + Video QR' },
   { value: 'links-doc-video-qr', label: 'Links + Doc + Video QR' },
+  { value: 'digital-business-card', label: 'Digital Business Card' },
 ];
 
 const CampaignsListPage = () => {
@@ -401,7 +429,7 @@ const CampaignsListPage = () => {
           to="/dashboard/campaigns/new"
           className="flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-glow transition-all hover:bg-brand-500 hover:shadow-glow-lg"
         >
-          <PlusCircle size={15} /> Phygitalize now
+          <Icon3D icon={PlusCircle} size={11} className="h-6 w-6" accent={ICON3D_PRESETS.emerald} rounded="rounded-md" /> Phygitalize now
         </Link>
       </div>
 

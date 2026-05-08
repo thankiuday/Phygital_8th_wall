@@ -8,6 +8,7 @@
     "dev": "nodemon index.js",
     "start": "node index.js",
     "worker": "node src/workers/scanWorker.js",
+    "card-render-worker": "node src/workers/cardRenderWorker.js",
     "geo-smoke": "node scripts/geoExtractSmoke.js",
     "lint": "eslint . --ext .js"
   },
@@ -49,6 +50,8 @@
   },
   "optionalDependencies": {
     "bullmq": "^5.76.4",
-    "ioredis": "^5.10.1"
+    "ioredis": "^5.10.1",
+    "puppeteer": "^23.10.0",
+    "puppeteer-core": "^23.10.0"
   }
 }

@@ -49,9 +49,10 @@ const campaignSchema = new mongoose.Schema(
           'multiple-links-qr',
           'links-video-qr',
           'links-doc-video-qr',
+          'digital-business-card',
         ],
         message:
-          'campaignType must be one of: ar-card, single-link-qr, multiple-links-qr, links-video-qr, links-doc-video-qr',
+          'campaignType must be one of: ar-card, single-link-qr, multiple-links-qr, links-video-qr, links-doc-video-qr, digital-business-card',
       },
       default: 'ar-card',
       required: true,
@@ -217,6 +218,46 @@ const campaignSchema = new mongoose.Schema(
       },
     },
 
+    /* ── digital-business-card fields ──────────────────────────────────────
+     * Editable, user-owned content / design / print preferences for the
+     * card hub at /card/:cardSlug. Stored as Mixed so rich nested shapes
+     * (sections, gallery rows, etc.) stay flexible — the public surface is
+     * strictly validated by Zod at the edge.
+     * ────────────────────────────────────────────────────────────────────── */
+    cardSlug: {
+      type: String,
+      default: null,
+      index: { unique: true, sparse: true },
+      // Kebab-case, 3–60 chars; validated server-side at Zod edge too.
+      match: [/^[a-z0-9](?:[a-z0-9-]{1,58}[a-z0-9])?$/, 'cardSlug must be kebab-case (3-60 chars)'],
+      lowercase: true,
+      trim: true,
+    },
+    visibility: {
+      type: String,
+      enum: ['public', 'private'],
+      default: 'public',
+    },
+    cardContent: {
+      type: mongoose.Schema.Types.Mixed,
+      default: undefined,
+    },
+    cardDesign: {
+      type: mongoose.Schema.Types.Mixed,
+      default: undefined,
+    },
+    cardPrintSettings: {
+      type: mongoose.Schema.Types.Mixed,
+      default: undefined,
+    },
+
+    /* ── Soft delete ──────────────────────────────────────────────────────
+     * All read paths add `isDeleted: { $ne: true }` to their match. A daily
+     * cron purges Cloudinary assets and hard-deletes after a grace period.
+     * ────────────────────────────────────────────────────────────────────── */
+    isDeleted: { type: Boolean, default: false, index: true },
+    deletedAt: { type: Date, default: null },
+
     status: {
       type: String,
       enum: ['draft', 'active', 'paused'],
@@ -234,6 +275,8 @@ const campaignSchema = new mongoose.Schema(
       docOpenTotals: { type: mongoose.Schema.Types.Mixed, default: undefined },
       /** Denormalized per-videoId play counts for links-doc-video-qr. */
       videoPlayTotals: { type: mongoose.Schema.Types.Mixed, default: undefined },
+      /** Denormalized per-action click counts for digital-business-card. */
+      cardActionTotals: { type: mongoose.Schema.Types.Mixed, default: undefined },
     },
 
     thumbnailUrl: { type: String, default: null },
@@ -253,6 +296,8 @@ campaignSchema.index({ userId: 1, status: 1 });
 // Compound index supports the typical list query: my campaigns of a given
 // type and status, newest first (used by CampaignsListPage filters).
 campaignSchema.index({ userId: 1, campaignType: 1, status: 1, createdAt: -1 });
+// Soft-delete-aware list index: powers `My active <type> campaigns, newest first`.
+campaignSchema.index({ userId: 1, isDeleted: 1, campaignType: 1, updatedAt: -1 });
 
 const Campaign = mongoose.model('Campaign', campaignSchema);
 module.exports = Campaign;

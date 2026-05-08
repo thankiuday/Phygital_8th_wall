@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, Zap, ChevronDown, LayoutDashboard, LogOut } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 import useAuthStore from '../../store/useAuthStore';
+import Icon3D, { ICON3D_PRESETS } from './Icon3D';
 
 const NAV_LINKS = [
   { label: 'Features', to: '/#features' },
@@ -72,9 +73,7 @@ const Navbar = () => {
       <div className="content-width pt-safe flex h-full items-center justify-between px-4 sm:px-6 md:px-8">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2 font-bold" onClick={() => setMobileOpen(false)}>
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-brand shadow-glow">
-            <Zap size={16} className="text-white" />
-          </span>
+          <Icon3D icon={Zap} size={15} className="h-8 w-8" accent={ICON3D_PRESETS.brand} rounded="rounded-lg" />
           <span className="gradient-text text-base sm:text-lg tracking-tight">Phygital8ThWall</span>
         </Link>
 
@@ -106,7 +105,7 @@ const Navbar = () => {
                 to="/dashboard"
                 className="hidden items-center gap-1.5 rounded-xl border border-[var(--border-color)] bg-[var(--glass-bg)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] backdrop-blur-sm transition-colors hover:border-brand-500/50 hover:text-brand-400 md:inline-flex"
               >
-                <LayoutDashboard size={16} />
+                <Icon3D icon={LayoutDashboard} size={12} className="h-6 w-6" accent={ICON3D_PRESETS.violet} rounded="rounded-md" />
                 Dashboard
               </Link>
               <div className="relative hidden md:block" ref={menuRef}>
@@ -150,7 +149,7 @@ const Navbar = () => {
                         onClick={() => setUserMenuOpen(false)}
                         className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
                       >
-                        <LayoutDashboard size={14} />
+                        <Icon3D icon={LayoutDashboard} size={11} className="h-5 w-5" accent={ICON3D_PRESETS.violet} rounded="rounded-md" />
                         Dashboard
                       </Link>
                       <div className="mt-1 border-t border-[var(--border-color)] pt-1">
@@ -159,7 +158,7 @@ const Navbar = () => {
                           onClick={handleLogout}
                           className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-red-400 transition-colors hover:bg-red-500/10"
                         >
-                          <LogOut size={14} />
+                          <Icon3D icon={LogOut} size={11} className="h-5 w-5" accent={ICON3D_PRESETS.rose} rounded="rounded-md" />
                           Sign out
                         </button>
                       </div>
@@ -250,7 +249,7 @@ const Navbar = () => {
                       onClick={() => setMobileOpen(false)}
                       className="flex items-center justify-center gap-2 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-4 py-3 text-sm font-semibold text-[var(--text-primary)] transition-colors hover:border-brand-500/50 hover:text-brand-400"
                     >
-                      <LayoutDashboard size={16} />
+                      <Icon3D icon={LayoutDashboard} size={12} className="h-6 w-6" accent={ICON3D_PRESETS.violet} rounded="rounded-md" />
                       Dashboard
                     </Link>
                     <p className="px-1 text-center text-xs text-[var(--text-muted)]">
@@ -261,7 +260,7 @@ const Navbar = () => {
                       onClick={handleLogout}
                       className="flex items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm font-semibold text-red-400 transition-colors hover:bg-red-500/10"
                     >
-                      <LogOut size={16} />
+                      <Icon3D icon={LogOut} size={12} className="h-6 w-6" accent={ICON3D_PRESETS.rose} rounded="rounded-md" />
                       Sign out
                     </button>
                   </>

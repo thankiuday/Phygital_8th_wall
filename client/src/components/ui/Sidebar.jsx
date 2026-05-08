@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import useAuthStore from '../../store/useAuthStore';
 import { cn } from '../../utils/cn';
+import Icon3D, { ICON3D_PRESETS } from './Icon3D';
 
 /* ── Nav link definitions ────────────────────────────────────────── */
 const NAV_ITEMS = [
@@ -44,7 +45,14 @@ const SidebarLink = ({ to, icon: Icon, label, collapsed, end, onNavigate }) => (
     }
     title={collapsed ? label : undefined}
   >
-    <Icon size={18} className="shrink-0" />
+    <Icon3D
+      icon={Icon}
+      size={14}
+      className="h-7 w-7"
+      accent={ICON3D_PRESETS.violet}
+      muted={collapsed}
+      rounded="rounded-lg"
+    />
     <AnimatePresence>
       {!collapsed && (
         <motion.span
@@ -87,9 +95,7 @@ const Sidebar = ({ collapsed, onCollapse, onNavigate }) => {
       {/* ── Logo ─────────────────────────────────────────────────── */}
       <div className="flex h-16 items-center gap-3 border-b border-[var(--border-color)] px-4">
         <Link to="/" className="flex items-center gap-2.5 shrink-0">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-brand shadow-glow">
-            <Zap size={16} className="text-white" />
-          </span>
+          <Icon3D icon={Zap} size={15} className="h-8 w-8 shrink-0" accent={ICON3D_PRESETS.brand} rounded="rounded-lg" />
           <AnimatePresence>
             {!collapsed && (
               <motion.span
@@ -117,7 +123,7 @@ const Sidebar = ({ collapsed, onCollapse, onNavigate }) => {
           )}
           title={collapsed ? 'Phygitalize now' : undefined}
         >
-          <PlusCircle size={16} className="shrink-0" />
+          <Icon3D icon={PlusCircle} size={13} className="h-7 w-7" accent={ICON3D_PRESETS.emerald} rounded="rounded-lg" />
           <AnimatePresence>
             {!collapsed && (
               <motion.span

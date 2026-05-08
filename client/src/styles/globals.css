@@ -35,6 +35,42 @@
   --brand-light: #8b5cf6;
   --accent: #06b6d4;
 
+  /* Theme-aware Icon3D palettes */
+  --icon3d-brand-1: #7c3aed;
+  --icon3d-brand-2: #8b5cf6;
+  --icon3d-brand-3: #06b6d4;
+  --icon3d-brand-glow: rgba(59, 130, 246, 0.75);
+
+  --icon3d-violet-1: #7c3aed;
+  --icon3d-violet-2: #8b5cf6;
+  --icon3d-violet-3: #d946ef;
+  --icon3d-violet-glow: rgba(124, 58, 237, 0.78);
+
+  --icon3d-cyan-1: #06b6d4;
+  --icon3d-cyan-2: #0ea5e9;
+  --icon3d-cyan-3: #6366f1;
+  --icon3d-cyan-glow: rgba(14, 165, 233, 0.78);
+
+  --icon3d-emerald-1: #10b981;
+  --icon3d-emerald-2: #14b8a6;
+  --icon3d-emerald-3: #06b6d4;
+  --icon3d-emerald-glow: rgba(16, 185, 129, 0.78);
+
+  --icon3d-amber-1: #f59e0b;
+  --icon3d-amber-2: #f97316;
+  --icon3d-amber-3: #ec4899;
+  --icon3d-amber-glow: rgba(245, 158, 11, 0.78);
+
+  --icon3d-rose-1: #f43f5e;
+  --icon3d-rose-2: #ec4899;
+  --icon3d-rose-3: #a855f7;
+  --icon3d-rose-glow: rgba(236, 72, 153, 0.78);
+
+  --icon3d-slate-1: #64748b;
+  --icon3d-slate-2: #475569;
+  --icon3d-slate-3: #334155;
+  --icon3d-slate-glow: rgba(71, 85, 105, 0.55);
+
   /* Glassmorphism — light (avoid white-on-white border; use a slate hairline) */
   --glass-bg: rgba(255, 255, 255, 0.82);
   --glass-border: rgba(51, 65, 85, 0.22);
@@ -90,6 +126,42 @@
   --brand-light: #a78bfa;
   --accent: #22d3ee;
 
+  /* Theme-aware Icon3D palettes (dark) */
+  --icon3d-brand-1: #8b5cf6;
+  --icon3d-brand-2: #a78bfa;
+  --icon3d-brand-3: #22d3ee;
+  --icon3d-brand-glow: rgba(139, 92, 246, 0.72);
+
+  --icon3d-violet-1: #8b5cf6;
+  --icon3d-violet-2: #a78bfa;
+  --icon3d-violet-3: #d946ef;
+  --icon3d-violet-glow: rgba(167, 139, 250, 0.72);
+
+  --icon3d-cyan-1: #22d3ee;
+  --icon3d-cyan-2: #06b6d4;
+  --icon3d-cyan-3: #6366f1;
+  --icon3d-cyan-glow: rgba(34, 211, 238, 0.72);
+
+  --icon3d-emerald-1: #34d399;
+  --icon3d-emerald-2: #2dd4bf;
+  --icon3d-emerald-3: #22d3ee;
+  --icon3d-emerald-glow: rgba(52, 211, 153, 0.72);
+
+  --icon3d-amber-1: #fbbf24;
+  --icon3d-amber-2: #fb923c;
+  --icon3d-amber-3: #f472b6;
+  --icon3d-amber-glow: rgba(251, 191, 36, 0.72);
+
+  --icon3d-rose-1: #fb7185;
+  --icon3d-rose-2: #f472b6;
+  --icon3d-rose-3: #c084fc;
+  --icon3d-rose-glow: rgba(244, 114, 182, 0.72);
+
+  --icon3d-slate-1: #64748b;
+  --icon3d-slate-2: #475569;
+  --icon3d-slate-3: #334155;
+  --icon3d-slate-glow: rgba(100, 116, 139, 0.52);
+
   /* Glassmorphism — dark */
   --glass-bg: rgba(15, 23, 42, 0.6);
   --glass-border: rgba(139, 92, 246, 0.15);
@@ -138,6 +210,42 @@
   --brand: #00d4ff;
   --brand-light: #a855f7;
   --accent: #ec4899;
+
+  /* Theme-aware Icon3D palettes (neon) */
+  --icon3d-brand-1: #00d4ff;
+  --icon3d-brand-2: #a855f7;
+  --icon3d-brand-3: #ec4899;
+  --icon3d-brand-glow: rgba(0, 212, 255, 0.8);
+
+  --icon3d-violet-1: #818cf8;
+  --icon3d-violet-2: #a855f7;
+  --icon3d-violet-3: #ec4899;
+  --icon3d-violet-glow: rgba(168, 85, 247, 0.8);
+
+  --icon3d-cyan-1: #22d3ee;
+  --icon3d-cyan-2: #06b6d4;
+  --icon3d-cyan-3: #818cf8;
+  --icon3d-cyan-glow: rgba(34, 211, 238, 0.8);
+
+  --icon3d-emerald-1: #34d399;
+  --icon3d-emerald-2: #2dd4bf;
+  --icon3d-emerald-3: #22d3ee;
+  --icon3d-emerald-glow: rgba(52, 211, 153, 0.8);
+
+  --icon3d-amber-1: #fbbf24;
+  --icon3d-amber-2: #fb923c;
+  --icon3d-amber-3: #f472b6;
+  --icon3d-amber-glow: rgba(251, 191, 36, 0.8);
+
+  --icon3d-rose-1: #fb7185;
+  --icon3d-rose-2: #ec4899;
+  --icon3d-rose-3: #a855f7;
+  --icon3d-rose-glow: rgba(236, 72, 153, 0.8);
+
+  --icon3d-slate-1: #64748b;
+  --icon3d-slate-2: #475569;
+  --icon3d-slate-3: #334155;
+  --icon3d-slate-glow: rgba(100, 116, 139, 0.5);
 
   /* Glassmorphism */
   --glass-bg: rgba(15, 23, 42, 0.55);

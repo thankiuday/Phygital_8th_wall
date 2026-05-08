@@ -1,6 +1,7 @@
 import { NavLink, Outlet, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { LayoutDashboard, Users, QrCode, ArrowLeft, Shield } from 'lucide-react';
+import Footer from '../../components/ui/Footer';
 
 const TABS = [
   { to: '/admin',           icon: LayoutDashboard, label: 'Overview',  end: true },
@@ -63,6 +64,7 @@ const AdminLayout = () => (
     >
       <Outlet />
     </motion.main>
+    <Footer />
   </div>
 );
 
