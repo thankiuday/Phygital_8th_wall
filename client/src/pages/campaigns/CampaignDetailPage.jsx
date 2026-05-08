@@ -314,9 +314,9 @@ const CampaignDetailPage = () => {
       : trackedRedirectUrl;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-4 p-4 sm:space-y-5 sm:p-6">
+    <div className="mx-auto max-w-4xl min-w-0 max-w-full space-y-4 overflow-x-hidden p-4 sm:space-y-5 sm:p-6">
       {/* ── Header ──────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+      <div className="flex min-w-0 w-full flex-wrap items-center gap-2 sm:gap-3">
         {/* Breadcrumb */}
         <Link
           to="/dashboard/campaigns"
@@ -325,7 +325,7 @@ const CampaignDetailPage = () => {
           <ArrowLeft size={15} /> <span className="hidden xs:inline">Campaigns</span>
         </Link>
         <span className="text-[var(--text-muted)]">/</span>
-        <span className="max-w-[120px] truncate text-sm font-medium text-[var(--text-primary)] sm:max-w-none">
+        <span className="max-w-[140px] truncate text-sm font-medium text-[var(--text-primary)] sm:max-w-none">
           {campaign.campaignName}
         </span>
         <StatusBadge status={campaign.status} />
@@ -402,7 +402,7 @@ const CampaignDetailPage = () => {
         </div>
 
         {/* ── Mobile: condensed icon actions + three-dot overflow ── */}
-        <div className="ml-auto flex items-center gap-1.5 sm:hidden">
+        <div className="ml-auto flex min-w-0 items-center gap-1.5 sm:hidden">
           <Link
             to={`/dashboard/campaigns/${campaign._id}/analytics`}
             className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-brand-500/50 hover:text-brand-400"
@@ -432,12 +432,12 @@ const CampaignDetailPage = () => {
       </div>
 
       {/* ── Content grid ────────────────────────────────────────────── */}
-      <div className="grid gap-4 sm:gap-5 lg:grid-cols-5">
+      <div className="grid min-w-0 max-w-full gap-4 overflow-x-hidden sm:gap-5 lg:grid-cols-5">
         {/* QR Code — full width on mobile, 2/5 on desktop */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          className="glass-card p-5 sm:p-6 lg:col-span-2"
+          className="glass-card min-w-0 overflow-hidden p-4 sm:p-6 lg:col-span-2"
         >
           <div className="mb-4 flex items-center gap-2">
             <QrCode size={18} className="text-brand-400" />
@@ -454,19 +454,19 @@ const CampaignDetailPage = () => {
         </motion.div>
 
         {/* Details — full width on mobile, 3/5 on desktop */}
-        <div className="flex flex-col gap-4 lg:col-span-3">
+        <div className="flex min-w-0 flex-col gap-4 lg:col-span-3">
           {/* Stats */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.05 }}
-            className="grid grid-cols-2 gap-3"
+            className="grid min-w-0 grid-cols-1 gap-3 xs:grid-cols-2"
           >
             {[
               { icon: ScanLine, label: 'Total Scans', value: campaign.analytics?.totalScans ?? 0, color: 'text-brand-400 bg-brand-500/10' },
               { icon: Calendar, label: 'Created', value: new Date(campaign.createdAt).toLocaleDateString(), color: 'text-accent-400 bg-accent-500/10' },
             ].map(({ icon: Icon, label, value, color }) => (
-              <div key={label} className="glass-card p-4">
+              <div key={label} className="glass-card min-w-0 p-4">
                 <div className={`mb-2 flex h-8 w-8 items-center justify-center rounded-lg ${color}`}>
                   <Icon size={16} />
                 </div>
@@ -534,7 +534,7 @@ const CampaignDetailPage = () => {
                 href={campaign.destinationUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block truncate rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-3 py-2 text-sm text-brand-400 hover:underline"
+                className="block max-w-full truncate rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-3 py-2 text-sm text-brand-400 hover:underline"
                 title={campaign.destinationUrl}
               >
                 {campaign.destinationUrl}

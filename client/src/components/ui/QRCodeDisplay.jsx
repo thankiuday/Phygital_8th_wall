@@ -4,6 +4,10 @@ import { Download, Share2, Copy, Check, Loader2, RefreshCw } from 'lucide-react'
 import api from '../../services/api';
 import StyledQrPreview from '../qr/StyledQrPreview';
 
+// Matches the inner content area of the 13rem (208px) card with p-3 (12px each side):
+// 208 - 24 = 184. Keeping renderer dimensions aligned prevents visual drift.
+const QR_PREVIEW_SIZE = 184;
+
 /**
  * QRCodeDisplay — renders the campaign QR code with download + share + copy-link actions.
  *
@@ -39,8 +43,10 @@ const QRCodeDisplay = ({
     if (!isDynamicQr || !shareUrl) return null;
     const design = qrDesign || {};
     return {
-      width: design.width || 256,
-      height: design.height || 256,
+      // Keep preview QR dimensions in lockstep with the visual box on mobile
+      // so dynamic QRs never clip/overflow the card.
+      width: Math.min(design.width || 256, QR_PREVIEW_SIZE),
+      height: Math.min(design.height || 256, QR_PREVIEW_SIZE),
       margin: design.margin ?? 6,
       type: 'svg',
       data: shareUrl,
@@ -158,9 +164,9 @@ const QRCodeDisplay = ({
   const qrReady = isDynamicQr ? Boolean(styledOptions) : Boolean(qrUrl);
 
   return (
-    <div className="flex flex-col items-center gap-5">
+    <div className="flex min-w-0 w-full max-w-full flex-col items-center gap-5 overflow-x-hidden">
       {/* QR image container */}
-      <div className="relative flex h-52 w-52 items-center justify-center rounded-2xl border border-[var(--border-color)] bg-white p-3 shadow-[var(--shadow-md)]">
+      <div className="relative flex h-52 w-52 max-w-full items-center justify-center overflow-hidden rounded-2xl border border-[var(--border-color)] bg-white p-3 shadow-[var(--shadow-md)]">
         {polling ? (
           <div className="flex flex-col items-center gap-2">
             <Loader2 size={32} className="animate-spin text-brand-500" />
@@ -195,7 +201,7 @@ const QRCodeDisplay = ({
       </div>
 
       {/* Action buttons */}
-      <div className="flex flex-wrap justify-center gap-2">
+      <div className="flex w-full flex-wrap justify-center gap-2">
         <button
           onClick={handleDownload}
           disabled={!qrReady}
@@ -214,8 +220,8 @@ const QRCodeDisplay = ({
       </div>
 
       {/* Copy AR link */}
-      <div className="flex w-full max-w-sm items-center gap-2 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] py-1.5 pl-3 pr-1.5">
-        <span className="flex-1 truncate text-xs text-[var(--text-muted)]">{shareUrl}</span>
+      <div className="flex min-w-0 w-full max-w-full items-center gap-2 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] py-1.5 pl-3 pr-1.5 sm:max-w-sm">
+        <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-muted)]">{shareUrl}</span>
         <button
           onClick={handleCopy}
           className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-[var(--surface-3)]"

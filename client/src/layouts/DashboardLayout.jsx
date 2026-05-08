@@ -113,13 +113,13 @@ const DashboardLayout = () => {
         />
 
         {/* Page content — animated on route change */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden">
           <motion.div
             key={location.pathname}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="flex min-h-full flex-col p-4 md:p-6"
+            className="flex min-h-full min-w-0 max-w-full flex-col overflow-x-hidden p-4 md:p-6"
           >
             <div className="flex-1">
               <Outlet />
