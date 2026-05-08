@@ -96,12 +96,19 @@ export const campaignService = {
     return res.data.data.campaign;
   },
 
-  createMultipleLinksCampaign: async ({ campaignName, linkItems, qrDesign, preciseGeoAnalytics }) => {
+  createMultipleLinksCampaign: async ({
+    campaignName,
+    linkItems,
+    qrDesign,
+    preciseGeoAnalytics,
+    redirectSlug,
+  }) => {
     const res = await api.post('/campaigns/multiple-links', {
       campaignName,
       linkItems,
       qrDesign: qrDesign ?? null,
       preciseGeoAnalytics: !!preciseGeoAnalytics,
+      redirectSlug: redirectSlug || undefined,
     });
     return res.data.data.campaign;
   },
@@ -116,6 +123,7 @@ export const campaignService = {
     linkItems,
     qrDesign,
     preciseGeoAnalytics,
+    redirectSlug,
   }) => {
     const payload = {
       campaignName,
@@ -123,6 +131,7 @@ export const campaignService = {
       linkItems,
       qrDesign: qrDesign ?? null,
       preciseGeoAnalytics: !!preciseGeoAnalytics,
+      redirectSlug: redirectSlug || undefined,
     };
 
     if (videoSource === 'upload') {
@@ -151,6 +160,7 @@ export const campaignService = {
     linkItems,
     qrDesign,
     preciseGeoAnalytics,
+    redirectSlug,
   }) => {
     const cleanVideoItems = videoItems
       .filter((vi) => vi && vi.label)
@@ -190,6 +200,7 @@ export const campaignService = {
       linkItems,
       qrDesign: qrDesign ?? null,
       preciseGeoAnalytics: !!preciseGeoAnalytics,
+      redirectSlug: redirectSlug || undefined,
     };
     if (cleanVideoItems.length) payload.videoItems = cleanVideoItems;
     if (cleanDocItems.length) payload.docItems = cleanDocItems;

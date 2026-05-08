@@ -222,6 +222,11 @@ const createMultipleLinksOnlySchema = z
     linkItems: linkItemsField,
     qrDesign: qrDesignSchema.nullable().optional(),
     preciseGeoAnalytics: z.boolean().optional(),
+    redirectSlug: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9]{8}$/, 'redirectSlug must be 8 alphanumeric characters')
+      .optional(),
   })
   .strict();
 
@@ -279,6 +284,11 @@ const createLinksVideoOnlySchema = z
     linkItems: linkItemsField,
     qrDesign: qrDesignSchema.nullable().optional(),
     preciseGeoAnalytics: z.boolean().optional(),
+    redirectSlug: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9]{8}$/, 'redirectSlug must be 8 alphanumeric characters')
+      .optional(),
   })
   .strict()
   .superRefine((data, ctx) => {
@@ -438,6 +448,11 @@ const createLinksDocVideoOnlySchema = z
     linkItems: linkItemsField,
     qrDesign: qrDesignSchema.nullable().optional(),
     preciseGeoAnalytics: z.boolean().optional(),
+    redirectSlug: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9]{8}$/, 'redirectSlug must be 8 alphanumeric characters')
+      .optional(),
   })
   .strict()
   .superRefine((data, ctx) => {

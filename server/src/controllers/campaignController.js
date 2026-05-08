@@ -216,7 +216,13 @@ const pruneLinkClickTotals = (totals, linkIds) => {
 };
 
 const createMultipleLinksCampaign = async (req, res) => {
-  const { campaignName, linkItems, qrDesign, preciseGeoAnalytics } = req.body;
+  const {
+    campaignName,
+    linkItems,
+    qrDesign,
+    preciseGeoAnalytics,
+    redirectSlug: requestedRedirectSlug,
+  } = req.body;
 
   if (qrDesign && JSON.stringify(qrDesign).length > MAX_QR_DESIGN_BYTES) {
     throw new AppError(
@@ -226,7 +232,13 @@ const createMultipleLinksCampaign = async (req, res) => {
   }
 
   const persistedItems = await persistLinkItemsFromBody(linkItems);
-  const redirectSlug = await generateUniqueSlug();
+  let redirectSlug = requestedRedirectSlug || null;
+  if (redirectSlug) {
+    const exists = await Campaign.exists({ redirectSlug });
+    if (exists) throw new AppError('Generated QR slug expired. Please retry once.', 409);
+  } else {
+    redirectSlug = await generateUniqueSlug();
+  }
 
   const campaign = await Campaign.create({
     userId: req.user._id,
@@ -385,6 +397,7 @@ const createLinksDocVideoCampaign = async (req, res) => {
     linkItems,
     qrDesign,
     preciseGeoAnalytics,
+    redirectSlug: requestedRedirectSlug,
   } = req.body;
 
   if (qrDesign && JSON.stringify(qrDesign).length > MAX_QR_DESIGN_BYTES) {
@@ -399,7 +412,13 @@ const createLinksDocVideoCampaign = async (req, res) => {
     persistVideoItemsFromBody(videoItems, videoSource),
     persistDocItemsFromBody(docItems),
   ]);
-  const redirectSlug = await generateUniqueSlug();
+  let redirectSlug = requestedRedirectSlug || null;
+  if (redirectSlug) {
+    const exists = await Campaign.exists({ redirectSlug });
+    if (exists) throw new AppError('Generated QR slug expired. Please retry once.', 409);
+  } else {
+    redirectSlug = await generateUniqueSlug();
+  }
 
   const campaign = await Campaign.create({
     userId: req.user._id,
@@ -653,6 +672,7 @@ const createLinksVideoCampaign = async (req, res) => {
     linkItems,
     qrDesign,
     preciseGeoAnalytics,
+    redirectSlug: requestedRedirectSlug,
   } = req.body;
 
   if (qrDesign && JSON.stringify(qrDesign).length > MAX_QR_DESIGN_BYTES) {
@@ -663,7 +683,13 @@ const createLinksVideoCampaign = async (req, res) => {
   }
 
   const persistedItems = await persistLinkItemsFromBody(linkItems);
-  const redirectSlug = await generateUniqueSlug();
+  let redirectSlug = requestedRedirectSlug || null;
+  if (redirectSlug) {
+    const exists = await Campaign.exists({ redirectSlug });
+    if (exists) throw new AppError('Generated QR slug expired. Please retry once.', 409);
+  } else {
+    redirectSlug = await generateUniqueSlug();
+  }
 
   const campaign = await Campaign.create({
     userId: req.user._id,
