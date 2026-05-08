@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import {
@@ -218,11 +218,23 @@ const Step2DesignQr = ({
   isSubmitting,
   submitError,
 }) => {
+  const rootRef = useRef(null);
   const canPortal = typeof window !== 'undefined' && !!window.document?.body;
   const [previewMode, setPreviewMode] = useState('preview'); // 'preview' | 'qr'
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
   const [logoError, setLogoError] = useState('');
   const downloadRef = useRef(null);
+
+  useEffect(() => {
+    // Step transition stays on the same route, so explicitly reset scroll
+    // to the top of the wizard + scroll container when Step 2 mounts.
+    rootRef.current?.scrollIntoView({ block: 'start', behavior: 'auto' });
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    const main = window.document.querySelector('main');
+    if (main && typeof main.scrollTo === 'function') {
+      main.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    }
+  }, []);
 
   // Debounce the design state so dragging the colour pickers doesn't thrash
   // the QR canvas (qr-code-styling re-renders on every update call).
@@ -392,7 +404,7 @@ const Step2DesignQr = ({
   );
 
   return (
-    <div className="grid min-w-0 max-w-full gap-6 overflow-x-hidden lg:grid-cols-[minmax(0,1fr)_360px]">
+    <div ref={rootRef} className="grid min-w-0 max-w-full gap-6 overflow-x-hidden lg:grid-cols-[minmax(0,1fr)_360px]">
       {/* ── Left column: controls ────────────────────────────────── */}
       <div className="min-w-0 space-y-4 pb-20 lg:pb-0">
         <div>
