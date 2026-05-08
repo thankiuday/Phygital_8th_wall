@@ -41,7 +41,7 @@ const Step2Design = ({ draft, store, onContinue, onBack }) => {
   const d = draft.cardDesign;
 
   return (
-    <div>
+    <div className="min-w-0 overflow-x-hidden">
       <div className="mb-6">
         <h3 className="text-lg font-semibold text-[var(--text-primary)]">Design</h3>
         <p className="text-sm text-[var(--text-secondary)]">
@@ -49,7 +49,7 @@ const Step2Design = ({ draft, store, onContinue, onBack }) => {
         </p>
       </div>
 
-      <section className="space-y-3 rounded-xl border border-[var(--border-color)] p-4">
+      <section className="space-y-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4">
         <h4 className="text-sm font-semibold text-[var(--text-primary)]">Template</h4>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {CARD_TEMPLATES.map((tpl) => {
@@ -80,13 +80,13 @@ const Step2Design = ({ draft, store, onContinue, onBack }) => {
         </div>
       </section>
 
-      <section className="mt-4 grid grid-cols-1 gap-3 rounded-xl border border-[var(--border-color)] p-4 sm:grid-cols-3">
+      <section className="mt-4 grid grid-cols-1 gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4 sm:grid-cols-3">
         <ColorRow label="Primary" value={d.colors?.primary || '#3b82f6'} onChange={(v) => store.patchDesign({ colors: { ...d.colors, primary: v } })} />
         <ColorRow label="Secondary" value={d.colors?.secondary || '#1d4ed8'} onChange={(v) => store.patchDesign({ colors: { ...d.colors, secondary: v } })} />
         <ColorRow label="Background" value={d.colors?.background || '#030712'} onChange={(v) => store.patchDesign({ colors: { ...d.colors, background: v } })} />
       </section>
 
-      <section className="mt-4 grid grid-cols-1 gap-3 rounded-xl border border-[var(--border-color)] p-4 sm:grid-cols-2">
+      <section className="mt-4 grid grid-cols-1 gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4 sm:grid-cols-2">
         <div>
           <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Font</h4>
           <div className="flex flex-wrap gap-2">

@@ -115,7 +115,7 @@ const DigitalCardPublicPage = () => {
   const { cardContent, cardDesign, paused, campaignName } = state.data;
 
   return (
-    <div className="min-h-screen bg-slate-950 px-4 py-8 sm:py-12">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#0f172a,_#020617_50%,_#000_100%)] px-3 py-6 sm:px-4 sm:py-10">
       <Helmet>
         <title>{cardContent?.fullName || campaignName} – Digital Business Card</title>
         <meta name="description" content={cardContent?.bio || campaignName} />
@@ -125,18 +125,20 @@ const DigitalCardPublicPage = () => {
         )}
       </Helmet>
 
-      <div className="mx-auto max-w-md">
+      <div className="mx-auto w-full max-w-2xl">
         {paused && (
           <div className="mb-3 rounded-md bg-amber-500/10 p-3 text-xs text-amber-300">
             This card is currently paused by its owner.
           </div>
         )}
-        <BusinessCardLivePreview
-          content={cardContent}
-          design={cardDesign}
-          mode="public"
-          onAction={onAction}
-        />
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-2 shadow-2xl backdrop-blur-sm sm:p-4">
+          <BusinessCardLivePreview
+            content={cardContent}
+            design={cardDesign}
+            mode="public"
+            onAction={onAction}
+          />
+        </div>
         <p className="mt-3 text-center text-[11px] text-slate-500">
           Powered by Phygital8thWall
         </p>

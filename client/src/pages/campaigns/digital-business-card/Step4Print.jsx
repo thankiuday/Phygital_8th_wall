@@ -179,7 +179,7 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
   const pending = front.status === 'pending' || back.status === 'pending';
 
   return (
-    <div>
+    <div className="min-w-0 overflow-x-hidden">
       <div className="mb-6">
         <h3 className="text-lg font-semibold text-[var(--text-primary)]">Print</h3>
         <p className="text-sm text-[var(--text-secondary)]">
@@ -187,7 +187,7 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
         </p>
       </div>
 
-      <section className="space-y-3 rounded-xl border border-[var(--border-color)] p-4">
+      <section className="space-y-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4">
         <h4 className="text-sm font-semibold text-[var(--text-primary)]">Card Size</h4>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {CARD_SIZE_IDS.map((id) => {
@@ -210,7 +210,7 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
         </div>
       </section>
 
-      <section className="mt-4 grid grid-cols-1 gap-4 rounded-xl border border-[var(--border-color)] p-4 sm:grid-cols-2">
+      <section className="mt-4 grid grid-cols-1 gap-4 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4 sm:grid-cols-2">
         <div>
           <h4 className="mb-2 text-sm font-semibold text-[var(--text-primary)]">QR Code</h4>
           <label className="mb-2 flex items-center gap-2 text-xs text-[var(--text-secondary)]">
@@ -265,7 +265,7 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
         </div>
       </section>
 
-      <section className="mt-4 grid grid-cols-1 gap-3 rounded-xl border border-[var(--border-color)] p-4 sm:grid-cols-3">
+      <section className="mt-4 grid grid-cols-1 gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4 sm:grid-cols-3">
         <label className="space-y-1">
           <span className="block text-xs font-medium text-[var(--text-secondary)]">Profile zoom</span>
           <input

@@ -627,7 +627,9 @@ const renderCampaignCardImage = async (req, res) => {
   const renderFace = (face) => renderCardPng({
     campaignId: String(campaign._id),
     userId: String(req.user._id),
-    cardSlug: campaign.cardSlug || campaign.redirectSlug,
+    // Printed QR must always encode immutable redirectSlug; cardSlug is only
+    // for friendly public URLs and can be renamed later.
+    cardSlug: campaign.redirectSlug || campaign.cardSlug,
     size,
     face,
     renderHash: buildCardRenderHash(campaign, { cardSize: size }, face),

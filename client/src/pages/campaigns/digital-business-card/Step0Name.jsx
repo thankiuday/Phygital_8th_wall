@@ -26,7 +26,7 @@ const Step0Name = ({
         </p>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-2 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4">
         <label htmlFor="card-campaign-name" className="text-sm font-medium text-[var(--text-secondary)]">
           Card name
         </label>

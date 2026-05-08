@@ -21,4 +21,21 @@ const publicApi = axios.create({
   transformResponse: [(data) => data],
 });
 
+const normalizeResponseData = (data) => {
+  if (typeof data !== 'string') return data;
+  const trimmed = data.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith('<')) return data;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return data;
+  }
+};
+
+publicApi.interceptors.response.use((res) => {
+  res.data = normalizeResponseData(res.data);
+  return res;
+});
+
 export default publicApi;

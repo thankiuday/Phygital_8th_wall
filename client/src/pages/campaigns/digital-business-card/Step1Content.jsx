@@ -278,7 +278,7 @@ const Step1Content = ({ draft, store, onContinue, onBack }) => {
   const canContinue = trimmed.length > 0;
 
   return (
-    <div>
+    <div className="min-w-0 overflow-x-hidden">
       <div className="mb-6">
         <h3 className="text-lg font-semibold text-[var(--text-primary)]">Content</h3>
         <p className="text-sm text-[var(--text-secondary)]">
@@ -288,7 +288,7 @@ const Step1Content = ({ draft, store, onContinue, onBack }) => {
 
       <div className="space-y-6">
         {/* Profile images */}
-        <section className="space-y-3 rounded-xl border border-[var(--border-color)] p-4">
+        <section className="space-y-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4">
           <h4 className="text-sm font-semibold text-[var(--text-primary)]">Profile Images</h4>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
@@ -341,7 +341,7 @@ const Step1Content = ({ draft, store, onContinue, onBack }) => {
         </section>
 
         {/* Profile info */}
-        <section className="space-y-3 rounded-xl border border-[var(--border-color)] p-4">
+        <section className="space-y-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4">
           <h4 className="text-sm font-semibold text-[var(--text-primary)]">Profile Info</h4>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
@@ -398,7 +398,7 @@ const Step1Content = ({ draft, store, onContinue, onBack }) => {
         </section>
 
         {/* Contact info */}
-        <section className="space-y-3 rounded-xl border border-[var(--border-color)] p-4">
+        <section className="space-y-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4">
           <h4 className="text-sm font-semibold text-[var(--text-primary)]">Contact Info</h4>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <input type="tel" className="form-input" placeholder="Phone" value={c.contact?.phone || ''} onChange={(e) => store.patchContact({ phone: e.target.value })} />
@@ -410,7 +410,7 @@ const Step1Content = ({ draft, store, onContinue, onBack }) => {
         </section>
 
         {/* Socials */}
-        <section className="space-y-3 rounded-xl border border-[var(--border-color)] p-4">
+        <section className="space-y-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4">
           <h4 className="text-sm font-semibold text-[var(--text-primary)]">Social Links</h4>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {SOCIAL_PLATFORMS.map((p) => (
@@ -427,7 +427,7 @@ const Step1Content = ({ draft, store, onContinue, onBack }) => {
         </section>
 
         {/* Sections */}
-        <section className="space-y-3 rounded-xl border border-[var(--border-color)] p-4">
+        <section className="space-y-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-semibold text-[var(--text-primary)]">Sections</h4>
             <div className="flex flex-wrap gap-2">

@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, ChevronLeft } from 'lucide-react';
+import { createPortal } from 'react-dom';
 
 import useAuthStore from '../../store/useAuthStore';
 import useDigitalCardDraftStore from '../../store/useDigitalCardDraftStore';
@@ -46,6 +47,7 @@ const DigitalBusinessCardWizard = () => {
   // Print-preview face toggle (front | back). Local state — never persisted,
   // since it's purely a UI affordance for Step 4.
   const [printFace, setPrintFace] = useState('front');
+  const canGoBack = draft.step > 0;
 
   // First-time visitors get an auto-seeded name. Don't clobber whatever the
   // user typed (or what's already saved in localStorage).
@@ -164,8 +166,74 @@ const DigitalBusinessCardWizard = () => {
     }
   }, [draft.step, draft]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const mobileChrome = typeof window !== 'undefined'
+    ? createPortal(
+      <>
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--border-color)] bg-[var(--surface-1)]/95 p-3 backdrop-blur lg:hidden">
+          <div className="mx-auto flex max-w-7xl items-center gap-2">
+            <button
+              type="button"
+              disabled={!canGoBack}
+              onClick={() => canGoBack && goTo(draft.step - 1)}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-[var(--border-color)] px-4 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-2)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <ChevronLeft size={16} />
+              Back
+            </button>
+            <button
+              type="button"
+              onClick={() => setPreviewOpen((s) => !s)}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white shadow-glow hover:bg-brand-400"
+            >
+              {previewOpen ? <EyeOff size={14} /> : <Eye size={14} />}
+              {previewOpen ? 'Hide preview' : 'Live preview'}
+            </button>
+          </div>
+        </div>
+
+        <AnimatePresence>
+          {previewOpen && (
+            <>
+              <motion.button
+                type="button"
+                aria-label="Close preview"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setPreviewOpen(false)}
+                className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+              />
+              <motion.div
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 24 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="fixed inset-x-3 top-[8vh] z-50 max-h-[80vh] overflow-auto rounded-2xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4 shadow-2xl lg:hidden"
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                    {draft.step === 4 ? 'Print Preview' : 'Live Preview'}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewOpen(false)}
+                    className="rounded-md border border-[var(--border-color)] px-2 py-1 text-xs text-[var(--text-secondary)]"
+                  >
+                    Close
+                  </button>
+                </div>
+                {renderPreviewBody()}
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+      </>,
+      document.body
+    )
+    : null;
+
   return (
-    <div className="mx-auto max-w-7xl">
+    <div className="mx-auto max-w-7xl min-w-0 overflow-x-hidden pb-24 lg:pb-0">
       <div className="mb-6">
         <h2 className="text-xl font-bold text-[var(--text-primary)]">Personalized Identity Card</h2>
         <p className="text-sm text-[var(--text-secondary)]">
@@ -175,9 +243,9 @@ const DigitalBusinessCardWizard = () => {
 
       <WizardStepBar steps={STEPS} currentStep={draft.step} className="mb-6" />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         {/* Left: form */}
-        <div className="glass-card p-4 md:p-6">
+        <div className="glass-card min-w-0 p-4 md:p-6">
           <AnimatePresence mode="wait">
             <motion.div
               key={draft.step}
@@ -192,7 +260,7 @@ const DigitalBusinessCardWizard = () => {
         </div>
 
         {/* Right: sticky live preview (lg+) */}
-        <div className="hidden lg:block">
+        <div className="hidden min-w-0 lg:block">
           <div className="sticky top-24 space-y-2">
             <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
               {draft.step === 4 ? 'Print Preview' : 'Live Preview'}
@@ -207,29 +275,7 @@ const DigitalBusinessCardWizard = () => {
         </div>
       </div>
 
-      {/* Mobile preview drawer */}
-      <button
-        type="button"
-        onClick={() => setPreviewOpen((s) => !s)}
-        className="fixed bottom-4 right-4 z-30 inline-flex items-center gap-2 rounded-full bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white shadow-glow lg:hidden"
-      >
-        {previewOpen ? <EyeOff size={14} /> : <Eye size={14} />}
-        Preview
-      </button>
-      <AnimatePresence>
-        {previewOpen && (
-          <motion.div
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 26, stiffness: 220 }}
-            className="fixed inset-x-0 bottom-0 z-40 max-h-[85vh] overflow-y-auto rounded-t-2xl border-t border-[var(--border-color)] bg-[var(--surface-1)] p-4 shadow-2xl lg:hidden"
-          >
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[var(--border-color)]" />
-            {renderPreviewBody()}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {mobileChrome}
     </div>
   );
 };
