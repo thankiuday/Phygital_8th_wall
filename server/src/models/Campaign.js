@@ -226,7 +226,10 @@ const campaignSchema = new mongoose.Schema(
      * ────────────────────────────────────────────────────────────────────── */
     cardSlug: {
       type: String,
-      default: null,
+      // Important: keep this undefined (not null). With a sparse+unique index,
+      // `null` is still indexed and causes duplicate key errors on non-card
+      // campaigns that don't use cardSlug.
+      default: undefined,
       index: { unique: true, sparse: true },
       // Kebab-case, 3–60 chars; validated server-side at Zod edge too.
       match: [/^[a-z0-9](?:[a-z0-9-]{1,58}[a-z0-9])?$/, 'cardSlug must be kebab-case (3-60 chars)'],
