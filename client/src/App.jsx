@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import useThemeStore, { applyThemeClass } from './store/useThemeStore';
 import useAuthStore from './store/useAuthStore';
@@ -57,6 +57,14 @@ const RouteLoader = ({ children }) => (
   </Suspense>
 );
 
+const ScrollToTop = () => {
+  const location = useLocation();
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [location.pathname]);
+  return null;
+};
+
 /**
  * App — root component.
  *
@@ -81,6 +89,7 @@ function App() {
     <HelmetProvider>
       <ErrorBoundary>
         <BrowserRouter>
+          <ScrollToTop />
           <Routes>
             {/* ── Public marketing pages ────────────────────────────── */}
             <Route element={<PublicLayout />}>

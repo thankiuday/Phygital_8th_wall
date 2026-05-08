@@ -391,14 +391,6 @@ const CampaignDetailPage = () => {
             {campaign.status === 'active' ? <Pause size={14} /> : <Play size={14} />}
             {campaign.status === 'active' ? 'Pause' : 'Activate'}
           </button>
-          <ActionMenu
-            campaign={campaign}
-            actionLoading={actionLoading}
-            onEdit={() => setShowEdit(true)}
-            onDuplicate={handleDuplicate}
-            onToggleStatus={toggleStatus}
-            onDelete={handleDelete}
-          />
         </div>
 
         {/* ── Mobile: condensed icon actions + three-dot overflow ── */}

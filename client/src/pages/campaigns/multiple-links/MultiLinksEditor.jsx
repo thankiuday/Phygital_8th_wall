@@ -56,6 +56,18 @@ const MultiLinksEditor = ({ rows, onRowsChange, error }) => {
     onRowsChange(rows.filter((r) => r.key !== key));
   };
 
+  const valuePlaceholderForKind = (kind) => {
+    if (kind === 'contact') return '+1 555 123 4567';
+    if (kind === 'whatsapp') return '+91 98765 43210';
+    if (kind === 'instagram') return '@yourhandle or https://instagram.com/yourhandle';
+    if (kind === 'facebook') return 'https://facebook.com/yourpage';
+    if (kind === 'twitter') return '@yourhandle or https://x.com/yourhandle';
+    if (kind === 'linkedin') return 'https://linkedin.com/in/yourprofile';
+    if (kind === 'website') return 'https://example.com';
+    if (kind === 'tiktok') return '@yourhandle or https://tiktok.com/@yourhandle';
+    return 'https://example.com';
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <div>
@@ -124,11 +136,9 @@ const MultiLinksEditor = ({ rows, onRowsChange, error }) => {
                   value={row.value}
                   onChange={(e) => updateRow(row.key, { value: e.target.value })}
                   placeholder={
-                    row.kind === 'instagram'
-                      ? 'username'
-                      : row.kind === 'website' || row.kind === 'custom'
-                        ? 'https://…'
-                        : ''
+                    row.kind === 'website' || row.kind === 'custom'
+                      ? 'https://example.com'
+                      : valuePlaceholderForKind(row.kind)
                   }
                 />
                 <p className="text-xs text-[var(--text-muted)]">{row.label}</p>

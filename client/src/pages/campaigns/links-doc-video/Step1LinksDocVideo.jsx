@@ -612,12 +612,15 @@ const Step1LinksDocVideo = ({
       <FormInput
         id="linksDocVideoCampaignName"
         label="Campaign name"
+        placeholder="e.g. Investor Resources Hub"
         value={campaignName}
         onChange={(e) => {
           setNameError('');
           onCampaignNameChange(e.target.value);
         }}
         error={nameError}
+        maxLength={100}
+        required
         hint={(
           <button
             type="button"
@@ -752,6 +755,7 @@ const Step1LinksDocVideo = ({
       <button
         type="button"
         onClick={handleContinue}
+        disabled={!campaignName.trim()}
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-600 to-accent-600 py-3.5 text-sm font-semibold text-white shadow-glow transition hover:opacity-95"
       >
         Continue to design

@@ -44,6 +44,18 @@ const HUB_CAMPAIGN_TYPES = [
 /** Hub types that can ship hero/video assets and therefore accept video beacons. */
 const VIDEO_CAPABLE_HUB_TYPES = ['links-video-qr', 'links-doc-video-qr'];
 
+const classifyBrowserFromUa = (ua = '') => {
+  const u = String(ua || '').toLowerCase();
+  if (!u.trim()) return 'unknown';
+  if (u.includes('samsungbrowser')) return 'Samsung';
+  if (u.includes('edg/')) return 'Edge';
+  if (u.includes('opr/') || u.includes('opera')) return 'Opera';
+  if (u.includes('firefox/')) return 'Firefox';
+  if (u.includes('crios/') || u.includes('chrome/')) return 'Chrome';
+  if (u.includes('safari/') && !u.includes('chrome/') && !u.includes('crios/')) return 'Safari';
+  return 'Other';
+};
+
 /* ── Generous rate limit — AR scans can come in bursts ──────────── */
 const publicLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
@@ -86,6 +98,9 @@ router.post('/campaigns/:id/scan', publicLimiter, async (req, res) => {
   }
 
   const { deviceType = 'unknown', browser = 'unknown', visitorHash } = req.body;
+  const resolvedBrowser = typeof browser === 'string' && browser.trim()
+    ? browser.trim()
+    : classifyBrowserFromUa(req.get('user-agent'));
 
   // Create scan event
   await ScanEvent.create({
@@ -93,7 +108,7 @@ router.post('/campaigns/:id/scan', publicLimiter, async (req, res) => {
     userId: campaign.userId,
     visitorHash,
     deviceType,
-    browser,
+    browser: resolvedBrowser,
     scannedAt: new Date(),
   });
 

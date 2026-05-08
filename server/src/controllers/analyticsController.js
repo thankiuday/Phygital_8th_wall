@@ -39,6 +39,65 @@ const CARD_ACTION_KEYS = [
   'galleryView', 'videoPlay', 'docOpen', 'cta', 'print-download',
 ];
 
+const DEFAULT_ANALYTICS_TZ = process.env.ANALYTICS_TIMEZONE || 'UTC';
+const normalizeTimeZone = (tz) => {
+  if (typeof tz !== 'string' || !tz.trim()) return DEFAULT_ANALYTICS_TZ;
+  const value = tz.trim();
+  try {
+    // Validate IANA timezone.
+    Intl.DateTimeFormat('en-US', { timeZone: value }).format(new Date());
+    return value;
+  } catch {
+    return DEFAULT_ANALYTICS_TZ;
+  }
+};
+
+const formatDateInTz = (date, timeZone) => new Intl.DateTimeFormat('en-CA', {
+  timeZone,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+}).format(date);
+
+const fillDailySeries = (rows, since, timeZone, valueKeys) => {
+  const byDate = new Map(rows.map((r) => [r.date, r]));
+  const result = [];
+  const cursor = new Date(since);
+  const end = new Date();
+  while (cursor <= end) {
+    const key = formatDateInTz(cursor, timeZone);
+    const found = byDate.get(key);
+    if (found) {
+      result.push(found);
+    } else {
+      const zeroRow = { date: key };
+      for (const valueKey of valueKeys) zeroRow[valueKey] = 0;
+      result.push(zeroRow);
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return result;
+};
+
+const browserNameProjectStage = {
+  $addFields: {
+    browserName: {
+      $switch: {
+        branches: [
+          { case: { $regexMatch: { input: '$browser', regex: /SamsungBrowser/i } }, then: 'Samsung' },
+          { case: { $regexMatch: { input: '$browser', regex: /OPR|Opera/i } }, then: 'Opera' },
+          { case: { $regexMatch: { input: '$browser', regex: /Firefox/i } }, then: 'Firefox' },
+          { case: { $regexMatch: { input: '$browser', regex: /Edg|Edge/i } }, then: 'Edge' },
+          { case: { $regexMatch: { input: '$browser', regex: /CriOS|Chrome/i } }, then: 'Chrome' },
+          { case: { $regexMatch: { input: '$browser', regex: /Safari/i } }, then: 'Safari' },
+          { case: { $regexMatch: { input: '$browser', regex: /FBAN|FBAV|Instagram|Threads/i } }, then: 'In-App Browser' },
+        ],
+        default: 'Other',
+      },
+    },
+  },
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -60,7 +119,7 @@ const periodDays = (period) => {
  * @param {Date}   since
  * @returns {Promise<Array<{date, scans, uniqueScans}>>}
  */
-const buildScanTrend = async (matchStage, since) => {
+const buildScanTrend = async (matchStage, since, timeZone) => {
   const trend = await ScanEvent.aggregate([
     {
       $match: {
@@ -71,7 +130,7 @@ const buildScanTrend = async (matchStage, since) => {
     {
       $group: {
         _id: {
-          $dateToString: { format: '%Y-%m-%d', date: '$scannedAt' },
+          $dateToString: { format: '%Y-%m-%d', date: '$scannedAt', timezone: timeZone },
         },
         scans: { $sum: 1 },
         uniqueScans: { $addToSet: '$visitorHash' },
@@ -88,28 +147,18 @@ const buildScanTrend = async (matchStage, since) => {
     { $sort: { date: 1 } },
   ]);
 
-  // Fill in days with zero scans so the chart has continuous data
-  const result = [];
-  const days = Math.round((Date.now() - since.getTime()) / 86_400_000);
-  for (let i = 0; i <= days; i++) {
-    const d = new Date(since);
-    d.setDate(d.getDate() + i);
-    const dateStr = d.toISOString().slice(0, 10);
-    const found = trend.find((t) => t.date === dateStr);
-    result.push(found || { date: dateStr, scans: 0, uniqueScans: 0 });
-  }
-  return result;
+  return fillDailySeries(trend, since, timeZone, ['scans', 'uniqueScans']);
 };
 
 /**
  * buildHourlyHeatmap — counts scans for each hour of the day (0–23).
  */
-const buildHourlyHeatmap = async (matchStage, since) => {
+const buildHourlyHeatmap = async (matchStage, since, timeZone) => {
   const raw = await ScanEvent.aggregate([
     { $match: { ...matchStage, scannedAt: { $gte: since } } },
     {
       $group: {
-        _id: { $hour: '$scannedAt' },
+        _id: { $hour: { date: '$scannedAt', timezone: timeZone } },
         count: { $sum: 1 },
       },
     },
@@ -126,6 +175,7 @@ exports.getOverview = async (req, res) => {
   const days  = periodDays(req.query.period);
   const since = daysAgo(days);
   const uid   = new mongoose.Types.ObjectId(req.user._id);
+  const timeZone = normalizeTimeZone(req.query.timezone);
 
   const match = { userId: uid };
 
@@ -195,24 +245,7 @@ exports.getOverview = async (req, res) => {
     // ── Browser breakdown ──────────────────────────────────────────────────
     ScanEvent.aggregate([
       { $match: { ...match, scannedAt: { $gte: since } } },
-      {
-        $addFields: {
-          // Simplified browser name from user-agent string
-          browserName: {
-            $switch: {
-              branches: [
-                { case: { $regexMatch: { input: '$browser', regex: /SamsungBrowser/i } }, then: 'Samsung' },
-                { case: { $regexMatch: { input: '$browser', regex: /OPR|Opera/i } }, then: 'Opera' },
-                { case: { $regexMatch: { input: '$browser', regex: /Firefox/i } }, then: 'Firefox' },
-                { case: { $regexMatch: { input: '$browser', regex: /Edg/i } }, then: 'Edge' },
-                { case: { $regexMatch: { input: '$browser', regex: /Chrome/i } }, then: 'Chrome' },
-                { case: { $regexMatch: { input: '$browser', regex: /Safari/i } }, then: 'Safari' },
-              ],
-              default: 'Other',
-            },
-          },
-        },
-      },
+      browserNameProjectStage,
       { $group: { _id: '$browserName', count: { $sum: 1 } } },
       { $project: { _id: 0, browser: '$_id', count: 1 } },
       { $sort: { count: -1 } },
@@ -252,10 +285,10 @@ exports.getOverview = async (req, res) => {
     ]),
 
     // ── Scan trend ─────────────────────────────────────────────────────────
-    buildScanTrend(match, since),
+    buildScanTrend(match, since, timeZone),
 
     // ── Hourly heatmap ─────────────────────────────────────────────────────
-    buildHourlyHeatmap(match, since),
+    buildHourlyHeatmap(match, since, timeZone),
   ]);
 
   const allTime = totals[0]?.allTime[0] || {
@@ -283,6 +316,7 @@ exports.getCampaignAnalytics = async (req, res) => {
   const since = daysAgo(days);
   const uid   = new mongoose.Types.ObjectId(req.user._id);
   const cid   = new mongoose.Types.ObjectId(req.params.id);
+  const timeZone = normalizeTimeZone(req.query.timezone);
 
   // Verify the campaign belongs to this user
   const campaign = await Campaign.findOne(
@@ -368,30 +402,14 @@ exports.getCampaignAnalytics = async (req, res) => {
 
     ScanEvent.aggregate([
       { $match: { ...match, scannedAt: { $gte: since } } },
-      {
-        $addFields: {
-          browserName: {
-            $switch: {
-              branches: [
-                { case: { $regexMatch: { input: '$browser', regex: /SamsungBrowser/i } }, then: 'Samsung' },
-                { case: { $regexMatch: { input: '$browser', regex: /OPR|Opera/i } }, then: 'Opera' },
-                { case: { $regexMatch: { input: '$browser', regex: /Firefox/i } }, then: 'Firefox' },
-                { case: { $regexMatch: { input: '$browser', regex: /Edg/i } }, then: 'Edge' },
-                { case: { $regexMatch: { input: '$browser', regex: /Chrome/i } }, then: 'Chrome' },
-                { case: { $regexMatch: { input: '$browser', regex: /Safari/i } }, then: 'Safari' },
-              ],
-              default: 'Other',
-            },
-          },
-        },
-      },
+      browserNameProjectStage,
       { $group: { _id: '$browserName', count: { $sum: 1 } } },
       { $project: { _id: 0, browser: '$_id', count: 1 } },
       { $sort: { count: -1 } },
     ]),
 
-    buildScanTrend(match, since),
-    buildHourlyHeatmap(match, since),
+    buildScanTrend(match, since, timeZone),
+    buildHourlyHeatmap(match, since, timeZone),
     ScanEvent.aggregate([
       { $match: { ...match, scannedAt: { $gte: since } } },
       {
@@ -457,7 +475,7 @@ exports.getCampaignAnalytics = async (req, res) => {
         { $match: clickMatchPeriod },
         {
           $group: {
-            _id: { $dateToString: { format: '%Y-%m-%d', date: '$clickedAt' } },
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$clickedAt', timezone: timeZone } },
             clicks: { $sum: 1 },
           },
         },
@@ -475,7 +493,7 @@ exports.getCampaignAnalytics = async (req, res) => {
     multiLinkAnalytics = {
       clicksByLinkPeriod: attachLabels(clicksByLinkPeriod),
       clicksByLinkAllTime: attachLabels(clicksByLinkAllTime),
-      clickTrend,
+      clickTrend: fillDailySeries(clickTrend, since, timeZone, ['clicks']),
     };
   }
 
@@ -551,7 +569,13 @@ exports.getCampaignAnalytics = async (req, res) => {
         { $match: periodVideoMatch },
         {
           $group: {
-            _id: { $dateToString: { format: '%Y-%m-%d', date: `$${dateField}` } },
+            _id: {
+              $dateToString: {
+                format: '%Y-%m-%d',
+                date: `$${dateField}`,
+                timezone: timeZone,
+              },
+            },
             plays: { $sum: 1 },
             completions: { $sum: { $cond: [{ $gte: [watchPercentField, 95] }, 1, 0] } },
           },
@@ -601,7 +625,7 @@ exports.getCampaignAnalytics = async (req, res) => {
       avgWatchPercent: periodRow.avgWatchPercent ?? null,
       avgWatchSec: periodRow.avgWatchSec ?? null,
       watchPercentBuckets,
-      watchTrend,
+      watchTrend: fillDailySeries(watchTrend, since, timeZone, ['plays', 'completions']),
     };
   }
 
@@ -639,7 +663,7 @@ exports.getCampaignAnalytics = async (req, res) => {
         { $match: docMatchPeriod },
         {
           $group: {
-            _id: { $dateToString: { format: '%Y-%m-%d', date: '$clickedAt' } },
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$clickedAt', timezone: timeZone } },
             opens: { $sum: 1 },
           },
         },
@@ -664,7 +688,7 @@ exports.getCampaignAnalytics = async (req, res) => {
         { $match: playMatchPeriod },
         {
           $group: {
-            _id: { $dateToString: { format: '%Y-%m-%d', date: '$occurredAt' } },
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$occurredAt', timezone: timeZone } },
             plays: { $sum: 1 },
           },
         },
@@ -690,10 +714,10 @@ exports.getCampaignAnalytics = async (req, res) => {
     assetAnalytics = {
       docOpensByAssetPeriod: attachDocLabel(docOpensByAssetPeriod),
       docOpensByAssetAllTime: attachDocLabel(docOpensByAssetAllTime),
-      docOpenTrend,
+      docOpenTrend: fillDailySeries(docOpenTrend, since, timeZone, ['opens']),
       videoPlaysByAssetPeriod: attachVideoLabel(videoPlaysByAssetPeriod),
       videoPlaysByAssetAllTime: attachVideoLabel(videoPlaysByAssetAllTime),
-      videoPlayTrend,
+      videoPlayTrend: fillDailySeries(videoPlayTrend, since, timeZone, ['plays']),
       totalDocOpensPeriod,
       totalVideoPlaysPeriod,
     };
@@ -724,7 +748,7 @@ exports.getCampaignAnalytics = async (req, res) => {
         { $match: cardMatchPeriod },
         {
           $group: {
-            _id: { $dateToString: { format: '%Y-%m-%d', date: '$clickedAt' } },
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$clickedAt', timezone: timeZone } },
             count: { $sum: 1 },
           },
         },
@@ -783,7 +807,7 @@ exports.getCampaignAnalytics = async (req, res) => {
       actionTotalsAllTime: allTimeGroup.actions,
       socialBreakdownPeriod: periodGroup.targets.social || [],
       ctaBreakdownPeriod: periodGroup.targets.cta || [],
-      actionTrend,
+      actionTrend: fillDailySeries(actionTrend, since, timeZone, ['count']),
       actionTotalPeriod,
       actionRatePeriod,
       printDownloads,
@@ -820,7 +844,8 @@ exports.getTrends = async (req, res) => {
   const days  = periodDays(req.query.period);
   const since = daysAgo(days);
   const uid   = new mongoose.Types.ObjectId(req.user._id);
+  const timeZone = normalizeTimeZone(req.query.timezone);
 
-  const scanTrend = await buildScanTrend({ userId: uid }, since);
+  const scanTrend = await buildScanTrend({ userId: uid }, since, timeZone);
   return success(res, { period: `${days}d`, scanTrend });
 };

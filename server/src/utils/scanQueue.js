@@ -49,6 +49,18 @@ const classifyDevice = (ua = '') => {
   return 'unknown';
 };
 
+const classifyBrowser = (ua = '') => {
+  const u = String(ua || '').toLowerCase();
+  if (!u.trim()) return 'unknown';
+  if (u.includes('samsungbrowser')) return 'Samsung';
+  if (u.includes('edg/')) return 'Edge';
+  if (u.includes('opr/') || u.includes('opera')) return 'Opera';
+  if (u.includes('firefox/')) return 'Firefox';
+  if (u.includes('crios/') || u.includes('chrome/')) return 'Chrome';
+  if (u.includes('safari/') && !u.includes('chrome/') && !u.includes('crios/')) return 'Safari';
+  return 'Other';
+};
+
 /**
  * normalizeAndPersist — single source of truth for what a scan event looks like
  * once written to disk.  Used by both backends so the on-disk shape stays
@@ -135,7 +147,7 @@ const normalizeAndPersist = async (event) => {
         : classifyDevice(event.ua),
     browser: typeof event.browser === 'string' && event.browser.trim()
       ? event.browser.trim().slice(0, 64)
-      : 'unknown',
+      : classifyBrowser(event.ua),
     os: 'unknown',
     country,
     region,

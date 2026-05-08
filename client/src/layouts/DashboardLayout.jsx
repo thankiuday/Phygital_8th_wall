@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import Sidebar from '../components/ui/Sidebar';
@@ -56,6 +56,7 @@ const DashboardLayout = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
+  const mainRef = useRef(null);
 
   const pageTitle = resolvePageTitle(location.pathname);
 
@@ -63,6 +64,9 @@ const DashboardLayout = () => {
   // sidebar item should land you on the page, not on the (still-open) drawer.
   useEffect(() => {
     setMobileOpen(false);
+    if (mainRef.current) {
+      mainRef.current.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    }
   }, [location.pathname]);
 
   return (
@@ -113,7 +117,7 @@ const DashboardLayout = () => {
         />
 
         {/* Page content — animated on route change */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden">
+        <main ref={mainRef} className="flex-1 overflow-y-auto overflow-x-hidden">
           <motion.div
             key={location.pathname}
             initial={{ opacity: 0, y: 8 }}
