@@ -96,6 +96,7 @@ const Step3Publish = ({ draft, store, onContinue, onBack }) => {
   const [saveError, setSaveError] = useState('');
   const [autoResolvingSlug, setAutoResolvingSlug] = useState(false);
   const autoResolvedForSlugRef = useRef('');
+  const slugStatus = draft.cardSlugAvailability?.state || 'idle';
 
   const seedSlug = useMemo(() => slugifyFor(draft.cardContent?.fullName || draft.campaignName), [draft.cardContent?.fullName, draft.campaignName]);
 
@@ -190,7 +191,6 @@ const Step3Publish = ({ draft, store, onContinue, onBack }) => {
     cornersDotOptions: { type: 'dot', color: '#0f172a' },
   }), [qrTargetUrl]);
 
-  const slugStatus = draft.cardSlugAvailability?.state || 'idle';
   const canSave = !!draft.cardContent?.fullName?.trim() && !saving && !autoResolvingSlug;
 
   const persistCard = async ({ forContinue = false } = {}) => {
