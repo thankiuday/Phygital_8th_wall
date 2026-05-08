@@ -16,6 +16,9 @@ const publicApi = axios.create({
   timeout: 20000,
   headers: { 'Content-Type': 'application/json' },
   withCredentials: false,
+  // Mirror `api.js`: avoid Axios auto-JSON parsing so malformed/plain-text
+  // responses don't throw SyntaxError before call-sites can handle them.
+  transformResponse: [(data) => data],
 });
 
 export default publicApi;

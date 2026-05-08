@@ -20,6 +20,10 @@ const api = axios.create({
   timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true, // sends httpOnly refresh cookie automatically
+  // Keep response payload as raw text first. We parse safely in our
+  // interceptor so malformed proxy bodies (including bare "null") don't
+  // crash Axios before auth/error handlers can run.
+  transformResponse: [(data) => data],
 });
 
 /** Some proxies return JSON as a string, or HTML as “JSON”. Normalize before handlers run. */
