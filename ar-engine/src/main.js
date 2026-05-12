@@ -52,7 +52,7 @@ const init = async () => {
   recordScan(campaignId);
 
   // Update page title
-  document.title = `${campaign.campaignName} — Phygital8ThWall AR`;
+  document.title = `${campaign.campaignName} — Phygital AR`;
 
   // Boot the AR experience
   const container = document.getElementById('ar-root');

@@ -49,14 +49,31 @@ const cloudinaryTransform = (url, opts = {}) => {
   const segment = buildTransformSegment(opts);
   if (!segment) return url;
 
-  // Match the `/upload/` boundary; everything between it and the next slash
-  // is the existing transformation segment (may be empty for raw uploads).
-  const match = url.match(/^(.*\/upload\/)([^/]*\/)?(.+)$/);
-  if (!match) return url;
-  const [, prefix, existingSegment = '', rest] = match;
-  const existing = existingSegment.replace(/\/$/, '');
-  const merged = existing ? `${existing},${segment}` : segment;
-  return `${prefix}${merged}/${rest}`;
+  // Handle all Cloudinary URL variants safely:
+  // - /upload/v1234/public_id.jpg               (no existing transforms)
+  // - /upload/c_fill,w_300/v1234/public_id.jpg  (has transforms)
+  // - /upload/public_id.jpg                      (legacy / no version)
+  const marker = '/upload/';
+  const idx = url.indexOf(marker);
+  if (idx === -1) return url;
+  const prefix = url.slice(0, idx + marker.length);
+  const tail = url.slice(idx + marker.length);
+  const parts = tail.split('/');
+  if (!parts.length) return url;
+
+  const first = parts[0] || '';
+  const isVersionSegment = /^v\d+$/.test(first);
+
+  if (isVersionSegment) {
+    // No transform segment yet: inject ours before the version segment.
+    return `${prefix}${segment}/${tail}`;
+  }
+
+  // Existing transform segment present (or legacy path without version):
+  // append ours in an idempotent way.
+  const merged = first ? `${first},${segment}` : segment;
+  const rest = parts.slice(1).join('/');
+  return rest ? `${prefix}${merged}/${rest}` : `${prefix}${merged}`;
 };
 
 module.exports = { cloudinaryTransform, isCloudinaryUrl };

@@ -169,13 +169,13 @@ const DigitalBusinessCardWizard = () => {
   const mobileChrome = typeof window !== 'undefined'
     ? createPortal(
       <>
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--border-color)] bg-[var(--surface-1)]/95 p-3 backdrop-blur lg:hidden">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--glass-border)] bg-[var(--surface-1)]/92 p-3 pb-safe backdrop-blur lg:hidden">
           <div className="mx-auto flex max-w-7xl items-center gap-2">
             <button
               type="button"
               disabled={!canGoBack}
               onClick={() => canGoBack && goTo(draft.step - 1)}
-              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-[var(--border-color)] px-4 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-2)] disabled:cursor-not-allowed disabled:opacity-50"
+              className="wizard-btn-secondary flex-1 px-4 py-2.5 disabled:opacity-50"
             >
               <ChevronLeft size={16} />
               Back
@@ -183,7 +183,7 @@ const DigitalBusinessCardWizard = () => {
             <button
               type="button"
               onClick={() => setPreviewOpen((s) => !s)}
-              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white shadow-glow hover:bg-brand-400"
+              className="wizard-btn-primary flex-1 px-4 py-2.5"
             >
               {previewOpen ? <EyeOff size={14} /> : <Eye size={14} />}
               {previewOpen ? 'Hide preview' : 'Live preview'}
@@ -208,7 +208,7 @@ const DigitalBusinessCardWizard = () => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 24 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
-                className="fixed inset-x-3 top-[8vh] z-50 max-h-[80vh] overflow-auto rounded-2xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4 shadow-2xl lg:hidden"
+                className="fixed inset-x-3 top-[8vh] z-50 max-h-[80vh] overflow-auto rounded-2xl border border-[var(--glass-border)] bg-[var(--surface-1)]/95 p-4 shadow-2xl backdrop-blur lg:hidden"
               >
                 <div className="mb-3 flex items-center justify-between">
                   <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
@@ -217,7 +217,7 @@ const DigitalBusinessCardWizard = () => {
                   <button
                     type="button"
                     onClick={() => setPreviewOpen(false)}
-                    className="rounded-md border border-[var(--border-color)] px-2 py-1 text-xs text-[var(--text-secondary)]"
+                    className="wizard-btn-secondary px-2 py-1 text-xs"
                   >
                     Close
                   </button>
@@ -234,9 +234,9 @@ const DigitalBusinessCardWizard = () => {
 
   return (
     <div className="mx-auto max-w-7xl min-w-0 overflow-x-hidden pb-24 lg:pb-0">
-      <div className="mb-6">
-        <h2 className="text-xl font-bold text-[var(--text-primary)]">Personalized Identity Card</h2>
-        <p className="text-sm text-[var(--text-secondary)]">
+      <div className="mb-6 rounded-2xl border border-[var(--glass-border)] bg-[var(--surface-1)]/70 p-4 backdrop-blur sm:p-5">
+        <h2 className="text-2xl font-bold text-[var(--text-primary)]">Personalized Identity Card</h2>
+        <p className="mt-1 text-sm text-[var(--text-secondary)]">
           Build a beautiful digital business card. Live preview updates as you type. Auto-saves locally.
         </p>
       </div>
@@ -245,7 +245,7 @@ const DigitalBusinessCardWizard = () => {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         {/* Left: form */}
-        <div className="glass-card min-w-0 p-4 md:p-6">
+        <div className="wizard-shell min-w-0 p-4 md:p-6">
           <AnimatePresence mode="wait">
             <motion.div
               key={draft.step}
@@ -261,7 +261,7 @@ const DigitalBusinessCardWizard = () => {
 
         {/* Right: sticky live preview (lg+) */}
         <div className="hidden min-w-0 lg:block">
-          <div className="sticky top-24 space-y-2">
+          <div className="sticky top-24 space-y-2 rounded-2xl border border-[var(--glass-border)] bg-[var(--surface-1)]/70 p-4 backdrop-blur">
             <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
               {draft.step === 4 ? 'Print Preview' : 'Live Preview'}
             </div>

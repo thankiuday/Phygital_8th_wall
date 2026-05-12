@@ -86,6 +86,16 @@ const DigitalCardPrintPage = () => {
               })
         )
       );
+      // Wait until QR SVG is mounted by the preview component.
+      const waitForQr = async () => {
+        const t0 = Date.now();
+        while (Date.now() - t0 < 10_000) {
+          const qrReady = document.querySelector('[data-qr-ready="1"]');
+          if (qrReady) return;
+          await new Promise((res) => setTimeout(res, 50));
+        }
+      };
+      await waitForQr();
       // 2 RAFs so QR-styling SVG flushes + any lingering layout settles.
       await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
       if (!cancelled) document.documentElement.setAttribute('data-print-ready', '1');

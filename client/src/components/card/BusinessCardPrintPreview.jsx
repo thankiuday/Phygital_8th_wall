@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import QRCodeStyling from 'qr-code-styling';
 
 import { getCardSize } from './cardSizes';
@@ -20,9 +20,8 @@ import { getCardSize } from './cardSizes';
  * exact same component — never two divergent implementations.
  *
  * QR code: generated client-side via qr-code-styling, themed (white/black/
- * neon) and positioned per `print.qrPosition`. Front always shows the QR
- * when `print.includeQr`. Back side ships a small QR in the bottom-right
- * so a single-sided print still scans.
+ * neon) and positioned per `print.qrPosition`. `print.qrPlacement` controls
+ * whether the scanner appears on front, back, or both faces.
  */
 const themeColors = (themeId) => {
   if (themeId === 'black') return { bg: '#0b0b0c', fg: '#ffffff', muted: 'rgba(255,255,255,0.65)' };
@@ -55,6 +54,10 @@ const BusinessCardPrintPreview = ({
   const accent = design?.colors?.primary || '#3b82f6';
 
   const qrRef = useRef(null);
+  const [qrReady, setQrReady] = useState(false);
+  const qrPlacement = print.qrPlacement || 'both';
+  const showFrontQr = !!print.includeQr && (qrPlacement === 'front' || qrPlacement === 'both');
+  const showBackQr = !!print.includeQr && (qrPlacement === 'back' || qrPlacement === 'both');
 
   // Build the QR target URL from the campaign's permanent short slug.
   // We use a stable preview slug while the wizard is still pre-save, so
@@ -78,10 +81,18 @@ const BusinessCardPrintPreview = ({
 
   // Re-paint QR when its inputs change. We attach to a stable ref and clear
   // the container before each append so we don't stack SVGs across updates.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!qrRef.current) return;
+    const shouldRenderQr = face === 'back' ? showBackQr : showFrontQr;
+    if (!shouldRenderQr) {
+      qrRef.current.innerHTML = '';
+      setQrReady(true);
+      return;
+    }
+    setQrReady(false);
     const qrSize = Math.round(Math.min(widthPx, heightPx) * 0.28);
     const qr = new QRCodeStyling({
+      type: 'svg',
       width: qrSize,
       height: qrSize,
       data: qrUrl,
@@ -93,7 +104,27 @@ const BusinessCardPrintPreview = ({
     });
     qrRef.current.innerHTML = '';
     qr.append(qrRef.current);
-  }, [qrUrl, qrColors, widthPx, heightPx, face, print.qrPosition, print.includeQr]);
+    let raf = 0;
+    const waitForPaint = () => {
+      const node = qrRef.current?.querySelector('svg,canvas');
+      if (!node) {
+        raf = requestAnimationFrame(waitForPaint);
+        return;
+      }
+      if (node.tagName.toLowerCase() === 'canvas') {
+        if (node.width > 0 && node.height > 0) {
+          setQrReady(true);
+          return;
+        }
+      } else if (node.querySelector('*')) {
+        setQrReady(true);
+        return;
+      }
+      raf = requestAnimationFrame(waitForPaint);
+    };
+    raf = requestAnimationFrame(waitForPaint);
+    return () => cancelAnimationFrame(raf);
+  }, [qrUrl, qrColors, widthPx, heightPx, face, print.qrPosition, print.includeQr, qrPlacement, showBackQr, showFrontQr]);
 
   // Position the QR according to `print.qrPosition`. Used for the front
   // face only when `includeQr` is on; the back always pins a small QR
@@ -216,8 +247,8 @@ const BusinessCardPrintPreview = ({
         </div>
       </div>
 
-      {/* QR — only on front, only when includeQr */}
-      {print.includeQr && (
+      {/* QR on front based on placement setting */}
+      {showFrontQr && (
         <div
           ref={qrRef}
           style={{
@@ -303,20 +334,22 @@ const BusinessCardPrintPreview = ({
           )}
         </div>
 
-        {/* Always-on small QR in bottom-right so a one-sided print scans */}
-        <div
-          ref={qrRef}
-          style={{
-            position: 'absolute',
-            right: qrPad,
-            bottom: qrPad,
-            width: qrSize * 0.7,
-            height: qrSize * 0.7,
-            padding: 4,
-            borderRadius: 8,
-            backgroundColor: qrColors.light,
-          }}
-        />
+        {/* QR on back based on placement setting */}
+        {showBackQr && (
+          <div
+            ref={qrRef}
+            style={{
+              position: 'absolute',
+              right: qrPad,
+              bottom: qrPad,
+              width: qrSize * 0.7,
+              height: qrSize * 0.7,
+              padding: 4,
+              borderRadius: 8,
+              backgroundColor: qrColors.light,
+            }}
+          />
+        )}
       </>
     );
   };
@@ -334,6 +367,7 @@ const BusinessCardPrintPreview = ({
       }}
     >
       <div
+        data-qr-ready={qrReady ? '1' : '0'}
         style={{
           width: `${widthPx}px`,
           height: `${heightPx}px`,

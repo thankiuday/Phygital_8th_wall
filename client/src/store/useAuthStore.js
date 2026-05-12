@@ -23,7 +23,8 @@ const useAuthStore = create((set, get) => {
   setTokenGetter(() => get().accessToken);
   setTokenSetter((token) => set({ accessToken: token }));
   setLogoutFn(() => {
-    authService.logout().catch(() => {});
+    // Forced logout from the interceptor should be local-only. Calling the
+    // protected logout endpoint when token/refresh already failed creates 401 noise loops.
     set({ user: null, accessToken: null, isAuthenticated: false });
   });
 

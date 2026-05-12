@@ -371,7 +371,7 @@ const reverseGeocodeNominatim = async (latitude, longitude) => {
       signal: controller.signal,
       headers: {
         Accept: 'application/json',
-        'User-Agent': 'Phygital8ThWall/1.0 (+https://github.com/thankiuday/Phygital_8th_wall)',
+        'User-Agent': 'Phygital/1.0 (+https://github.com/thankiuday/Phygital_8th_wall)',
       },
     });
     clearTimeout(timeout);

@@ -24,6 +24,11 @@ import {
  */
 
 const initialJob = () => ({ status: 'idle', url: null, public_id: null, jobId: null, filename: null });
+const QR_PLACEMENTS = [
+  { id: 'front', label: 'Front only' },
+  { id: 'back', label: 'Back only' },
+  { id: 'both', label: 'Front + Back' },
+];
 
 // Hydrate from persisted `draft.lastRender` so re-opening the wizard shows
 // the previously generated download links without forcing a re-render.
@@ -187,8 +192,8 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
         </p>
       </div>
 
-      <section className="space-y-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4">
-        <h4 className="text-sm font-semibold text-[var(--text-primary)]">Card Size</h4>
+      <section className="wizard-section space-y-3">
+        <h4 className="wizard-section-title">Card Size</h4>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {CARD_SIZE_IDS.map((id) => {
             const spec = CARD_SIZES[id];
@@ -210,7 +215,7 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
         </div>
       </section>
 
-      <section className="mt-4 grid grid-cols-1 gap-4 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4 sm:grid-cols-2">
+      <section className="wizard-section mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <h4 className="mb-2 text-sm font-semibold text-[var(--text-primary)]">QR Code</h4>
           <label className="mb-2 flex items-center gap-2 text-xs text-[var(--text-secondary)]">
@@ -221,6 +226,22 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
             />
             Include QR on printed card
           </label>
+          <div className="mb-2 flex flex-wrap gap-2">
+            {QR_PLACEMENTS.map((q) => (
+              <button
+                key={q.id}
+                type="button"
+                onClick={() => store.patchPrint({ qrPlacement: q.id })}
+                className={`rounded-full border px-3 py-1 text-xs ${
+                  (p.qrPlacement || 'both') === q.id
+                    ? 'border-brand-500 bg-brand-500/15 text-brand-300'
+                    : 'border-[var(--border-color)] bg-[var(--surface-2)] text-[var(--text-secondary)]'
+                }`}
+              >
+                {q.label}
+              </button>
+            ))}
+          </div>
           <div className="mb-2 flex flex-wrap gap-2">
             {QR_THEMES.map((t) => (
               <button
@@ -265,7 +286,7 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
         </div>
       </section>
 
-      <section className="mt-4 grid grid-cols-1 gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4 sm:grid-cols-3">
+      <section className="wizard-section mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <label className="space-y-1">
           <span className="block text-xs font-medium text-[var(--text-secondary)]">Profile zoom</span>
           <input
@@ -275,7 +296,7 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
             step="0.05"
             value={p.profileZoom}
             onChange={(e) => store.patchPrint({ profileZoom: parseFloat(e.target.value) })}
-            className="w-full"
+            className="form-input w-full"
           />
           <span className="block text-xs text-[var(--text-muted)]">{p.profileZoom.toFixed(2)}×</span>
         </label>
@@ -287,7 +308,7 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
             max="100"
             value={p.profileCropX}
             onChange={(e) => store.patchPrint({ profileCropX: Number(e.target.value) })}
-            className="w-full"
+            className="form-input w-full"
           />
           <span className="block text-xs text-[var(--text-muted)]">{p.profileCropX}%</span>
         </label>
@@ -299,7 +320,7 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
             max="100"
             value={p.profileCropY}
             onChange={(e) => store.patchPrint({ profileCropY: Number(e.target.value) })}
-            className="w-full"
+            className="form-input w-full"
           />
           <span className="block text-xs text-[var(--text-muted)]">{p.profileCropY}%</span>
         </label>
@@ -312,7 +333,7 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
           type="button"
           onClick={startRender}
           disabled={busy || pending}
-          className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white shadow-glow hover:bg-brand-400 disabled:cursor-not-allowed disabled:opacity-50"
+          className="wizard-btn-primary px-4 py-2 disabled:opacity-50"
         >
           {busy || pending ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />}
           {ready ? 'Re-render PNGs' : 'Generate PNGs'}
@@ -322,7 +343,7 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
           <button
             type="button"
             onClick={downloadBoth}
-            className="inline-flex items-center gap-2 rounded-lg bg-emerald-500/15 px-4 py-2 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/25"
+            className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-500/15 px-4 py-2 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/25"
           >
             <Download size={14} />
             Download Card (Front + Back)
@@ -334,7 +355,7 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
             href={front.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-color)] px-4 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-2)]"
+            className="wizard-btn-secondary px-4 py-2"
           >
             <ExternalLink size={14} />
             View Front
@@ -345,7 +366,7 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
             href={back.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-color)] px-4 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-2)]"
+            className="wizard-btn-secondary px-4 py-2"
           >
             <ExternalLink size={14} />
             View Back
@@ -360,8 +381,8 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
       )}
 
       <div className="mt-8 flex items-center justify-between">
-        <button type="button" onClick={onBack} className="rounded-lg border border-[var(--border-color)] px-4 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-2)]">Back</button>
-        <button type="button" onClick={onFinish} className="rounded-lg bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-400">
+        <button type="button" onClick={onBack} className="wizard-btn-secondary">Back</button>
+        <button type="button" onClick={onFinish} className="wizard-btn-primary bg-emerald-500 hover:brightness-110">
           Done — go to dashboard
         </button>
       </div>

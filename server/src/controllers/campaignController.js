@@ -455,6 +455,7 @@ const DEFAULT_CARD_PRINT_SETTINGS = Object.freeze({
   cardSize: DEFAULT_CARD_SIZE,
   theme: 'white',
   qrPosition: 'bottom-right',
+  qrPlacement: 'both',
   includeQr: true,
   displayFields: ['name', 'jobTitle', 'company', 'phone', 'email', 'website'],
   profileZoom: 1.0,
@@ -629,13 +630,29 @@ const renderCampaignCardImage = async (req, res) => {
     userId: String(req.user._id),
     // Printed QR must always encode immutable redirectSlug; cardSlug is only
     // for friendly public URLs and can be renamed later.
-    cardSlug: campaign.redirectSlug || campaign.cardSlug,
+    cardSlug: campaign.cardSlug || campaign.redirectSlug,
     size,
     face,
     renderHash: buildCardRenderHash(campaign, { cardSize: size }, face),
   });
 
-  const [front, back] = await Promise.all([renderFace('front'), renderFace('back')]);
+  let front;
+  let back;
+  try {
+    [front, back] = await Promise.all([renderFace('front'), renderFace('back')]);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error('renderCampaignCardImage failed', {
+      campaignId: String(campaign._id),
+      userId: String(req.user._id),
+      size,
+      cardSlug: campaign.cardSlug || null,
+      redirectSlug: campaign.redirectSlug || null,
+      error: message,
+      stack: err instanceof Error ? err.stack : null,
+    });
+    throw new AppError(message || 'Card render failed', 500);
+  }
 
   // The aggregate status is "ready" only when both faces are ready in this
   // round-trip. If either is queued, the client polls each jobId.

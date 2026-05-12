@@ -60,6 +60,7 @@ const emptyDraft = () => ({
     cardSize: DEFAULT_CARD_SIZE,
     theme: 'white',
     qrPosition: 'bottom-right',
+    qrPlacement: 'both',
     includeQr: true,
     displayFields: ['name', 'jobTitle', 'company', 'phone', 'email', 'website'],
     profileZoom: 1,

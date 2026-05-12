@@ -116,7 +116,7 @@ const Step2Image = () => {
           onClear={handleClear}
           error={fileError || wizardError}
           icon={ImageIcon}
-          hint="The image 8th Wall will use as the physical target marker"
+          hint="The image our AR engine will use as the physical target marker"
         />
       ) : (
         <UploadProgress

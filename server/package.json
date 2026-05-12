@@ -1,7 +1,7 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "description": "Phygital8ThWall — Express API Server",
+  "description": "Phygital — Express API Server",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
@@ -51,7 +51,7 @@
   "optionalDependencies": {
     "bullmq": "^5.76.4",
     "ioredis": "^5.10.1",
-    "puppeteer": "^23.10.0",
+    "puppeteer": "^23.11.1",
     "puppeteer-core": "^23.10.0"
   }
 }

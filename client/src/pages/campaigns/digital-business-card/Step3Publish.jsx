@@ -281,8 +281,8 @@ const Step3Publish = ({ draft, store, onContinue, onBack }) => {
         </p>
       </div>
 
-      <section className="space-y-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4">
-        <h4 className="text-sm font-semibold text-[var(--text-primary)]">Visibility</h4>
+      <section className="wizard-section space-y-3">
+        <h4 className="wizard-section-title">Visibility</h4>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <button
             type="button"
@@ -317,8 +317,8 @@ const Step3Publish = ({ draft, store, onContinue, onBack }) => {
         </div>
       </section>
 
-      <section className="mt-4 space-y-2 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4">
-        <h4 className="text-sm font-semibold text-[var(--text-primary)]">Custom URL</h4>
+      <section className="wizard-section mt-4 space-y-2">
+        <h4 className="wizard-section-title">Custom URL</h4>
         <div className="flex items-center gap-2">
           <span className="hidden text-xs text-[var(--text-muted)] sm:inline">{clientBase}/card/</span>
           <input
@@ -329,7 +329,7 @@ const Step3Publish = ({ draft, store, onContinue, onBack }) => {
             onChange={(e) => store.setSlug(e.target.value.toLowerCase())}
             maxLength={60}
           />
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[var(--border-color)]">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)]">
             {(slugStatus === 'checking' || autoResolvingSlug) && <Loader2 size={14} className="animate-spin text-brand-300" />}
             {slugStatus === 'available' && !autoResolvingSlug && <Check size={14} className="text-emerald-400" />}
             {(slugStatus === 'taken' || slugStatus === 'invalid') && !autoResolvingSlug && <X size={14} className="text-red-400" />}
@@ -345,7 +345,7 @@ const Step3Publish = ({ draft, store, onContinue, onBack }) => {
         <div className="break-all text-xs text-[var(--text-secondary)]">Public URL preview: <span className="font-mono">{friendlyUrl}</span></div>
       </section>
 
-      <section className="mt-4 grid grid-cols-1 gap-4 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4 sm:grid-cols-[1fr_auto]">
+      <section className="wizard-section mt-4 grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto]">
         <div>
           <h4 className="text-sm font-semibold text-[var(--text-primary)]">QR Code</h4>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
@@ -357,7 +357,7 @@ const Step3Publish = ({ draft, store, onContinue, onBack }) => {
               type="button"
               onClick={handleSave}
               disabled={!canSave}
-              className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white shadow-glow hover:bg-brand-400 disabled:cursor-not-allowed disabled:opacity-50"
+              className="wizard-btn-primary px-4 py-2"
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               {draft.savedCampaignId ? 'Save changes' : 'Save Card'}
@@ -367,7 +367,7 @@ const Step3Publish = ({ draft, store, onContinue, onBack }) => {
                 href={draft.publicUrl || friendlyUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-color)] bg-[var(--surface-2)] px-4 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-3)]"
+                className="wizard-btn-secondary px-4 py-2"
               >
                 Open public page
               </a>
@@ -380,12 +380,12 @@ const Step3Publish = ({ draft, store, onContinue, onBack }) => {
       </section>
 
       <div className="mt-8 flex items-center justify-between">
-        <button type="button" onClick={onBack} className="rounded-lg border border-[var(--border-color)] px-4 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-2)]">Back</button>
+        <button type="button" onClick={onBack} className="wizard-btn-secondary">Back</button>
         <button
           type="button"
           onClick={handleContinue}
           disabled={saving || autoResolvingSlug || !draft.cardContent?.fullName?.trim()}
-          className="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white shadow-glow hover:bg-brand-400 disabled:cursor-not-allowed disabled:opacity-50"
+          className="wizard-btn-primary"
         >
           Continue to Print
         </button>

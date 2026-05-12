@@ -62,6 +62,7 @@ api.interceptors.request.use(
 /* ── Response interceptor — silent refresh on 401 ───────────────── */
 let isRefreshing = false;
 let failedQueue = [];
+let hasForcedLogout = false;
 
 const processQueue = (error, token = null) => {
   failedQueue.forEach((p) => (error ? p.reject(error) : p.resolve(token)));
@@ -104,7 +105,7 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const res = await api.post('/auth/refresh', null, { skipAuthRefresh: true });
+        const res = await api.post('/auth/refresh', {}, { skipAuthRefresh: true });
         const inner = res?.data?.data;
         const newToken = inner && typeof inner === 'object' ? inner.accessToken : null;
         if (!newToken || typeof newToken !== 'string') {
@@ -116,7 +117,10 @@ api.interceptors.response.use(
         return api(orig);
       } catch (refreshErr) {
         processQueue(refreshErr, null);
-        doLogout();
+        if (!hasForcedLogout) {
+          hasForcedLogout = true;
+          doLogout();
+        }
         return Promise.reject(refreshErr);
       } finally {
         isRefreshing = false;

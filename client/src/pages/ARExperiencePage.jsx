@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { publicService } from '../services/publicService';
 import useThemeStore, { applyThemeClass } from '../store/useThemeStore';
+import BrandWord from '../components/ui/BrandWord';
 
 /* ── Detect device type for analytics ───────────────────────────── */
 const getDeviceType = () => {
@@ -124,7 +125,7 @@ const ARExperiencePage = () => {
           <p className="mt-1.5 break-words text-balance text-sm text-white/50">{error}</p>
         </div>
         <Link to="/" className="inline-flex min-h-[44px] items-center text-sm font-medium text-brand-400 hover:text-brand-300 hover:underline">
-          Visit Phygital8ThWall →
+          Visit <BrandWord /> →
         </Link>
       </div>
     );
@@ -154,13 +155,13 @@ const ARExperiencePage = () => {
       {/* Header */}
       <Link
         to="/"
-        aria-label="Phygital8ThWall home"
+        aria-label="Phygital home"
         className="inline-flex min-h-11 min-w-11 items-center gap-2 self-start"
       >
         <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-brand shadow-glow">
           <Zap size={16} className="text-white" />
         </span>
-        <span className="text-sm font-bold tracking-tight text-white/70">Phygital8ThWall</span>
+        <BrandWord className="text-sm font-bold tracking-tight" />
       </Link>
 
       {/* Main content */}
@@ -262,8 +263,8 @@ const ARExperiencePage = () => {
       {/* Footer */}
       <p className="text-xs text-white/25">
         Powered by{' '}
-        <Link to="/" className="text-white/40 hover:text-white/60">Phygital8ThWall</Link>
-        {' '}· WebAR by 8th Wall
+        <Link to="/" className="text-white/40 hover:text-white/60"><BrandWord /></Link>
+        {' '}· Immersive WebAR
       </p>
     </div>
   );

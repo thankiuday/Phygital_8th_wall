@@ -16,6 +16,7 @@ import {
 import useAuthStore from '../../store/useAuthStore';
 import { cn } from '../../utils/cn';
 import Icon3D, { ICON3D_PRESETS } from './Icon3D';
+import BrandWord from './BrandWord';
 
 /* ── Nav link definitions ────────────────────────────────────────── */
 const NAV_ITEMS = [
@@ -103,9 +104,9 @@ const Sidebar = ({ collapsed, onCollapse, onNavigate }) => {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="gradient-text text-sm font-bold whitespace-nowrap"
+                className="text-sm font-bold whitespace-nowrap"
               >
-                Phygital8ThWall
+                <BrandWord />
               </motion.span>
             )}
           </AnimatePresence>

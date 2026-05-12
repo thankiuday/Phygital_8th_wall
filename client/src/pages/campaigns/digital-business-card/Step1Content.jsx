@@ -55,7 +55,7 @@ const SectionEditor = ({ section, onUpdate, onRemove }) => {
       handleField('images', next);
     };
     return (
-      <div className="space-y-2">
+      <div className="space-y-3">
         <input
           type="text"
           className="form-input"
@@ -63,7 +63,7 @@ const SectionEditor = ({ section, onUpdate, onRemove }) => {
           value={section.title || ''}
           onChange={(e) => handleField('title', e.target.value)}
         />
-        <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--border-color)] bg-[var(--surface-2)] px-3 py-3 text-xs text-[var(--text-secondary)] hover:border-brand-500/50">
+        <label className="flex min-h-[46px] cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border-color)] bg-[var(--surface-2)] px-3 py-3 text-xs text-[var(--text-secondary)] hover:border-brand-500/50">
           <ImagePlus size={14} />
           Add photos
           <input type="file" accept="image/*" multiple className="hidden" onChange={onPickImages} />
@@ -100,7 +100,7 @@ const SectionEditor = ({ section, onUpdate, onRemove }) => {
       } catch {/* ignore */}
     };
     return (
-      <div className="space-y-2">
+      <div className="space-y-3">
         <input
           type="text"
           className="form-input"
@@ -118,7 +118,7 @@ const SectionEditor = ({ section, onUpdate, onRemove }) => {
             handleField('externalVideoUrl', e.target.value);
           }}
         />
-        <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--border-color)] bg-[var(--surface-2)] px-3 py-3 text-xs text-[var(--text-secondary)] hover:border-brand-500/50">
+        <label className="flex min-h-[46px] cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border-color)] bg-[var(--surface-2)] px-3 py-3 text-xs text-[var(--text-secondary)] hover:border-brand-500/50">
           <UploadIcon size={14} />
           Replace with upload
           <input type="file" accept="video/*" className="hidden" onChange={onPickVideo} />
@@ -130,7 +130,7 @@ const SectionEditor = ({ section, onUpdate, onRemove }) => {
     const items = section.items || [];
     const updateItem = (idx, patch) => handleField('items', items.map((it, i) => i === idx ? { ...it, ...patch } : it));
     return (
-      <div className="space-y-2">
+      <div className="space-y-3">
         <input
           type="text"
           className="form-input"
@@ -139,17 +139,17 @@ const SectionEditor = ({ section, onUpdate, onRemove }) => {
           onChange={(e) => handleField('title', e.target.value)}
         />
         {items.map((it, idx) => (
-          <div key={idx} className="flex gap-2">
+          <div key={idx} className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_44px]">
             <input
               type="text"
-              className="form-input flex-1"
+              className="form-input min-w-0"
               placeholder="Label"
               value={it.label || ''}
               onChange={(e) => updateItem(idx, { label: e.target.value })}
             />
             <input
               type="url"
-              className="form-input flex-[1.5]"
+              className="form-input min-w-0"
               placeholder="https://"
               value={it.url || ''}
               onChange={(e) => updateItem(idx, { url: e.target.value })}
@@ -157,7 +157,7 @@ const SectionEditor = ({ section, onUpdate, onRemove }) => {
             <button
               type="button"
               onClick={() => handleField('items', items.filter((_, i) => i !== idx))}
-              className="rounded-lg border border-[var(--border-color)] px-2 text-[var(--text-muted)] hover:text-red-400"
+              className="wizard-btn-secondary h-11 w-11 px-0 text-[var(--text-muted)] hover:text-red-400"
             >
               <Trash2 size={14} />
             </button>
@@ -166,7 +166,7 @@ const SectionEditor = ({ section, onUpdate, onRemove }) => {
         <button
           type="button"
           onClick={() => handleField('items', [...items, { label: '', url: '' }])}
-          className="flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300"
+          className="wizard-btn-secondary px-3 py-2 text-xs"
         >
           <Plus size={14} />
           Add link
@@ -178,7 +178,7 @@ const SectionEditor = ({ section, onUpdate, onRemove }) => {
     const items = section.items || [];
     const updateItem = (idx, patch) => handleField('items', items.map((it, i) => i === idx ? { ...it, ...patch } : it));
     return (
-      <div className="space-y-2">
+      <div className="space-y-3">
         <input
           type="text"
           className="form-input"
@@ -187,7 +187,7 @@ const SectionEditor = ({ section, onUpdate, onRemove }) => {
           onChange={(e) => handleField('title', e.target.value)}
         />
         {items.map((it, idx) => (
-          <div key={idx} className="space-y-1 rounded-lg border border-[var(--border-color)] p-2">
+          <div key={idx} className="space-y-2 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)]/50 p-3">
             <textarea
               rows={2}
               className="form-input"
@@ -195,7 +195,7 @@ const SectionEditor = ({ section, onUpdate, onRemove }) => {
               value={it.quote || ''}
               onChange={(e) => updateItem(idx, { quote: e.target.value })}
             />
-            <div className="flex gap-2">
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_44px]">
               <input
                 type="text"
                 className="form-input flex-1"
@@ -213,7 +213,7 @@ const SectionEditor = ({ section, onUpdate, onRemove }) => {
               <button
                 type="button"
                 onClick={() => handleField('items', items.filter((_, i) => i !== idx))}
-                className="rounded-lg border border-[var(--border-color)] px-2 text-[var(--text-muted)] hover:text-red-400"
+                className="wizard-btn-secondary h-11 w-11 px-0 text-[var(--text-muted)] hover:text-red-400"
               >
                 <Trash2 size={14} />
               </button>
@@ -223,7 +223,7 @@ const SectionEditor = ({ section, onUpdate, onRemove }) => {
         <button
           type="button"
           onClick={() => handleField('items', [...items, { quote: '', author: '', role: '' }])}
-          className="flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300"
+          className="wizard-btn-secondary px-3 py-2 text-xs"
         >
           <Plus size={14} />
           Add testimonial
@@ -288,15 +288,15 @@ const Step1Content = ({ draft, store, onContinue, onBack }) => {
 
       <div className="space-y-6">
         {/* Profile images */}
-        <section className="space-y-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4">
-          <h4 className="text-sm font-semibold text-[var(--text-primary)]">Profile Images</h4>
+        <section className="wizard-section space-y-3">
+          <h4 className="wizard-section-title">Profile Images</h4>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-medium text-[var(--text-secondary)]">Profile photo</label>
               <button
                 type="button"
                 onClick={() => profileInputRef.current?.click()}
-                className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--border-color)] bg-[var(--surface-2)] py-6 text-xs text-[var(--text-secondary)] hover:border-brand-500/50"
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border-color)] bg-[var(--surface-2)] py-6 text-xs text-[var(--text-secondary)] hover:border-brand-500/50"
               >
                 {(c.profileImageUrl || c.profileImagePreview) ? (
                   <img src={c.profileImagePreview || c.profileImageUrl} alt="profile" className="h-16 w-16 rounded-full object-cover" />
@@ -319,7 +319,7 @@ const Step1Content = ({ draft, store, onContinue, onBack }) => {
               <button
                 type="button"
                 onClick={() => bannerInputRef.current?.click()}
-                className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--border-color)] bg-[var(--surface-2)] py-6 text-xs text-[var(--text-secondary)] hover:border-brand-500/50"
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border-color)] bg-[var(--surface-2)] py-6 text-xs text-[var(--text-secondary)] hover:border-brand-500/50"
               >
                 {(c.bannerImageUrl || c.bannerImagePreview) ? (
                   <img src={c.bannerImagePreview || c.bannerImageUrl} alt="banner" className="h-16 w-32 rounded-md object-cover" />
@@ -341,8 +341,8 @@ const Step1Content = ({ draft, store, onContinue, onBack }) => {
         </section>
 
         {/* Profile info */}
-        <section className="space-y-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4">
-          <h4 className="text-sm font-semibold text-[var(--text-primary)]">Profile Info</h4>
+        <section className="wizard-section space-y-3">
+          <h4 className="wizard-section-title">Profile Info</h4>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-medium text-[var(--text-secondary)]">Full name *</label>
@@ -398,8 +398,8 @@ const Step1Content = ({ draft, store, onContinue, onBack }) => {
         </section>
 
         {/* Contact info */}
-        <section className="space-y-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4">
-          <h4 className="text-sm font-semibold text-[var(--text-primary)]">Contact Info</h4>
+        <section className="wizard-section space-y-3">
+          <h4 className="wizard-section-title">Contact Info</h4>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <input type="tel" className="form-input" placeholder="Phone" value={c.contact?.phone || ''} onChange={(e) => store.patchContact({ phone: e.target.value })} />
             <input type="email" className="form-input" placeholder="Email" value={c.contact?.email || ''} onChange={(e) => store.patchContact({ email: e.target.value })} />
@@ -410,8 +410,8 @@ const Step1Content = ({ draft, store, onContinue, onBack }) => {
         </section>
 
         {/* Socials */}
-        <section className="space-y-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4">
-          <h4 className="text-sm font-semibold text-[var(--text-primary)]">Social Links</h4>
+        <section className="wizard-section space-y-3">
+          <h4 className="wizard-section-title">Social Links</h4>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {SOCIAL_PLATFORMS.map((p) => (
               <input
@@ -427,16 +427,16 @@ const Step1Content = ({ draft, store, onContinue, onBack }) => {
         </section>
 
         {/* Sections */}
-        <section className="space-y-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4">
+        <section className="wizard-section space-y-3">
           <div className="flex items-center justify-between">
-            <h4 className="text-sm font-semibold text-[var(--text-primary)]">Sections</h4>
+            <h4 className="wizard-section-title mb-0">Sections</h4>
             <div className="flex flex-wrap gap-2">
               {SECTION_TYPES.map((t) => (
                 <button
                   key={t.id}
                   type="button"
                   onClick={() => addSection(t.id)}
-                  className="rounded-md border border-[var(--border-color)] bg-[var(--surface-2)] px-2 py-1 text-xs text-[var(--text-secondary)] hover:border-brand-500/50 hover:text-brand-300"
+                  className="wizard-btn-secondary px-2.5 py-1.5 text-xs"
                 >
                   + {t.label}
                 </button>
@@ -446,7 +446,7 @@ const Step1Content = ({ draft, store, onContinue, onBack }) => {
 
           <div className="space-y-3">
             {(c.sections || []).map((sec, idx) => (
-              <div key={sec.id} className="space-y-2 rounded-lg border border-[var(--border-color)] p-3">
+              <div key={sec.id} className="space-y-2 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)]/45 p-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                     <GripVertical size={12} />
@@ -454,15 +454,15 @@ const Step1Content = ({ draft, store, onContinue, onBack }) => {
                   </div>
                   <div className="flex items-center gap-1">
                     {idx > 0 && (
-                      <button type="button" onClick={() => store.reorderSections(idx, idx - 1)} className="rounded p-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]">↑</button>
+                      <button type="button" onClick={() => store.reorderSections(idx, idx - 1)} className="wizard-btn-secondary h-8 w-8 px-0 text-xs">↑</button>
                     )}
                     {idx < (c.sections.length - 1) && (
-                      <button type="button" onClick={() => store.reorderSections(idx, idx + 1)} className="rounded p-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]">↓</button>
+                      <button type="button" onClick={() => store.reorderSections(idx, idx + 1)} className="wizard-btn-secondary h-8 w-8 px-0 text-xs">↓</button>
                     )}
                     <button
                       type="button"
                       onClick={() => store.removeSection(sec.id)}
-                      className="rounded p-1 text-xs text-[var(--text-muted)] hover:text-red-400"
+                      className="wizard-btn-secondary h-8 w-8 px-0 text-xs text-[var(--text-muted)] hover:text-red-400"
                     >
                       <Trash2 size={12} />
                     </button>
@@ -482,7 +482,7 @@ const Step1Content = ({ draft, store, onContinue, onBack }) => {
         <button
           type="button"
           onClick={onBack}
-          className="rounded-lg border border-[var(--border-color)] px-4 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-2)]"
+          className="wizard-btn-secondary"
         >
           Back
         </button>
@@ -490,7 +490,7 @@ const Step1Content = ({ draft, store, onContinue, onBack }) => {
           type="button"
           disabled={!canContinue}
           onClick={onContinue}
-          className="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white shadow-glow hover:bg-brand-400 disabled:cursor-not-allowed disabled:opacity-50"
+          className="wizard-btn-primary"
         >
           Continue to Design
         </button>

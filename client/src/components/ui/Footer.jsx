@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Heart, Mail, Phone, MapPin, Zap } from 'lucide-react';
+import BrandWord from './BrandWord';
 
 /**
  * Footer — site-wide footer with brand, links, and contact details.
@@ -14,11 +15,11 @@ const Footer = () => {
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-brand shadow-glow">
                 <Zap size={16} className="text-white" />
               </span>
-              <span className="gradient-text text-lg font-bold">Phygital</span>
+              <BrandWord className="text-lg font-bold" />
             </Link>
 
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-[var(--text-muted)]">
-              Where the Physical World Meets Digital Storytelling. Join the Phygital Movement and
+              Where the Physical World Meets Digital Storytelling. Join the <BrandWord /> Movement and
               transform how people connect with your creations.
             </p>
             <p className="mt-2 text-sm font-medium text-[var(--text-secondary)]">
@@ -91,14 +92,14 @@ const Footer = () => {
 
         <div className="mt-8 border-t border-[var(--border-color)] pt-5 text-center text-xs text-[var(--text-muted)]">
           <div className="flex flex-wrap items-center justify-center gap-2">
-            <span>© 2026 Phygital.</span>
+            <span>© 2026 <BrandWord />.</span>
             <span aria-hidden>•</span>
             <span>Your Vision. Our Innovation.</span>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center justify-center gap-1.5">
             <span>Made with</span>
             <Heart size={12} className="text-brand-400" />
-            <span>for the Phygital Movement</span>
+            <span>for the <BrandWord /> Movement</span>
           </div>
         </div>
       </div>

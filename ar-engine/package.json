@@ -1,7 +1,7 @@
 {
   "name": "ar-engine",
   "version": "1.0.0",
-  "description": "Phygital8ThWall — WebAR Experience Engine",
+  "description": "Phygital — WebAR Experience Engine",
   "type": "module",
   "scripts": {
     "dev": "vite --port 5174 --host",

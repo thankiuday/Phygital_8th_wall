@@ -33,7 +33,7 @@
  * ──────────────────────────────────────
  *   #ar-controls  — bottom-center pill: play/pause, mute, fullscreen
  *   #ar-buffer    — centered ring spinner shown while video stalls
- *   #ar-watermark — bottom-right "Powered by Phygital8thWall" (auto-fades)
+ *   #ar-watermark — bottom-right "Powered by Phygital" (auto-fades)
  *
  * AUTO-QUALITY
  * ────────────
@@ -342,7 +342,7 @@ export class ARExperience {
     // Watermark (auto-fades via CSS keyframes)
     const watermark = document.createElement('div');
     watermark.id = 'ar-watermark';
-    watermark.textContent = 'Powered by Phygital8thWall';
+    watermark.textContent = 'Powered by Phygital';
     document.body.appendChild(watermark);
 
     this._ui.controls  = controls;

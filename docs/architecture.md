@@ -1,8 +1,8 @@
-# Phygital8ThWall — System Architecture
+# Phygital — System Architecture
 
 ## Overview
 
-Phygital8ThWall is a SaaS platform that lets users create WebAR business card campaigns.
+Phygital is a SaaS platform that lets users create WebAR business card campaigns.
 Any person who scans the generated QR code and points their phone camera at the business card
 will see a 3D holographic video pop out from the card — with no app download required.
 

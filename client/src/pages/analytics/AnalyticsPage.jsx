@@ -41,12 +41,12 @@ const CHART_TOOLTIP_STYLE = {
 // ---------------------------------------------------------------------------
 
 const StatCard = ({ icon: Icon, label, value, sub, accent }) => (
-  <div className="glass-card flex flex-col gap-3 p-5">
+  <div className="glass-card flex flex-col gap-3 p-4 sm:p-5">
     <div className="flex items-start justify-between">
       <Icon3D icon={Icon} size={16} className="h-10 w-10" accent={accent} />
     </div>
     <div>
-      <p className="text-2xl font-bold text-[var(--text-primary)]">{value ?? '—'}</p>
+      <p className="text-xl font-bold text-[var(--text-primary)] sm:text-2xl">{value ?? '—'}</p>
       <p className="mt-0.5 text-sm font-medium text-[var(--text-secondary)]">{label}</p>
       {sub && <p className="mt-0.5 text-xs text-[var(--text-muted)]">{sub}</p>}
     </div>
@@ -58,16 +58,17 @@ const SectionTitle = ({ children }) => (
 );
 
 const PeriodSelector = ({ value, onChange }) => (
-  <div className="flex items-center gap-1 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] p-1">
+  <div className="grid w-full grid-cols-3 gap-1 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] p-1 sm:inline-grid sm:w-auto">
     {PERIODS.map((p) => (
       <button
         key={p.value}
         onClick={() => onChange(p.value)}
-        className={`inline-flex min-h-[44px] items-center rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+        className={`inline-flex min-h-[44px] items-center justify-center rounded-lg px-2 py-2 text-xs font-semibold transition-all sm:px-3 sm:py-1.5 ${
           value === p.value
             ? 'bg-brand-600 text-white shadow-glow'
             : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
         }`}
+        aria-pressed={value === p.value}
       >
         {p.label}
       </button>
@@ -148,7 +149,7 @@ const AnalyticsPage = () => {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="mx-auto max-w-6xl space-y-8 p-6"
+      className="mx-auto max-w-6xl space-y-6 p-4 sm:space-y-8 sm:p-6"
     >
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -158,7 +159,9 @@ const AnalyticsPage = () => {
             Performance insights across all your campaigns
           </p>
         </div>
-        <PeriodSelector value={period} onChange={setPeriod} />
+        <div className="w-full sm:w-auto">
+          <PeriodSelector value={period} onChange={setPeriod} />
+        </div>
       </div>
 
       {error && (
@@ -168,7 +171,7 @@ const AnalyticsPage = () => {
       )}
 
       {/* ── All-time stat cards ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {isLoading ? (
           Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="glass-card h-32 animate-pulse" />

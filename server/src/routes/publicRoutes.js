@@ -725,11 +725,14 @@ const applyImageTransforms = (cardContent) => {
   return next;
 };
 
-const findCardCampaign = async (slug) => {
+const findCardCampaign = async (rawSlug) => {
+  const redirectSlug = String(rawSlug || '');
+  const cardSlug = redirectSlug.toLowerCase();
   const filter = {
     campaignType: 'digital-business-card',
     isDeleted: { $ne: true },
-    $or: [{ cardSlug: slug }, { redirectSlug: slug }],
+    // cardSlug is normalized kebab-case; redirectSlug is short-code and may be mixed-case.
+    $or: [{ cardSlug }, { redirectSlug }],
   };
   return Campaign.findOne(
     filter,
@@ -739,7 +742,7 @@ const findCardCampaign = async (slug) => {
 
 /* GET /api/public/card/:slug/meta — public payload for the hub renderer. */
 router.get('/card/:slug/meta', cardSlugLimiter, async (req, res) => {
-  const slug = String(req.params.slug || '').toLowerCase();
+  const slug = String(req.params.slug || '');
   if (!isValidCardSlug(slug)) throw new AppError('Invalid card link', 400);
 
   const cached = await cardMetaCache.get(slug);
@@ -790,7 +793,7 @@ router.post(
   cardSlugLimiter,
   validate(publicCardScanSchema),
   async (req, res) => {
-    const slug = String(req.params.slug || '').toLowerCase();
+    const slug = String(req.params.slug || '');
     if (!isValidCardSlug(slug)) throw new AppError('Invalid card link', 400);
 
     const campaign = await findCardCampaign(slug);
@@ -835,7 +838,7 @@ router.post(
   cardActionLimiter,
   validate(publicCardActionSchema),
   async (req, res) => {
-    const slug = String(req.params.slug || '').toLowerCase();
+    const slug = String(req.params.slug || '');
     if (!isValidCardSlug(slug)) throw new AppError('Invalid card link', 400);
 
     const campaign = await findCardCampaign(slug);
@@ -862,7 +865,7 @@ router.post(
   cardActionLimiter,
   validate(publicCardSessionSchema),
   async (req, res) => {
-    const slug = String(req.params.slug || '').toLowerCase();
+    const slug = String(req.params.slug || '');
     if (!isValidCardSlug(slug)) throw new AppError('Invalid card link', 400);
 
     const campaign = await findCardCampaign(slug);

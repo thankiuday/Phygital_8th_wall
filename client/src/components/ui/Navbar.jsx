@@ -5,10 +5,11 @@ import { Menu, X, Zap, ChevronDown, LayoutDashboard, LogOut } from 'lucide-react
 import ThemeToggle from './ThemeToggle';
 import useAuthStore from '../../store/useAuthStore';
 import Icon3D, { ICON3D_PRESETS } from './Icon3D';
+import BrandWord from './BrandWord';
 
 const NAV_LINKS = [
   { label: 'Features', to: '/#features' },
-  { label: 'Pricing', to: '/pricing' },
+  { label: 'Pricing', to: '/#pricing' },
   { label: 'About', to: '/about' },
   { label: 'Contact', to: '/contact' },
 ];
@@ -74,7 +75,7 @@ const Navbar = () => {
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2 font-bold" onClick={() => setMobileOpen(false)}>
           <Icon3D icon={Zap} size={15} className="h-8 w-8" accent={ICON3D_PRESETS.brand} rounded="rounded-lg" />
-          <span className="gradient-text text-base sm:text-lg tracking-tight">Phygital8ThWall</span>
+          <BrandWord className="text-base sm:text-lg tracking-tight" />
         </Link>
 
         {/* Desktop nav */}

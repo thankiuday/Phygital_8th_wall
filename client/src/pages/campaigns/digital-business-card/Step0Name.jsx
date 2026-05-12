@@ -26,7 +26,7 @@ const Step0Name = ({
         </p>
       </div>
 
-      <div className="space-y-2 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4">
+      <div className="wizard-section space-y-3">
         <label htmlFor="card-campaign-name" className="text-sm font-medium text-[var(--text-secondary)]">
           Card name
         </label>
@@ -44,14 +44,14 @@ const Step0Name = ({
           <button
             type="button"
             onClick={onRegenerateName}
-            className="flex items-center gap-1.5 rounded-lg border border-[var(--border-color)] px-3 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-2)]"
+            className="wizard-btn-secondary px-3 text-xs"
             title="Regenerate name"
           >
             <RefreshCw size={14} />
             New
           </button>
         </div>
-        <p className="text-xs text-[var(--text-muted)]">3–80 characters.</p>
+        <p className="wizard-subtext">3–80 characters.</p>
       </div>
 
       <div className="mt-8 flex justify-end">
@@ -59,7 +59,7 @@ const Step0Name = ({
           type="button"
           disabled={!canContinue}
           onClick={onContinue}
-          className="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white shadow-glow hover:bg-brand-400 disabled:cursor-not-allowed disabled:opacity-50"
+          className="wizard-btn-primary"
         >
           Continue
         </button>

@@ -64,7 +64,7 @@ export const authService = {
    * Returns { accessToken }.
    */
   refresh: async () => {
-    const res = await api.post('/auth/refresh');
+    const res = await api.post('/auth/refresh', {});
     const data = requireAuthPayload(res, 'Refresh');
     if (!data.accessToken) {
       throw new Error('Refresh response missing access token.');

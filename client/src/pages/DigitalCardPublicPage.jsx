@@ -4,6 +4,7 @@ import { Helmet } from 'react-helmet-async';
 
 import { publicService } from '../services/publicService';
 import BusinessCardLivePreview from '../components/card/BusinessCardLivePreview';
+import BrandWord from '../components/ui/BrandWord';
 
 const visitorHashKey = 'card-visitor-hash';
 
@@ -115,7 +116,7 @@ const DigitalCardPublicPage = () => {
   const { cardContent, cardDesign, paused, campaignName } = state.data;
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#0f172a,_#020617_50%,_#000_100%)] px-3 py-6 sm:px-4 sm:py-10">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#1e293b,_#0f172a_45%,_#020617_100%)] px-3 py-6 sm:px-4 sm:py-10">
       <Helmet>
         <title>{cardContent?.fullName || campaignName} – Digital Business Card</title>
         <meta name="description" content={cardContent?.bio || campaignName} />
@@ -125,12 +126,17 @@ const DigitalCardPublicPage = () => {
         )}
       </Helmet>
 
-      <div className="mx-auto w-full max-w-2xl">
+      <div className="mx-auto w-full max-w-3xl">
         {paused && (
           <div className="mb-3 rounded-md bg-amber-500/10 p-3 text-xs text-amber-300">
             This card is currently paused by its owner.
           </div>
         )}
+        <div className="mb-4 rounded-2xl border border-white/12 bg-gradient-to-br from-white/15 to-white/5 px-4 py-3 shadow-xl backdrop-blur-md">
+          <p className="text-xs uppercase tracking-[0.22em] text-slate-300">Personalized Identity Card</p>
+          <h1 className="mt-1 text-lg font-semibold text-white">{cardContent?.fullName || campaignName}</h1>
+          <p className="text-xs text-slate-300/90">Tap any action on the card to connect instantly.</p>
+        </div>
         <div className="rounded-2xl border border-white/10 bg-white/5 p-2 shadow-2xl backdrop-blur-sm sm:p-4">
           <BusinessCardLivePreview
             content={cardContent}
@@ -139,8 +145,8 @@ const DigitalCardPublicPage = () => {
             onAction={onAction}
           />
         </div>
-        <p className="mt-3 text-center text-[11px] text-slate-500">
-          Powered by Phygital8thWall
+        <p className="mt-4 text-center text-[11px] text-slate-500">
+          Powered by <BrandWord />
         </p>
       </div>
     </div>

@@ -96,6 +96,14 @@
 
   /* Navbar height */
   --navbar-height: 64px;
+  --input-bg: #f8fafc;
+  --input-border: #cbd5e1;
+  --input-hover: #94a3b8;
+  --input-focus-ring: rgba(124, 58, 237, 0.18);
+  --input-text: #0f172a;
+  --input-placeholder: #94a3b8;
+  --input-disabled: #e2e8f0;
+  --surface-wizard: rgba(255, 255, 255, 0.88);
 }
 
 /* ─────────────────────────────────────────
@@ -181,6 +189,14 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --input-bg: #0f172a;
+  --input-border: #334155;
+  --input-hover: #475569;
+  --input-focus-ring: rgba(139, 92, 246, 0.24);
+  --input-text: #f8fafc;
+  --input-placeholder: #64748b;
+  --input-disabled: #1e293b;
+  --surface-wizard: rgba(15, 23, 42, 0.74);
 }
 
 /* ─────────────────────────────────────────
@@ -264,6 +280,14 @@
   --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.45);
   --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.48);
   --shadow-lg: 0 10px 36px rgba(0, 0, 0, 0.6);
+  --input-bg: #0f172a;
+  --input-border: rgba(0, 212, 255, 0.25);
+  --input-hover: rgba(0, 212, 255, 0.48);
+  --input-focus-ring: rgba(0, 212, 255, 0.25);
+  --input-text: #e2e8f0;
+  --input-placeholder: #64748b;
+  --input-disabled: #1e293b;
+  --surface-wizard: rgba(15, 23, 42, 0.72);
 }
 
 /* ─────────────────────────────────────────
@@ -417,26 +441,120 @@
     background-image: linear-gradient(135deg, #00d4ff 0%, #a855f7 50%, #ec4899 100%);
   }
 
+  /* "Phygital" brand word — fixed gradient across all themes */
+  .brand-word {
+    @apply bg-clip-text text-transparent;
+    font: inherit;
+    background-image: linear-gradient(90deg, #4f46e5 0%, #ec4899 100%);
+  }
+
   /* Glow ring button effect */
   .glow-ring {
     box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.25);
   }
 
   /* Input base style */
-  .input-base {
+  .input-base,
+  .form-input {
     @apply w-full rounded-xl border px-4 py-3 text-sm transition-all duration-200 outline-none;
-    background-color: var(--surface-2);
-    border-color: var(--border-color);
+    background-color: var(--input-bg);
+    border-color: var(--input-border);
+    color: var(--input-text);
+  }
+
+  .input-base:focus,
+  .form-input:focus {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 4px var(--input-focus-ring);
+  }
+
+  .input-base:hover,
+  .form-input:hover {
+    border-color: var(--input-hover);
+  }
+
+  .input-base::placeholder,
+  .form-input::placeholder {
+    color: var(--input-placeholder);
+  }
+
+  .input-base:disabled,
+  .form-input:disabled {
+    background-color: var(--input-disabled);
+    color: var(--text-muted);
+    cursor: not-allowed;
+    opacity: 0.75;
+  }
+
+  .input-base[type='color'],
+  .form-input[type='color'] {
+    @apply p-1;
+    min-height: 44px;
+  }
+
+  .input-base[type='range'],
+  .form-input[type='range'] {
+    @apply p-0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    min-height: auto;
+  }
+
+  .wizard-shell {
+    background: var(--surface-wizard);
+    border: 1px solid var(--glass-border);
+    border-radius: 1rem;
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    box-shadow: var(--shadow-lg);
+  }
+
+  .wizard-section {
+    @apply rounded-2xl border p-4 sm:p-5;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--surface-1) 88%, transparent) 0%, color-mix(in srgb, var(--surface-2) 92%, transparent) 100%);
+    border-color: color-mix(in srgb, var(--border-color) 78%, transparent);
+    box-shadow: 0 8px 24px rgba(2, 6, 23, 0.08);
+  }
+
+  .wizard-section-title {
+    @apply mb-3 text-sm font-semibold uppercase tracking-wide;
     color: var(--text-primary);
   }
 
-  .input-base:focus {
-    border-color: var(--brand);
-    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+  .wizard-subtext {
+    @apply text-xs;
+    color: var(--text-muted);
   }
 
-  .input-base::placeholder {
-    color: var(--text-muted);
+  .wizard-btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-all;
+    background: linear-gradient(135deg, var(--brand) 0%, var(--brand-light) 100%);
+    box-shadow: 0 12px 24px rgba(124, 58, 237, 0.28);
+  }
+
+  .wizard-btn-primary:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.03);
+  }
+
+  .wizard-btn-primary:disabled {
+    @apply cursor-not-allowed;
+    opacity: 0.55;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .wizard-btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors;
+    border-color: var(--border-color);
+    background: color-mix(in srgb, var(--surface-2) 85%, transparent);
+    color: var(--text-secondary);
+  }
+
+  .wizard-btn-secondary:hover {
+    background: color-mix(in srgb, var(--surface-3) 92%, transparent);
+    color: var(--text-primary);
   }
 
   .theme-page {

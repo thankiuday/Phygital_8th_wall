@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Zap } from 'lucide-react';
+import BrandWord from './BrandWord';
 
 /**
  * AuthCard — shared wrapper for all auth pages (Login, Register, etc).
@@ -31,7 +32,7 @@ const AuthCard = ({ title, subtitle, children }) => {
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-brand shadow-glow">
             <Zap size={18} className="text-white" />
           </span>
-          <span className="gradient-text text-xl font-bold tracking-tight">Phygital8ThWall</span>
+          <BrandWord className="text-xl font-bold tracking-tight" />
         </Link>
 
         {/* Card — solid surface on phones so the keyboard area stays

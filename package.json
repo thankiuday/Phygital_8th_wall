@@ -2,7 +2,7 @@
   "name": "phygital8thwall",
   "version": "1.0.0",
   "private": true,
-  "description": "AR Business Card SaaS Platform — Phygital8ThWall",
+  "description": "AR Business Card SaaS Platform — Phygital",
   "workspaces": [
     "client",
     "server",

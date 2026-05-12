@@ -38,13 +38,13 @@ const sendPasswordResetEmail = async ({ to, name, resetUrl }) => {
   const transporter = await createTransporter();
 
   const info = await transporter.sendMail({
-    from: `"Phygital8ThWall" <${process.env.SMTP_FROM || 'noreply@phygital8thwall.com'}>`,
+    from: `"Phygital" <${process.env.SMTP_FROM || 'noreply@phygital8thwall.com'}>`,
     to,
-    subject: 'Reset your Phygital8ThWall password',
+    subject: 'Reset your Phygital password',
     html: `
       <div style="font-family: Inter, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px; background: #0f172a; color: #f8fafc; border-radius: 16px;">
         <h1 style="font-size: 24px; font-weight: 800; background: linear-gradient(135deg,#7c3aed,#06b6d4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0 0 8px;">
-          Phygital8ThWall
+          Phygital
         </h1>
         <h2 style="font-size: 18px; font-weight: 600; margin: 0 0 16px; color: #f8fafc;">
           Reset your password

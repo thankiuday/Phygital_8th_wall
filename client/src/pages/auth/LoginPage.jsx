@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { LogIn, Loader2 } from 'lucide-react';
 import AuthCard from '../../components/ui/AuthCard';
+import BrandWord from '../../components/ui/BrandWord';
 import FormInput from '../../components/ui/FormInput';
 import useAuthStore from '../../store/useAuthStore';
 
@@ -48,7 +49,7 @@ const LoginPage = () => {
   return (
     <AuthCard
       title="Welcome back"
-      subtitle="Sign in to your Phygital8ThWall account"
+      subtitle={<>Sign in to your <BrandWord /> account</>}
     >
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
         {/* API-level error */}

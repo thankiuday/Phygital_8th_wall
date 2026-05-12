@@ -160,7 +160,7 @@ const scanQueue     = require('./src/utils/scanQueue');
 app.get('/health', (req, res) => {
   res.json({
     status:    'ok',
-    service:   'Phygital8ThWall API',
+    service:   'Phygital API',
     timestamp: new Date().toISOString(),
     env:       process.env.NODE_ENV || 'development',
     uptime:    Math.round(process.uptime()),

@@ -33,6 +33,45 @@ const RENDER_TOKEN_SECRET =
   || 'phygital8thwall-card-render-secret';
 
 const CARD_RENDER_QUEUE_NAME = 'card-render';
+const toErrorMeta = (err) => {
+  if (!err) return { message: 'unknown error' };
+  const cloudinaryMsg = err?.error?.message;
+  const cloudinaryCode = err?.error?.http_code;
+  if (cloudinaryMsg) {
+    return {
+      name: err.name || 'CloudinaryError',
+      message: String(cloudinaryMsg),
+      code: cloudinaryCode || err.code || null,
+    };
+  }
+  if (err instanceof Error) {
+    return {
+      name: err.name,
+      message: String(err.message || 'unknown error').slice(0, 500),
+      code: err.code || null,
+    };
+  }
+  if (typeof err === 'string') return { message: err };
+  return { message: String(err) };
+};
+
+const uploadPngBuffer = ({ buffer, userId, renderHash }) =>
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: `phygital8thwall/${userId}/cards`,
+        public_id: renderHash,
+        overwrite: true,
+        resource_type: 'image',
+        format: 'png',
+      },
+      (err, result) => {
+        if (err) return reject(err);
+        resolve(result);
+      }
+    );
+    stream.end(buffer);
+  });
 
 /**
  * Mints a short-lived HMAC token so headless Chromium can fetch the print
@@ -157,13 +196,22 @@ const { getCardSize } = require('../constants/cardSizes');
 const renderDirect = async ({ campaignId, userId, cardSlug, size, face, renderHash }) => {
   const sizeSpec = getCardSize(size);
   const requestedFace = face === 'back' ? 'back' : 'front';
+  const renderScale = 2;
   const browser = await getBrowser();
   const page = await browser.newPage();
+  const pageErrors = [];
+  const failedRequests = [];
+  page.on('pageerror', (err) => {
+    pageErrors.push(err?.message || String(err));
+  });
+  page.on('requestfailed', (req) => {
+    failedRequests.push(`${req.method()} ${req.url()} :: ${req.failure()?.errorText || 'unknown'}`);
+  });
   try {
     await page.setViewport({
       width: sizeSpec.bleed.widthPx,
       height: sizeSpec.bleed.heightPx,
-      deviceScaleFactor: 1,
+      deviceScaleFactor: renderScale,
     });
 
     const clientBase = (process.env.CLIENT_URL || '').replace(/\/$/, '');
@@ -179,7 +227,13 @@ const renderDirect = async ({ campaignId, userId, cardSlug, size, face, renderHa
 
     await page.goto(url, { waitUntil: 'networkidle0', timeout: 30_000 });
     // The print page paints a sentinel attribute when fonts/images/QR are settled.
-    await page.waitForSelector('[data-print-ready="1"]', { timeout: 15_000 }).catch(() => {});
+    try {
+      await page.waitForSelector('[data-print-ready="1"]', { timeout: 15_000 });
+    } catch (err) {
+      throw new Error(
+        `Print page did not become ready in time (${requestedFace}). ${err.message}`
+      );
+    }
 
     const buffer = await page.screenshot({
       type: 'png',
@@ -195,18 +249,23 @@ const renderDirect = async ({ campaignId, userId, cardSlug, size, face, renderHa
     rendersOnCurrentBrowser += 1;
 
     // Upload and cache.
-    const upload = await cloudinary.uploader.upload(
-      `data:image/png;base64,${buffer.toString('base64')}`,
-      {
-        folder: `phygital8thwall/${userId}/cards`,
-        public_id: renderHash,
-        overwrite: true,
-        resource_type: 'image',
-        format: 'png',
-      }
-    );
+    const upload = await uploadPngBuffer({ buffer, userId, renderHash });
 
     return { url: upload.secure_url, public_id: upload.public_id, cached: false };
+  } catch (err) {
+    const errMeta = toErrorMeta(err);
+    logger.error('cardPrintService.renderDirect failed', {
+      campaignId,
+      userId,
+      cardSlug,
+      size,
+      face: requestedFace,
+      renderHash,
+      error: errMeta,
+      pageErrors: pageErrors.slice(0, 3).map((x) => String(x).slice(0, 300)),
+      failedRequests: failedRequests.slice(0, 5).map((x) => String(x).slice(0, 300)),
+    });
+    throw new Error(`Card render failed (${requestedFace}): ${errMeta.message}`);
   } finally {
     await page.close().catch(() => {});
   }

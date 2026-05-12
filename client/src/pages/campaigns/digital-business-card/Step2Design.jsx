@@ -8,10 +8,10 @@ import {
 } from '../../../components/card/cardTemplates';
 
 const ColorRow = ({ label, value, onChange }) => (
-  <label className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-color)] px-3 py-2">
+  <label className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)]/55 px-3 py-2.5">
     <span className="text-xs font-medium text-[var(--text-secondary)]">{label}</span>
     <div className="flex items-center gap-2">
-      <input type="color" value={value} onChange={(e) => onChange(e.target.value)} className="h-7 w-10 cursor-pointer rounded" />
+      <input type="color" value={value} onChange={(e) => onChange(e.target.value)} className="form-input h-10 w-12 cursor-pointer p-1" />
       <input
         type="text"
         value={value}
@@ -27,10 +27,10 @@ const Pill = ({ active, label, onClick }) => (
   <button
     type="button"
     onClick={onClick}
-    className={`rounded-full border px-3 py-1 text-xs transition ${
+    className={`rounded-full border px-3 py-1.5 text-xs transition ${
       active
-        ? 'border-brand-500 bg-brand-500/15 text-brand-300'
-        : 'border-[var(--border-color)] bg-[var(--surface-2)] text-[var(--text-secondary)] hover:border-brand-500/40'
+        ? 'border-brand-500 bg-brand-500/15 text-brand-300 shadow-glow'
+        : 'border-[var(--border-color)] bg-[var(--surface-2)] text-[var(--text-secondary)] hover:border-brand-500/40 hover:text-[var(--text-primary)]'
     }`}
   >
     {label}
@@ -49,8 +49,8 @@ const Step2Design = ({ draft, store, onContinue, onBack }) => {
         </p>
       </div>
 
-      <section className="space-y-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4">
-        <h4 className="text-sm font-semibold text-[var(--text-primary)]">Template</h4>
+      <section className="wizard-section space-y-3">
+        <h4 className="wizard-section-title">Template</h4>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {CARD_TEMPLATES.map((tpl) => {
             const active = d.template === tpl.id;
@@ -80,13 +80,13 @@ const Step2Design = ({ draft, store, onContinue, onBack }) => {
         </div>
       </section>
 
-      <section className="mt-4 grid grid-cols-1 gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4 sm:grid-cols-3">
+      <section className="wizard-section mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <ColorRow label="Primary" value={d.colors?.primary || '#3b82f6'} onChange={(v) => store.patchDesign({ colors: { ...d.colors, primary: v } })} />
         <ColorRow label="Secondary" value={d.colors?.secondary || '#1d4ed8'} onChange={(v) => store.patchDesign({ colors: { ...d.colors, secondary: v } })} />
         <ColorRow label="Background" value={d.colors?.background || '#030712'} onChange={(v) => store.patchDesign({ colors: { ...d.colors, background: v } })} />
       </section>
 
-      <section className="mt-4 grid grid-cols-1 gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-4 sm:grid-cols-2">
+      <section className="wizard-section mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Font</h4>
           <div className="flex flex-wrap gap-2">
@@ -122,8 +122,8 @@ const Step2Design = ({ draft, store, onContinue, onBack }) => {
       </section>
 
       <div className="mt-8 flex items-center justify-between">
-        <button type="button" onClick={onBack} className="rounded-lg border border-[var(--border-color)] px-4 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-2)]">Back</button>
-        <button type="button" onClick={onContinue} className="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white shadow-glow hover:bg-brand-400">Continue to Publish</button>
+        <button type="button" onClick={onBack} className="wizard-btn-secondary">Back</button>
+        <button type="button" onClick={onContinue} className="wizard-btn-primary">Continue to Publish</button>
       </div>
     </div>
   );

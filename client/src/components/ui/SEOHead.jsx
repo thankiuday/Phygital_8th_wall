@@ -1,7 +1,7 @@
 import { Helmet } from 'react-helmet-async';
 import { useLocation } from 'react-router-dom';
 
-const APP_NAME = import.meta.env.VITE_APP_NAME || 'Phygital8ThWall';
+const APP_NAME = import.meta.env.VITE_APP_NAME || 'Phygital';
 const APP_URL  = (import.meta.env.VITE_APP_URL  || 'https://phygital8thwall.com').replace(/\/$/, '');
 const OG_IMAGE = `${APP_URL}/og-image.png`;
 
@@ -9,7 +9,7 @@ const OG_IMAGE = `${APP_URL}/og-image.png`;
  * SEOHead — sets page title, meta description, Open Graph, and Twitter Card tags.
  *
  * Props:
- *   title       {string}  Page title (appended with " | Phygital8ThWall")
+ *   title       {string}  Page title (appended with " | Phygital")
  *   description {string}  Meta description (max ~160 chars)
  *   image       {string}  OG image URL (defaults to global og-image.png)
  *   url         {string}  Canonical URL (defaults to APP_URL)
