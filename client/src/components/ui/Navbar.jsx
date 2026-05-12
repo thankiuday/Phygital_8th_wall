@@ -1,15 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Zap, ChevronDown, LayoutDashboard, LogOut } from 'lucide-react';
+import { Menu, X, ChevronDown, LayoutDashboard, LogOut } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 import useAuthStore from '../../store/useAuthStore';
 import Icon3D, { ICON3D_PRESETS } from './Icon3D';
-import BrandWord from './BrandWord';
+import BrandLockup from './BrandLockup';
 
 const NAV_LINKS = [
-  { label: 'Features', to: '/#features' },
-  { label: 'Pricing', to: '/#pricing' },
+  { label: 'Home', to: '/', end: true },
+  { label: 'Pricing', to: '/pricing' },
   { label: 'About', to: '/about' },
   { label: 'Contact', to: '/contact' },
 ];
@@ -73,10 +73,7 @@ const Navbar = () => {
     >
       <div className="content-width pt-safe flex h-full items-center justify-between px-4 sm:px-6 md:px-8">
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2 font-bold" onClick={() => setMobileOpen(false)}>
-          <Icon3D icon={Zap} size={15} className="h-8 w-8" accent={ICON3D_PRESETS.brand} rounded="rounded-lg" />
-          <BrandWord className="text-base sm:text-lg tracking-tight" />
-        </Link>
+        <BrandLockup variant="header" onClick={() => setMobileOpen(false)} />
 
         {/* Desktop nav */}
         <nav className="hidden items-center gap-6 md:flex">
@@ -84,6 +81,7 @@ const Navbar = () => {
             <NavLink
               key={link.to}
               to={link.to}
+              end={link.end}
               className="text-sm font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--brand)]"
             >
               {link.label}
@@ -226,6 +224,7 @@ const Navbar = () => {
                 <NavLink
                   key={link.to}
                   to={link.to}
+                  end={link.end}
                   onClick={() => setMobileOpen(false)}
                   className={({ isActive }) =>
                     `rounded-xl px-4 py-3 text-sm font-medium transition-colors ${

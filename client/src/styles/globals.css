@@ -12,9 +12,9 @@
    ───────────────────────────────────────── */
 :root {
   /* Background layers */
-  --bg-primary: #ffffff;
-  --bg-secondary: #f8fafc;
-  --bg-tertiary: #f1f5f9;
+  --bg-primary: #f5f5dc;
+  --bg-secondary: #eeecd1;
+  --bg-tertiary: #e5e1c2;
 
   /* Surface cards */
   --surface-1: #ffffff;
@@ -441,11 +441,23 @@
     background-image: linear-gradient(135deg, #00d4ff 0%, #a855f7 50%, #ec4899 100%);
   }
 
-  /* "Phygital" brand word — fixed gradient across all themes */
+  /* "Phygital" brand word — neon gradient (same on light/dark; sits on theme bg) */
   .brand-word {
     @apply bg-clip-text text-transparent;
     font: inherit;
-    background-image: linear-gradient(90deg, #4f46e5 0%, #ec4899 100%);
+    /* Gradient text: enough line-height + slight padding so descenders aren’t
+       clipped (especially with `leading-none` / tight flex rows in the navbar). */
+    line-height: 1.22;
+    padding-bottom: 0.06em;
+    background-image: linear-gradient(
+      90deg,
+      #22d3ee 0%,
+      #38bdf8 14%,
+      #818cf8 38%,
+      #a78bfa 58%,
+      #c084fc 78%,
+      #f472b6 100%
+    );
   }
 
   /* Glow ring button effect */

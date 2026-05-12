@@ -14,6 +14,7 @@ import {
 import { publicService } from '../services/publicService';
 import useThemeStore, { applyThemeClass } from '../store/useThemeStore';
 import BrandWord from '../components/ui/BrandWord';
+import BrandLockup from '../components/ui/BrandLockup';
 
 /* ── Detect device type for analytics ───────────────────────────── */
 const getDeviceType = () => {
@@ -102,11 +103,11 @@ const ARExperiencePage = () => {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#020617]">
         <motion.div
-          animate={{ scale: [1, 1.1, 1] }}
+          animate={{ scale: [1, 1.05, 1] }}
           transition={{ duration: 1.2, repeat: Infinity }}
-          className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-brand shadow-glow-lg"
+          className="flex items-center justify-center"
         >
-          <Zap size={28} className="text-white" />
+          <BrandLockup variant="header" className="[&_.brand-word]:brightness-110" />
         </motion.div>
         <p className="text-sm text-white/50">Loading AR experience…</p>
       </div>
@@ -153,16 +154,7 @@ const ARExperiencePage = () => {
       </div>
 
       {/* Header */}
-      <Link
-        to="/"
-        aria-label="Phygital home"
-        className="inline-flex min-h-11 min-w-11 items-center gap-2 self-start"
-      >
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-brand shadow-glow">
-          <Zap size={16} className="text-white" />
-        </span>
-        <BrandWord className="text-sm font-bold tracking-tight" />
-      </Link>
+      <BrandLockup variant="header" className="min-h-11 self-start py-1 [&_.brand-word]:brightness-110" />
 
       {/* Main content */}
       <motion.div
@@ -261,10 +253,13 @@ const ARExperiencePage = () => {
       </motion.div>
 
       {/* Footer */}
-      <p className="text-xs text-white/25">
-        Powered by{' '}
-        <Link to="/" className="text-white/40 hover:text-white/60"><BrandWord /></Link>
-        {' '}· Immersive WebAR
+      <p className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-xs text-white/25">
+        <span>Powered by</span>
+        <BrandLockup
+          variant="compact"
+          className="gap-1.5 [&_.brand-word]:brightness-110"
+        />
+        <span>· Immersive WebAR</span>
       </p>
     </div>
   );

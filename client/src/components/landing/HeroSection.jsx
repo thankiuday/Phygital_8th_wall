@@ -2,8 +2,8 @@ import { motion } from 'framer-motion';
 import { useId } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, ChevronDown, Zap } from 'lucide-react';
-import Icon3D, { ICON3D_PRESETS } from '../ui/Icon3D';
 import BrandWord from '../ui/BrandWord';
+import BrandLogo from '../ui/BrandLogo';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -229,7 +229,7 @@ const HeroSection = () => (
     >
       <motion.div variants={fadeUp}>
         <span className="inline-flex items-center gap-2 rounded-full border border-brand-500/30 bg-brand-500/10 px-3.5 py-1.5 text-xs font-semibold text-brand-400 sm:px-4">
-          <Icon3D icon={Zap} size={10} className="h-5 w-5" accent={ICON3D_PRESETS.violet} rounded="rounded-md" />
+          <BrandLogo imgClassName="h-5 w-5 shrink-0 rounded-md object-cover object-center" />
           6 campaign types &mdash; one platform
         </span>
       </motion.div>

@@ -7,7 +7,6 @@ import {
   BarChart3,
   Settings,
   LogOut,
-  Zap,
   ChevronLeft,
   ChevronRight,
   PlusCircle,
@@ -16,7 +15,7 @@ import {
 import useAuthStore from '../../store/useAuthStore';
 import { cn } from '../../utils/cn';
 import Icon3D, { ICON3D_PRESETS } from './Icon3D';
-import BrandWord from './BrandWord';
+import BrandLockup from './BrandLockup';
 
 /* ── Nav link definitions ────────────────────────────────────────── */
 const NAV_ITEMS = [
@@ -95,22 +94,12 @@ const Sidebar = ({ collapsed, onCollapse, onNavigate }) => {
     >
       {/* ── Logo ─────────────────────────────────────────────────── */}
       <div className="flex h-16 items-center gap-3 border-b border-[var(--border-color)] px-4">
-        <Link to="/" className="flex items-center gap-2.5 shrink-0">
-          <Icon3D icon={Zap} size={15} className="h-8 w-8 shrink-0" accent={ICON3D_PRESETS.brand} rounded="rounded-lg" />
-          <AnimatePresence>
-            {!collapsed && (
-              <motion.span
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="text-sm font-bold whitespace-nowrap"
-              >
-                <BrandWord />
-              </motion.span>
-            )}
-          </AnimatePresence>
-        </Link>
+        <BrandLockup
+          variant="sidebar"
+          markOnly={collapsed}
+          onClick={onNavigate}
+          className={cn(collapsed ? 'w-full' : 'gap-2.5')}
+        />
       </div>
 
       {/* ── Phygitalize now CTA — opens the picker page ──────────── */}

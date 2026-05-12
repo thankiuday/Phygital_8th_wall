@@ -15,6 +15,9 @@ import ErrorBoundary from './components/ui/ErrorBoundary';
 
 // ── Eagerly-loaded pages (small, needed on first paint) ──────────────────────
 import LandingPage        from './pages/LandingPage';
+import AboutPage          from './pages/AboutPage';
+import ContactPage        from './pages/ContactPage';
+import PricingPage        from './pages/PricingPage';
 import NotFoundPage       from './pages/NotFoundPage';
 import LoginPage          from './pages/auth/LoginPage';
 import RegisterPage       from './pages/auth/RegisterPage';
@@ -94,6 +97,9 @@ function App() {
             {/* ── Public marketing pages ────────────────────────────── */}
             <Route element={<PublicLayout />}>
               <Route path="/" element={<LandingPage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/pricing" element={<PricingPage />} />
             </Route>
 
             {/* ── Auth pages (no navbar/footer) ─────────────────────── */}

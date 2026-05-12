@@ -1,7 +1,5 @@
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
-import { Zap } from 'lucide-react';
-import BrandWord from './BrandWord';
+import BrandLockup from './BrandLockup';
 
 /**
  * AuthCard — shared wrapper for all auth pages (Login, Register, etc).
@@ -28,12 +26,12 @@ const AuthCard = ({ title, subtitle, children }) => {
         className="w-full max-w-md"
       >
         {/* Logo */}
-        <Link to="/" className="mb-6 flex items-center justify-center gap-2 sm:mb-8">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-brand shadow-glow">
-            <Zap size={18} className="text-white" />
-          </span>
-          <BrandWord className="text-xl font-bold tracking-tight" />
-        </Link>
+        <div className="mb-6 flex justify-center sm:mb-8">
+          <BrandLockup
+            variant="auth"
+            className="flex-col items-center gap-3 sm:flex-row sm:items-center sm:gap-4"
+          />
+        </div>
 
         {/* Card — solid surface on phones so the keyboard area stays
             readable; restores the glass treatment from sm: up via a CSS

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
-import { Heart, Mail, Phone, MapPin, Zap } from 'lucide-react';
+import { Heart, Mail, Phone, MapPin } from 'lucide-react';
 import BrandWord from './BrandWord';
+import BrandLockup from './BrandLockup';
 
 /**
  * Footer — site-wide footer with brand, links, and contact details.
@@ -11,12 +12,7 @@ const Footer = () => {
       <div className="content-width section-padding py-12">
         <div className="grid grid-cols-1 gap-10 md:grid-cols-2 lg:grid-cols-4">
           <div className="lg:col-span-2">
-            <Link to="/" className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-brand shadow-glow">
-                <Zap size={16} className="text-white" />
-              </span>
-              <BrandWord className="text-lg font-bold" />
-            </Link>
+            <BrandLockup variant="footer" className="max-w-[min(100%,280px)] py-1" />
 
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-[var(--text-muted)]">
               Where the Physical World Meets Digital Storytelling. Join the <BrandWord /> Movement and

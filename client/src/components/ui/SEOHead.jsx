@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 
 const APP_NAME = import.meta.env.VITE_APP_NAME || 'Phygital';
 const APP_URL  = (import.meta.env.VITE_APP_URL  || 'https://phygital8thwall.com').replace(/\/$/, '');
-const OG_IMAGE = `${APP_URL}/og-image.png`;
+const OG_IMAGE = `${APP_URL}/phygital-logo.png`;
 
 /**
  * SEOHead — sets page title, meta description, Open Graph, and Twitter Card tags.
@@ -11,7 +11,7 @@ const OG_IMAGE = `${APP_URL}/og-image.png`;
  * Props:
  *   title       {string}  Page title (appended with " | Phygital")
  *   description {string}  Meta description (max ~160 chars)
- *   image       {string}  OG image URL (defaults to global og-image.png)
+ *   image       {string}  OG image URL (defaults to /phygital-logo.png on APP_URL)
  *   url         {string}  Canonical URL (defaults to APP_URL)
  *   type        {string}  OG type — 'website' | 'article' (default: 'website')
  *   noIndex     {boolean} Set true for dashboard/admin pages

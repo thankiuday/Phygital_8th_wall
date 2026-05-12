@@ -12,9 +12,19 @@ const deviceTypeGuess = () => {
   return 'desktop';
 };
 
+/** Mirror server `HUB_CAMPAIGN_TYPES` — QR with precise geo uses `/open/:slug` for these. */
+const HUB_CAMPAIGN_TYPES = new Set([
+  'multiple-links-qr',
+  'links-video-qr',
+  'links-doc-video-qr',
+]);
+
+const isHubCampaignType = (ct) => HUB_CAMPAIGN_TYPES.has(ct);
+
 /**
- * Bridge for dynamic QR with precise geo: single-link → external URL;
- * multiple-links → /l/:slug (scan recorded here so the hub does not double-count).
+ * Bridge for dynamic QR with precise geo enabled:
+ * - single-link → external URL (after optional scan POST)
+ * - all hub types (multiple-links, links-video, links-doc-video) → POST scan then /l/:slug
  */
 const OpenSingleLinkBridgePage = () => {
   const { slug } = useParams();
@@ -33,7 +43,7 @@ const OpenSingleLinkBridgePage = () => {
         );
         const data = res.data?.data;
         if (!data?.campaignType) throw new Error('Invalid response');
-        if (data.campaignType === 'multiple-links-qr' && (data.paused || data.status === 'paused')) {
+        if (isHubCampaignType(data.campaignType) && (data.paused || data.status === 'paused')) {
           window.location.replace(`${window.location.origin}/l/${slug}`);
           return;
         }
@@ -41,6 +51,16 @@ const OpenSingleLinkBridgePage = () => {
           if (!data.destinationUrl) throw new Error('Invalid response');
         } else if (data.campaignType === 'multiple-links-qr') {
           if (!Array.isArray(data.links)) throw new Error('Invalid response');
+        } else if (data.campaignType === 'links-video-qr') {
+          if (!Array.isArray(data.links)) throw new Error('Invalid response');
+        } else if (data.campaignType === 'links-doc-video-qr') {
+          if (
+            !Array.isArray(data.links)
+            || !Array.isArray(data.videoItems)
+            || !Array.isArray(data.docItems)
+          ) {
+            throw new Error('Invalid response');
+          }
         } else {
           throw new Error('Invalid response');
         }
@@ -121,7 +141,7 @@ const OpenSingleLinkBridgePage = () => {
   );
 
   const handleSkipGeo = () => {
-    if (meta?.campaignType === 'multiple-links-qr') {
+    if (meta?.campaignType && isHubCampaignType(meta.campaignType)) {
       return postMultiScanAndGoHub({});
     }
     return postSingleScanAndRedirect({});
@@ -141,7 +161,7 @@ const OpenSingleLinkBridgePage = () => {
           accuracyM: pos.coords.accuracy,
           consentVersion: GEO_CONSENT_VERSION,
         };
-        if (meta?.campaignType === 'multiple-links-qr') {
+        if (meta?.campaignType && isHubCampaignType(meta.campaignType)) {
           postMultiScanAndGoHub(body);
         } else {
           postSingleScanAndRedirect(body);
@@ -175,7 +195,7 @@ const OpenSingleLinkBridgePage = () => {
   }
 
   const precise = !!meta?.preciseGeoAnalytics;
-  const isMulti = meta?.campaignType === 'multiple-links-qr';
+  const isHub = meta?.campaignType ? isHubCampaignType(meta.campaignType) : false;
 
   return (
     <div className="mx-auto max-w-md px-6 py-12">
@@ -188,7 +208,7 @@ const OpenSingleLinkBridgePage = () => {
         {meta?.campaignName || 'Continue'}
       </h1>
       <p className="mt-3 text-center text-sm text-[var(--text-secondary)]">
-        {isMulti
+        {isHub
           ? precise
             ? 'Continue to your link page, or optionally share your device location once for richer analytics.'
             : 'Tap below to open your link page. We record approximate scan analytics from your network.'
@@ -216,7 +236,7 @@ const OpenSingleLinkBridgePage = () => {
           }`}
         >
           <ExternalLink size={18} aria-hidden />
-          {precise ? 'Continue without location' : isMulti ? 'Open link page' : 'Continue'}
+          {precise ? 'Continue without location' : isHub ? 'Open link page' : 'Continue'}
         </button>
       </div>
 

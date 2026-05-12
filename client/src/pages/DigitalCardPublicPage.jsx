@@ -4,7 +4,7 @@ import { Helmet } from 'react-helmet-async';
 
 import { publicService } from '../services/publicService';
 import BusinessCardLivePreview from '../components/card/BusinessCardLivePreview';
-import BrandWord from '../components/ui/BrandWord';
+import BrandLockup from '../components/ui/BrandLockup';
 
 const visitorHashKey = 'card-visitor-hash';
 
@@ -145,8 +145,9 @@ const DigitalCardPublicPage = () => {
             onAction={onAction}
           />
         </div>
-        <p className="mt-4 text-center text-[11px] text-slate-500">
-          Powered by <BrandWord />
+        <p className="mt-4 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-center text-[11px] text-slate-500">
+          <span>Powered by</span>
+          <BrandLockup variant="compact" className="gap-1 scale-[0.92] origin-center" />
         </p>
       </div>
     </div>
