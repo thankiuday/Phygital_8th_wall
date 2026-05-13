@@ -1,6 +1,8 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './queryClient';
 import useThemeStore, { applyThemeClass } from './store/useThemeStore';
 import useAuthStore from './store/useAuthStore';
 
@@ -94,8 +96,9 @@ function App() {
 
   return (
     <HelmetProvider>
-      <ErrorBoundary>
-        <BrowserRouter>
+      <QueryClientProvider client={queryClient}>
+        <ErrorBoundary>
+          <BrowserRouter>
           <ScrollToTop />
           <Routes>
             {/* ── Public marketing pages ────────────────────────────── */}
@@ -202,6 +205,7 @@ function App() {
           </Routes>
         </BrowserRouter>
       </ErrorBoundary>
+      </QueryClientProvider>
     </HelmetProvider>
   );
 }

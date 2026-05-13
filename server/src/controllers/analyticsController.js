@@ -6,6 +6,11 @@
  * All aggregations run against the ScanEvent collection.
  * Queries are scoped to the authenticated user's own data (req.user._id).
  *
+ * Indexing: `ScanEvent` compound indexes `{ userId, scannedAt }` and
+ * `{ campaignId, scannedAt }` should align with `$match` + date windows. When
+ * tuning slow dashboards in staging, run the same `.aggregate([...])` with
+ * `.explain('executionStats')` and confirm IXSCAN on those fields.
+ *
  * Endpoints:
  *   GET /api/analytics/overview?period=7d|30d|90d
  *   GET /api/analytics/campaigns/:id?period=7d|30d|90d
@@ -19,6 +24,7 @@ const VideoPlayEvent = require('../models/VideoPlayEvent');
 const Campaign  = require('../models/Campaign');
 const { success } = require('../utils/apiResponse');
 const { AppError } = require('../middleware/errorHandler');
+const { tryUtcRollupScanTrend } = require('../services/analyticsRollupService');
 
 /** Hub types (multi-link, links-video, links-doc-video) — outbound link tap aggregates apply. */
 const MULTI_LINK_TYPES = new Set([
@@ -151,21 +157,100 @@ const buildScanTrend = async (matchStage, since, timeZone) => {
 };
 
 /**
- * buildHourlyHeatmap — counts scans for each hour of the day (0–23).
+ * Single `$match` on the period window, then `$facet` for device / browser /
+ * hourly / scan trend (and optionally locations) to cut round-trips vs many
+ * parallel `ScanEvent.aggregate` calls.
  */
-const buildHourlyHeatmap = async (matchStage, since, timeZone) => {
-  const raw = await ScanEvent.aggregate([
-    { $match: { ...matchStage, scannedAt: { $gte: since } } },
-    {
-      $group: {
-        _id: { $hour: { date: '$scannedAt', timezone: timeZone } },
-        count: { $sum: 1 },
+const aggregatePeriodScanFacet = async (matchStage, since, timeZone, options = {}) => {
+  const includeLocations = options.includeLocations === true;
+  const facet = {
+    deviceBreakdown: [
+      { $group: { _id: '$deviceType', count: { $sum: 1 } } },
+      { $project: { _id: 0, device: '$_id', count: 1 } },
+      { $sort: { count: -1 } },
+    ],
+    browserBreakdown: [
+      browserNameProjectStage,
+      { $group: { _id: '$browserName', count: { $sum: 1 } } },
+      { $project: { _id: 0, browser: '$_id', count: 1 } },
+      { $sort: { count: -1 } },
+    ],
+    hourlyRaw: [
+      {
+        $group: {
+          _id: { $hour: { date: '$scannedAt', timezone: timeZone } },
+          count: { $sum: 1 },
+        },
       },
-    },
+    ],
+    scanTrendRaw: [
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: '%Y-%m-%d', date: '$scannedAt', timezone: timeZone },
+          },
+          scans: { $sum: 1 },
+          uniqueScans: { $addToSet: '$visitorHash' },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          date: '$_id',
+          scans: 1,
+          uniqueScans: { $size: '$uniqueScans' },
+        },
+      },
+      { $sort: { date: 1 } },
+    ],
+  };
+
+  if (includeLocations) {
+    facet.locationBreakdown = [
+      {
+        $group: {
+          _id: {
+            country: { $ifNull: ['$country', 'Unknown'] },
+            region: { $ifNull: ['$region', 'Unknown'] },
+            city: { $ifNull: ['$city', 'Unknown'] },
+            geoSource: { $ifNull: ['$geoSource', 'ip'] },
+          },
+          scans: { $sum: 1 },
+          uniqueVisitors: { $addToSet: '$visitorHash' },
+        },
+      },
+      { $sort: { scans: -1 } },
+      { $limit: 10 },
+      {
+        $project: {
+          _id: 0,
+          country: '$_id.country',
+          region: '$_id.region',
+          city: '$_id.city',
+          geoSource: '$_id.geoSource',
+          scans: 1,
+          uniqueVisitors: { $size: '$uniqueVisitors' },
+        },
+      },
+    ];
+  }
+
+  const [row] = await ScanEvent.aggregate([
+    { $match: { ...matchStage, scannedAt: { $gte: since } } },
+    { $facet: facet },
   ]);
 
-  const map = Object.fromEntries(raw.map((r) => [r._id, r.count]));
-  return Array.from({ length: 24 }, (_, h) => ({ hour: h, count: map[h] || 0 }));
+  const hourlyMap = Object.fromEntries((row.hourlyRaw || []).map((r) => [r._id, r.count]));
+  const hourlyHeatmap = Array.from({ length: 24 }, (_, h) => ({ hour: h, count: hourlyMap[h] || 0 }));
+  const scanTrend = fillDailySeries(row.scanTrendRaw || [], since, timeZone, ['scans', 'uniqueScans']);
+
+  return {
+    deviceBreakdown: row.deviceBreakdown || [],
+    browserBreakdown: row.browserBreakdown || [],
+    hourlyHeatmap,
+    scanTrend,
+    locationBreakdown: includeLocations ? (row.locationBreakdown || []) : undefined,
+  };
 };
 
 // ---------------------------------------------------------------------------
@@ -179,14 +264,11 @@ exports.getOverview = async (req, res) => {
 
   const match = { userId: uid };
 
-  // Run all aggregations in parallel
+  // Totals facet + single period `$facet` (devices/browsers/hourly/trend) + top campaigns in parallel.
   const [
     totals,
-    deviceBreakdown,
-    browserBreakdown,
+    periodCluster,
     topCampaigns,
-    scanTrend,
-    hourlyHeatmap,
   ] = await Promise.all([
     // ── Totals ─────────────────────────────────────────────────────────────
     ScanEvent.aggregate([
@@ -234,22 +316,7 @@ exports.getOverview = async (req, res) => {
       },
     ]),
 
-    // ── Device breakdown ───────────────────────────────────────────────────
-    ScanEvent.aggregate([
-      { $match: { ...match, scannedAt: { $gte: since } } },
-      { $group: { _id: '$deviceType', count: { $sum: 1 } } },
-      { $project: { _id: 0, device: '$_id', count: 1 } },
-      { $sort: { count: -1 } },
-    ]),
-
-    // ── Browser breakdown ──────────────────────────────────────────────────
-    ScanEvent.aggregate([
-      { $match: { ...match, scannedAt: { $gte: since } } },
-      browserNameProjectStage,
-      { $group: { _id: '$browserName', count: { $sum: 1 } } },
-      { $project: { _id: 0, browser: '$_id', count: 1 } },
-      { $sort: { count: -1 } },
-    ]),
+    aggregatePeriodScanFacet(match, since, timeZone, { includeLocations: false }),
 
     // ── Top 5 campaigns ────────────────────────────────────────────────────
     ScanEvent.aggregate([
@@ -283,13 +350,17 @@ exports.getOverview = async (req, res) => {
         },
       },
     ]),
-
-    // ── Scan trend ─────────────────────────────────────────────────────────
-    buildScanTrend(match, since, timeZone),
-
-    // ── Hourly heatmap ─────────────────────────────────────────────────────
-    buildHourlyHeatmap(match, since, timeZone),
   ]);
+
+  let { deviceBreakdown, browserBreakdown, hourlyHeatmap, scanTrend } = periodCluster;
+  if (timeZone === 'UTC') {
+    const rollupTrend = await tryUtcRollupScanTrend(
+      { userId: uid },
+      since,
+      (m) => fillDailySeries(m, since, 'UTC', ['scans', 'uniqueScans'])
+    );
+    if (rollupTrend) scanTrend = rollupTrend;
+  }
 
   const allTime = totals[0]?.allTime[0] || {
     totalScans: 0, uniqueVisitors: 0, avgSessionDuration: 0, avgVideoWatchPercent: 0,
@@ -339,11 +410,7 @@ exports.getCampaignAnalytics = async (req, res) => {
 
   const [
     totals,
-    deviceBreakdown,
-    browserBreakdown,
-    scanTrend,
-    hourlyHeatmap,
-    locationBreakdown,
+    periodCluster,
   ] = await Promise.all([
     ScanEvent.aggregate([
       { $match: match },
@@ -393,52 +460,27 @@ exports.getCampaignAnalytics = async (req, res) => {
       },
     ]),
 
-    ScanEvent.aggregate([
-      { $match: { ...match, scannedAt: { $gte: since } } },
-      { $group: { _id: '$deviceType', count: { $sum: 1 } } },
-      { $project: { _id: 0, device: '$_id', count: 1 } },
-      { $sort: { count: -1 } },
-    ]),
-
-    ScanEvent.aggregate([
-      { $match: { ...match, scannedAt: { $gte: since } } },
-      browserNameProjectStage,
-      { $group: { _id: '$browserName', count: { $sum: 1 } } },
-      { $project: { _id: 0, browser: '$_id', count: 1 } },
-      { $sort: { count: -1 } },
-    ]),
-
-    buildScanTrend(match, since, timeZone),
-    buildHourlyHeatmap(match, since, timeZone),
-    ScanEvent.aggregate([
-      { $match: { ...match, scannedAt: { $gte: since } } },
-      {
-        $group: {
-          _id: {
-            country: { $ifNull: ['$country', 'Unknown'] },
-            region: { $ifNull: ['$region', 'Unknown'] },
-            city: { $ifNull: ['$city', 'Unknown'] },
-            geoSource: { $ifNull: ['$geoSource', 'ip'] },
-          },
-          scans: { $sum: 1 },
-          uniqueVisitors: { $addToSet: '$visitorHash' },
-        },
-      },
-      { $sort: { scans: -1 } },
-      { $limit: 10 },
-      {
-        $project: {
-          _id: 0,
-          country: '$_id.country',
-          region: '$_id.region',
-          city: '$_id.city',
-          geoSource: '$_id.geoSource',
-          scans: 1,
-          uniqueVisitors: { $size: '$uniqueVisitors' },
-        },
-      },
-    ]),
+    aggregatePeriodScanFacet(match, since, timeZone, { includeLocations: true }),
   ]);
+
+  let {
+    deviceBreakdown,
+    browserBreakdown,
+    scanTrend,
+    hourlyHeatmap,
+    locationBreakdown,
+  } = periodCluster;
+
+  if (timeZone === 'UTC') {
+    const rollupTrend = await tryUtcRollupScanTrend(
+      { campaignId: cid },
+      since,
+      (m) => fillDailySeries(m, since, 'UTC', ['scans', 'uniqueScans'])
+    );
+    if (rollupTrend) scanTrend = rollupTrend;
+  }
+
+  locationBreakdown = locationBreakdown || [];
 
   const allTime = totals[0]?.allTime[0] || {
     totalScans: 0, uniqueVisitors: 0, avgSessionDuration: 0, avgVideoWatchPercent: 0,
@@ -846,6 +888,16 @@ exports.getTrends = async (req, res) => {
   const uid   = new mongoose.Types.ObjectId(req.user._id);
   const timeZone = normalizeTimeZone(req.query.timezone);
 
-  const scanTrend = await buildScanTrend({ userId: uid }, since, timeZone);
+  let scanTrend = null;
+  if (timeZone === 'UTC') {
+    scanTrend = await tryUtcRollupScanTrend(
+      { userId: uid },
+      since,
+      (m) => fillDailySeries(m, since, 'UTC', ['scans', 'uniqueScans'])
+    );
+  }
+  if (!scanTrend) {
+    scanTrend = await buildScanTrend({ userId: uid }, since, timeZone);
+  }
   return success(res, { period: `${days}d`, scanTrend });
 };

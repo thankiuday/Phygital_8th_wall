@@ -25,6 +25,7 @@ const QRCodeDisplay = ({
   campaignActive = true,
   campaignType = 'ar-card',
   redirectSlug = null,
+  initialShareUrl = null,
 }) => {
   const isDynamicQr =
     campaignType === 'single-link-qr'
@@ -42,9 +43,11 @@ const QRCodeDisplay = ({
 
   const arPageUrl = `${window.location.origin}/ar/${campaignId}`;
   const localRedirectUrl = redirectSlug ? `${window.location.origin}/r/${redirectSlug}` : null;
-  const [shareUrl, setShareUrl] = useState(
-    isDynamicQr ? (localRedirectUrl || arPageUrl) : arPageUrl
-  );
+  const [shareUrl, setShareUrl] = useState(() => {
+    if (!isDynamicQr) return arPageUrl;
+    if (initialShareUrl) return initialShareUrl;
+    return localRedirectUrl || arPageUrl;
+  });
   const styledOptions = useMemo(() => {
     if (!isDynamicQr || !shareUrl) return null;
     return buildStyledOptionsFromPersistedDesign(
@@ -53,6 +56,8 @@ const QRCodeDisplay = ({
       DYNAMIC_QR_PIXEL_SIZE,
     );
   }, [isDynamicQr, qrDesign, shareUrl]);
+
+  const showArGeneratingSpinner = polling && !styledOptions;
 
   /* ── Poll until QR is generated ───────────────────────────── */
   const fetchQR = useCallback(async () => {
@@ -176,7 +181,7 @@ const QRCodeDisplay = ({
             : 'mx-auto h-52 w-52 overflow-hidden'
         }`}
       >
-        {polling ? (
+        {showArGeneratingSpinner ? (
           <div className="flex flex-col items-center gap-2">
             <Loader2 size={32} className="animate-spin text-brand-500" />
             <p className="text-xs text-[var(--text-muted)]">Generating QR…</p>

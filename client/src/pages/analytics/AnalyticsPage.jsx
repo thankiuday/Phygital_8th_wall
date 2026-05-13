@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -14,6 +13,7 @@ import {
 } from 'lucide-react';
 import useAnalyticsStore from '../../store/useAnalyticsStore';
 import useIsMobile from '../../hooks/useIsMobile';
+import { useAnalyticsOverview } from '../../hooks/useAnalyticsQueries';
 import Icon3D, { ICON3D_PRESETS } from '../../components/ui/Icon3D';
 
 // ---------------------------------------------------------------------------
@@ -118,8 +118,9 @@ const HourlyHeatmap = ({ data }) => {
 // Main page
 // ---------------------------------------------------------------------------
 const AnalyticsPage = () => {
-  const { overview, period, isLoading, error, fetchOverview, setPeriod } = useAnalyticsStore();
+  const { period, setPeriod } = useAnalyticsStore();
   const isMobile = useIsMobile();
+  const { data: overview, isPending: isLoading, error } = useAnalyticsOverview(period);
 
   // Margins / Y-axis width are tighter on mobile so the plot uses every pixel
   const chartMargin = isMobile
@@ -127,7 +128,7 @@ const AnalyticsPage = () => {
     : { top: 4, right: 4, bottom: 0, left: -20 };
   const yAxisWidth = isMobile ? 36 : 60;
 
-  useEffect(() => { fetchOverview(); }, [fetchOverview]);
+  const errMessage = error?.message || (typeof error === 'string' ? error : null);
 
   const stats = overview?.allTime || {};
   const period_stats = overview?.periodStats || {};
@@ -164,9 +165,9 @@ const AnalyticsPage = () => {
         </div>
       </div>
 
-      {error && (
+      {errMessage && (
         <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400">
-          {error}
+          {errMessage}
         </div>
       )}
 

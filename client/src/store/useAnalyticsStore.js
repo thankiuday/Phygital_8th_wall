@@ -1,69 +1,23 @@
 import { create } from 'zustand';
-import * as analyticsService from '../services/analyticsService';
 
-/** In-flight dedupe: same campaignId + period shares one request. */
-const campaignAnalyticsInflight = new Map();
-
-const useAnalyticsStore = create((set, get) => ({
-  // ── State ─────────────────────────────────────────────────────────────────
-  overview:       null,
-  campaignData:   null, // per-campaign analytics
-  period:         '30d',
-  isLoading:      false,
-  isLoadingCamp:  false,
-  error:          null,
-
-  // ── Actions ───────────────────────────────────────────────────────────────
+/**
+ * Shared analytics UI state (period only). Data is loaded via TanStack Query
+ * in `useAnalyticsQueries.js` to avoid redundant fetches and unstable effect deps.
+ *
+ * Dev note: React StrictMode double-invokes mount effects in development, which
+ * can make the Network tab look "busy." Production builds do not behave the same.
+ */
+const useAnalyticsStore = create((set) => ({
+  period: '30d',
 
   setPeriod: (period) => {
     set({ period });
-    get().fetchOverview(period);
   },
 
-  /** Update period only (e.g. campaign analytics page — avoids redundant overview fetch). */
+  /** Alias — same as setPeriod (kept for CampaignAnalyticsPage). */
   setPeriodOnly: (period) => {
     set({ period });
   },
-
-  fetchOverview: async (period) => {
-    const p = period || get().period;
-    set({ isLoading: true, error: null });
-    try {
-      const data = await analyticsService.getOverview(p);
-      set({ overview: data, isLoading: false });
-    } catch (err) {
-      set({ error: err.response?.data?.message || 'Failed to load analytics', isLoading: false });
-    }
-  },
-
-  fetchCampaignAnalytics: async (campaignId, period) => {
-    const p = period || get().period;
-    const key = `${campaignId}:${p}`;
-    const existing = campaignAnalyticsInflight.get(key);
-    if (existing) return existing;
-
-    const promise = (async () => {
-      set({ isLoadingCamp: true, error: null });
-      try {
-        const data = await analyticsService.getCampaignAnalytics(campaignId, p);
-        set({ campaignData: data, isLoadingCamp: false });
-        return data;
-      } catch (err) {
-        set({
-          error: err.response?.data?.message || 'Failed to load campaign analytics',
-          isLoadingCamp: false,
-        });
-        throw err;
-      } finally {
-        campaignAnalyticsInflight.delete(key);
-      }
-    })();
-
-    campaignAnalyticsInflight.set(key, promise);
-    return promise;
-  },
-
-  clearCampaignData: () => set({ campaignData: null }),
 }));
 
 export default useAnalyticsStore;

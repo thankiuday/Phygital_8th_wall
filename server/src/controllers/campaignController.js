@@ -1431,12 +1431,16 @@ const getCampaignQR = async (req, res) => {
     const clientBase = (process.env.CLIENT_URL || '').replace(/\/$/, '');
 
     let redirectUrl;
-    if (campaign.preciseGeoAnalytics && clientBase) {
-      if (campaign.hubSlug && campaign.ownerHandle) {
-        redirectUrl = `${clientBase}/open/${campaign.ownerHandle}/${campaign.hubSlug}`;
-      } else {
-        redirectUrl = `${clientBase}/open/${campaign.redirectSlug}`;
-      }
+    const hasVanityPair = Boolean(
+      campaign.redirectSlug
+      && campaign.ownerHandle
+      && campaign.hubSlug
+      && clientBase
+    );
+    if (hasVanityPair) {
+      redirectUrl = `${clientBase}/open/${campaign.ownerHandle}/${campaign.hubSlug}`;
+    } else if (campaign.preciseGeoAnalytics && clientBase) {
+      redirectUrl = `${clientBase}/open/${campaign.redirectSlug}`;
     } else {
       redirectUrl = `${apiRoot}/r/${campaign.redirectSlug}`;
     }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import useAnalyticsStore from '../../store/useAnalyticsStore';
 import useIsMobile from '../../hooks/useIsMobile';
+import { useCampaignAnalytics } from '../../hooks/useAnalyticsQueries';
 import Icon3D, { ICON3D_PRESETS } from '../../components/ui/Icon3D';
 
 // ---------------------------------------------------------------------------
@@ -172,24 +173,17 @@ const CampaignAnalyticsPage = () => {
     ? { top: 4, right: 4, bottom: 0, left: 0 }
     : { top: 4, right: 4, bottom: 0, left: -20 };
   const yAxisWidth = isMobile ? 36 : 60;
+  const { period, setPeriodOnly } = useAnalyticsStore();
   const {
-    campaignData,
-    period,
-    isLoadingCamp,
+    data: campaignData,
+    isPending: isLoadingCamp,
     error,
-    fetchCampaignAnalytics,
-    setPeriodOnly,
-    clearCampaignData,
-  } = useAnalyticsStore();
+  } = useCampaignAnalytics(id, period);
 
-  useEffect(() => {
-    fetchCampaignAnalytics(id);
-    return () => clearCampaignData();
-  }, [id, fetchCampaignAnalytics, clearCampaignData]);
+  const errMessage = error?.message || (typeof error === 'string' ? error : null);
 
   const handlePeriod = (p) => {
     setPeriodOnly(p);
-    fetchCampaignAnalytics(id, p);
   };
 
   const stats       = campaignData?.allTime    || {};
@@ -283,9 +277,9 @@ const CampaignAnalyticsPage = () => {
         </div>
       </div>
 
-      {error && (
+      {errMessage && (
         <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400">
-          {error}
+          {errMessage}
         </div>
       )}
 

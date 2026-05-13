@@ -28,6 +28,7 @@ const crypto = require('crypto');
 const logger = require('../config/logger');
 const ScanEvent = require('../models/ScanEvent');
 const Campaign = require('../models/Campaign');
+const { bumpRollupsForScan } = require('../services/analyticsRollupService');
 const { lookupGeo, enrichLocationLabelsFromCoords } = require('./geoLookup');
 
 // ── PII guard ────────────────────────────────────────────────────────────
@@ -137,7 +138,7 @@ const normalizeAndPersist = async (event) => {
       ? event.visitorHash.trim().slice(0, 128)
       : hashIp(event.ip);
 
-  await ScanEvent.create({
+  const scanDoc = await ScanEvent.create({
     campaignId: camp._id,
     userId: camp.userId,
     visitorHash,
@@ -159,6 +160,12 @@ const normalizeAndPersist = async (event) => {
     geoConsentVersion,
     scannedAt: event.ts ? new Date(event.ts) : new Date(),
   });
+
+  try {
+    await bumpRollupsForScan(scanDoc);
+  } catch (err) {
+    logger.warn('analytics rollup bump failed', { error: err.message });
+  }
 
   // Update embedded counters on the campaign — best-effort; no-op if it fails.
   await Campaign.updateOne(

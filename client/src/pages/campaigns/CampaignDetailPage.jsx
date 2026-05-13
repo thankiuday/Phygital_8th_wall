@@ -26,6 +26,11 @@ import {
 import QRCodeDisplay from '../../components/ui/QRCodeDisplay';
 import { campaignService } from '../../services/campaignService';
 import EditCampaignModal from '../../components/ui/EditCampaignModal';
+import {
+  getDynamicQrEncodedUrl,
+  getHubDashboardEntryUrl,
+  getSingleLinkDashboardEntryUrl,
+} from '../../utils/dynamicQrPublicUrl';
 
 const resolveRedirectBase = () => {
   if (import.meta.env.VITE_REDIRECT_BASE) {
@@ -38,9 +43,18 @@ const resolveRedirectBase = () => {
 };
 
 /**
- * Origin for `/open/…` and `/l/…` opened from this dashboard (not encoded in QRs).
- * Prefer the live document origin so local dev never follows `VITE_APP_URL`
- * (often the deployed SPA, e.g. Render), which would 404 or mismatch `CLIENT_URL`.
+ * Prefer `VITE_APP_URL` so dashboard + QR match server `CLIENT_URL` on Render;
+ * fall back to the live tab origin (local dev).
+ */
+const clientBaseForPublicLinks = () => {
+  const fromEnv = import.meta.env.VITE_APP_URL && String(import.meta.env.VITE_APP_URL).replace(/\/$/, '');
+  if (fromEnv) return fromEnv;
+  return typeof window !== 'undefined' ? window.location.origin : '';
+};
+
+/**
+ * Origin for `/open/…` and `/l/…` opened from this dashboard when `VITE_APP_URL`
+ * is unset (local dev): use the document origin so links stay on localhost.
  */
 const dashboardClientAppOrigin = () => {
   if (typeof window !== 'undefined' && window.location?.origin) {
@@ -50,42 +64,15 @@ const dashboardClientAppOrigin = () => {
   return fromEnv || '';
 };
 
-/**
- * Hub campaigns: `/l/:redirectSlug` when IP-only analytics; `/open/…` when precise-geo
- * (vanity `ownerHandle/hubSlug` or legacy single-segment slug) so dashboard links match the QR.
- */
-const hubPublicPageUrl = (campaign) => {
-  const origin = dashboardClientAppOrigin();
-  if (!origin) return null;
-  if (campaign.preciseGeoAnalytics) {
-    if (campaign.ownerHandle && campaign.hubSlug) {
-      return `${origin}/open/${campaign.ownerHandle}/${campaign.hubSlug}`;
-    }
-    if (campaign.redirectSlug) {
-      return `${origin}/open/${campaign.redirectSlug}`;
-    }
-    return null;
-  }
-  return campaign.redirectSlug ? `${origin}/l/${campaign.redirectSlug}` : null;
-};
+const hubPublicPageUrl = (campaign) =>
+  getHubDashboardEntryUrl(campaign, clientBaseForPublicLinks() || dashboardClientAppOrigin());
 
-/** Single-link: `/r/:slug` unless precise geo → same `/open/…` pattern as GET …/qr. */
-const singleLinkPublicOpenUrl = (campaign) => {
-  if (campaign.campaignType !== 'single-link-qr') return null;
-  const redirectBase = resolveRedirectBase();
-  if (campaign.preciseGeoAnalytics) {
-    const origin = dashboardClientAppOrigin();
-    if (!origin) return null;
-    if (campaign.ownerHandle && campaign.hubSlug) {
-      return `${origin}/open/${campaign.ownerHandle}/${campaign.hubSlug}`;
-    }
-    if (campaign.redirectSlug) {
-      return `${origin}/open/${campaign.redirectSlug}`;
-    }
-    return null;
-  }
-  return campaign.redirectSlug ? `${redirectBase}/r/${campaign.redirectSlug}` : null;
-};
+const singleLinkPublicOpenUrl = (campaign) =>
+  getSingleLinkDashboardEntryUrl(
+    campaign,
+    clientBaseForPublicLinks() || dashboardClientAppOrigin(),
+    resolveRedirectBase(),
+  );
 
 const StatusBadge = ({ status }) => {
   const map = {
@@ -484,6 +471,15 @@ const CampaignDetailPage = () => {
             campaignActive={campaign.status === 'active'}
             campaignType={campaign.campaignType}
             redirectSlug={campaign.redirectSlug}
+            initialShareUrl={getDynamicQrEncodedUrl({
+              campaignType: campaign.campaignType,
+              redirectSlug: campaign.redirectSlug,
+              ownerHandle: campaign.ownerHandle,
+              hubSlug: campaign.hubSlug,
+              preciseGeoAnalytics: !!campaign.preciseGeoAnalytics,
+              clientBase: clientBaseForPublicLinks() || dashboardClientAppOrigin(),
+              apiRedirectRoot: resolveRedirectBase(),
+            })}
           />
         </motion.div>
 
