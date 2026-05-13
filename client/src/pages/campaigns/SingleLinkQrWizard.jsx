@@ -8,6 +8,7 @@ import { campaignService } from '../../services/campaignService';
 import { DEFAULT_DESIGN, hydrateWizardDesignFromDraft } from '../../components/qr/qrDesignModel';
 import Step1LinkDetails from './single-link/Step1LinkDetails';
 import Step2DesignQr from './single-link/Step2DesignQr';
+import { slugifyCampaignNamePreview } from '../../utils/hubVanityPreview';
 
 const STEPS = [
   { number: 1, shortLabel: 'Details', label: 'Enter Details' },
@@ -15,13 +16,9 @@ const STEPS = [
 ];
 
 /**
- * Build the same redirect URL pattern the server uses, so the QR rendered in
- * the wizard preview is byte-identical to the one printed after submission.
- *
- * Resolution order:
- *   1. VITE_REDIRECT_BASE — explicit override at build time
- *   2. VITE_API_URL stripped of any trailing /api — most deploys
- *   3. window.location.origin — local dev fallback
+ * QR preview data URL: guest / no-handle uses a random `/open/:previewSlug`;
+ * logged-in precise-geo uses a non-binding `/open/:handle/:slugPreview` (final
+ * hub segment comes from the server after create). Non–precise-geo uses `/r/:previewSlug`.
  */
 const resolveRedirectBase = () => {
   if (import.meta.env.VITE_REDIRECT_BASE) {
@@ -126,13 +123,23 @@ const SingleLinkQrWizard = () => {
 
   const redirectBase = useMemo(resolveRedirectBase, []);
   const clientAppBase = useMemo(resolveClientAppBase, []);
-  const encodedData = useMemo(
-    () =>
-      preciseGeoAnalytics
-        ? `${clientAppBase}/open/${redirectSlug}`
-        : `${redirectBase}/r/${redirectSlug}`,
-    [redirectBase, clientAppBase, preciseGeoAnalytics, redirectSlug]
-  );
+  const encodedData = useMemo(() => {
+    if (!preciseGeoAnalytics) {
+      return `${redirectBase}/r/${redirectSlug}`;
+    }
+    if (isAuthenticated && user?.handle && campaignName.trim()) {
+      return `${clientAppBase}/open/${user.handle}/${slugifyCampaignNamePreview(campaignName)}`;
+    }
+    return `${clientAppBase}/open/${redirectSlug}`;
+  }, [
+    redirectBase,
+    clientAppBase,
+    preciseGeoAnalytics,
+    redirectSlug,
+    isAuthenticated,
+    user?.handle,
+    campaignName,
+  ]);
 
   const handleStep1Continue = ({ campaignName: name, destinationUrl: url, preciseGeoAnalytics: pg }) => {
     setCampaignName(name);

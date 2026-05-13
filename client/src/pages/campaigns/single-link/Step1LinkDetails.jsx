@@ -146,6 +146,16 @@ const Step1LinkDetails = ({
         </span>
       </label>
 
+      {preciseGeoAnalytics && (
+        <p className="rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-4 py-2 text-xs text-[var(--text-muted)]">
+          Until you publish, the QR preview uses a temporary /open/… link. After publishing, your live link becomes
+          {' '}
+          <span className="text-[var(--text-secondary)]">/open/your-handle/your-campaign-slug</span>
+          {' '}
+          (a number suffix may be added if that path is already used).
+        </p>
+      )}
+
       <div className="rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-5 py-4">
         <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">How it works</p>
         <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs text-[var(--text-secondary)]">

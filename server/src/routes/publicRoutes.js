@@ -22,8 +22,10 @@ const {
   publicCardActionSchema,
   publicCardSessionSchema,
 } = require('../validators/publicScanValidators');
-const { toPublicLinkList } = require('../utils/linkItemResolver');
+const { buildDynamicQrMetaPayload } = require('../utils/dynamicQrMetaPayload');
 const { SLUG_RE } = require('../constants/singleLinkSlug');
+const { USER_HANDLE_RE } = require('../utils/userHandle');
+const { HUB_SLUG_RE } = require('../utils/campaignHubSlug');
 const { dynamicQrMetaCache, cardMetaCache } = require('../utils/redirectCache');
 const { toEmbedSrc, detectVideoHost } = require('../utils/videoEmbed');
 const cardActionQueue = require('../utils/cardActionQueue');
@@ -186,8 +188,17 @@ const multiLinkClickLimiter = rateLimit({
   message: 'Too many link clicks. Please try again shortly.',
 });
 
+const hubVanityLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `${getClientIpFromRequest(req)}:hub:${req.params.handle || ''}:${req.params.hubSlug || ''}`,
+  message: 'Too many requests for this link. Please try again shortly.',
+});
+
 /* ─────────────────────────────────────────
-   Dynamic QR meta — single-link + multiple-links (bridge + hub)
+   Dynamic QR meta — single-link + hub types (by redirect slug)
    ───────────────────────────────────────── */
 
 router.get('/dynamic-qr/:slug/meta', singleLinkSlugLimiter, async (req, res) => {
@@ -216,117 +227,56 @@ router.get('/dynamic-qr/:slug/meta', singleLinkSlugLimiter, async (req, res) => 
   if (!campaign) throw new AppError('Link not found', 404);
   if (campaign.status === 'draft') throw new AppError('Link not found', 404);
 
-  if (campaign.campaignType === 'single-link-qr') {
-    if (campaign.status !== 'active') throw new AppError('Link not found', 404);
-    const payload = {
-      campaignType: 'single-link-qr',
-      campaignName: campaign.campaignName,
-      destinationUrl: campaign.destinationUrl,
-      preciseGeoAnalytics: !!campaign.preciseGeoAnalytics,
-      slug: campaign.redirectSlug,
-    };
-    await dynamicQrMetaCache.set(slug, payload);
-    return success(res, payload);
-  }
-
-  // Hub-based types — paused state still resolves to a friendly "owner paused"
-  // page so we always reply with cached structure rather than 404.
-  if (campaign.status === 'paused') {
-    const payload = {
-      campaignType: campaign.campaignType,
-      campaignName: campaign.campaignName,
-      status: 'paused',
-      paused: true,
-      links: [],
-      videoItems: [],
-      docItems: [],
-      preciseGeoAnalytics: !!campaign.preciseGeoAnalytics,
-      slug: campaign.redirectSlug,
-    };
-    await dynamicQrMetaCache.set(slug, payload);
-    return success(res, payload);
-  }
-
-  if (campaign.status !== 'active') throw new AppError('Link not found', 404);
-
-  if (campaign.campaignType === 'links-video-qr') {
-    const embedSrc =
-      campaign.videoSource === 'link' && campaign.externalVideoUrl
-        ? toEmbedSrc(campaign.externalVideoUrl)
-        : null;
-    const embedHost =
-      campaign.videoSource === 'link' && campaign.externalVideoUrl
-        ? detectVideoHost(campaign.externalVideoUrl)
-        : null;
-
-    const payload = {
-      campaignType: 'links-video-qr',
-      campaignName: campaign.campaignName,
-      videoSource: campaign.videoSource,
-      videoUrl: campaign.videoSource === 'upload' ? campaign.videoUrl : null,
-      externalVideoUrl:
-        campaign.videoSource === 'link' ? campaign.externalVideoUrl : null,
-      embedSrc,
-      embedHost,
-      thumbnailUrl: campaign.thumbnailUrl || null,
-      links: toPublicLinkList(campaign.linkItems || []),
-      preciseGeoAnalytics: !!campaign.preciseGeoAnalytics,
-      slug: campaign.redirectSlug,
-    };
-
-    await dynamicQrMetaCache.set(slug, payload);
-    return success(res, payload);
-  }
-
-  if (campaign.campaignType === 'links-doc-video-qr') {
-    // Resolve embed src/host once per video on the server so the client never
-    // has to parse external URLs (and never sees raw ones for the upload mode).
-    const videoItems = (campaign.videoItems || []).map((vi) => {
-      const isLink = vi.source === 'link' && vi.externalVideoUrl;
-      return {
-        videoId: vi.videoId,
-        label: vi.label,
-        source: vi.source,
-        videoUrl: vi.source === 'upload' ? vi.url : null,
-        externalVideoUrl: isLink ? vi.externalVideoUrl : null,
-        embedSrc: isLink ? toEmbedSrc(vi.externalVideoUrl) : null,
-        embedHost: isLink ? detectVideoHost(vi.externalVideoUrl) : null,
-        thumbnailUrl: vi.thumbnailUrl || null,
-      };
-    });
-
-    const docItems = (campaign.docItems || []).map((di) => ({
-      docId: di.docId,
-      label: di.label,
-      url: di.url,
-      mimeType: di.mimeType || null,
-      bytes: di.bytes || 0,
-    }));
-
-    const payload = {
-      campaignType: 'links-doc-video-qr',
-      campaignName: campaign.campaignName,
-      videoSource: campaign.videoSource,
-      videoItems,
-      docItems,
-      links: toPublicLinkList(campaign.linkItems || []),
-      preciseGeoAnalytics: !!campaign.preciseGeoAnalytics,
-      slug: campaign.redirectSlug,
-    };
-
-    await dynamicQrMetaCache.set(slug, payload);
-    return success(res, payload);
-  }
-
-  const payload = {
-    campaignType: 'multiple-links-qr',
-    campaignName: campaign.campaignName,
-    links: toPublicLinkList(campaign.linkItems || []),
-    preciseGeoAnalytics: !!campaign.preciseGeoAnalytics,
-    slug: campaign.redirectSlug,
-  };
+  const payload = buildDynamicQrMetaPayload(campaign);
+  if (!payload) throw new AppError('Link not found', 404);
 
   await dynamicQrMetaCache.set(slug, payload);
+  return success(res, payload);
+});
+
+/* ─────────────────────────────────────────
+   Vanity hub meta — same payload as dynamic-qr, keyed by owner handle + hub slug
+   ───────────────────────────────────────── */
+
+router.get('/hub/:handle/:hubSlug/meta', hubVanityLimiter, async (req, res) => {
+  const handle = String(req.params.handle || '').toLowerCase().trim();
+  const hubSlug = String(req.params.hubSlug || '').toLowerCase().trim();
+  if (!USER_HANDLE_RE.test(handle) || !HUB_SLUG_RE.test(hubSlug)) {
+    throw new AppError('Invalid link', 400);
+  }
+
+  const vanityKey = `${handle}/${hubSlug}`;
+  const cached = await dynamicQrMetaCache.get(`v:${vanityKey}`);
+  if (cached) return success(res, cached);
+
+  const campaign = await Campaign.findOne(
+    {
+      ownerHandle: handle,
+      hubSlug,
+      campaignType: {
+        $in: [
+          'single-link-qr',
+          'multiple-links-qr',
+          'links-video-qr',
+          'links-doc-video-qr',
+        ],
+      },
+      isDeleted: { $ne: true },
+    },
+    'campaignName campaignType destinationUrl preciseGeoAnalytics redirectSlug linkItems '
+      + 'videoSource videoUrl externalVideoUrl thumbnailUrl videoItems docItems status'
+  ).lean();
+
+  if (!campaign) throw new AppError('Link not found', 404);
+  if (campaign.status === 'draft') throw new AppError('Link not found', 404);
+
+  const payload = buildDynamicQrMetaPayload(campaign);
+  if (!payload) throw new AppError('Link not found', 404);
+
+  await dynamicQrMetaCache.set(`v:${vanityKey}`, payload);
+  if (campaign.redirectSlug) {
+    await dynamicQrMetaCache.set(campaign.redirectSlug, payload);
+  }
   return success(res, payload);
 });
 

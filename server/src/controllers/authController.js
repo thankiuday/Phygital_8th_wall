@@ -7,6 +7,7 @@ const Session = require('../models/Session');
 const Campaign = require('../models/Campaign');
 const { AppError } = require('../middleware/errorHandler');
 const { success, created } = require('../utils/apiResponse');
+const { allocateUniqueHandleFromEmail } = require('../utils/userHandle');
 const {
   signAccessToken,
   signRefreshToken,
@@ -31,6 +32,7 @@ const userPayload = (user) => ({
   _id: user._id,
   name: user.name,
   email: user.email,
+  handle: user.handle || null,
   role: user.role,
   avatar: user.avatar,
   isEmailVerified: user.isEmailVerified,
@@ -131,7 +133,8 @@ const register = async (req, res) => {
   }
 
   const name = deriveNameFromEmail(email);
-  const user = await User.create({ name, email, password });
+  const handle = await allocateUniqueHandleFromEmail(User, email);
+  const user = await User.create({ name, email, password, handle });
   const accessToken = await issueAuthSession(res, user);
 
   return created(
@@ -157,6 +160,13 @@ const login = async (req, res) => {
   if (!user.isActive) {
     throw new AppError('Your account has been suspended. Contact support.', 403);
   }
+
+  if (!user.handle) {
+    const handle = await allocateUniqueHandleFromEmail(User, user.email);
+    await User.updateOne({ _id: user._id }, { $set: { handle } });
+    user.handle = handle;
+  }
+
   const accessToken = await issueAuthSession(res, user);
 
   return success(res, { user: userPayload(user), accessToken }, 'Logged in successfully');
@@ -236,6 +246,7 @@ const googleAuthCallback = async (req, res) => {
       await user.save({ validateModifiedOnly: true });
     } else {
       const safeName = String(profile?.name || '').trim().slice(0, 60) || deriveNameFromEmail(email);
+      const handle = await allocateUniqueHandleFromEmail(User, email);
       user = await User.create({
         name: safeName,
         email,
@@ -243,8 +254,15 @@ const googleAuthCallback = async (req, res) => {
         googleId: googleId || null,
         authProvider: 'google',
         isEmailVerified: true,
+        handle,
       });
       isNewUser = true;
+    }
+
+    if (!user.handle) {
+      const handle = await allocateUniqueHandleFromEmail(User, user.email);
+      await User.updateOne({ _id: user._id }, { $set: { handle } });
+      user.handle = handle;
     }
 
     const accessToken = await issueAuthSession(res, user);
@@ -349,6 +367,12 @@ const logoutAll = async (req, res) => {
 const getMe = async (req, res) => {
   const user = await User.findById(req.user._id);
   if (!user) throw new AppError('User not found', 404);
+
+  if (!user.handle) {
+    const handle = await allocateUniqueHandleFromEmail(User, user.email);
+    await User.updateOne({ _id: user._id }, { $set: { handle } });
+    user.handle = handle;
+  }
 
   const payload = { user: userPayload(user) };
 

@@ -116,6 +116,29 @@ const campaignSchema = new mongoose.Schema(
     },
 
     /**
+     * Denormalized owner handle + per-owner-unique hub segment for vanity URLs
+     * `CLIENT_URL/open/{ownerHandle}/{hubSlug}`. Immutable after creation.
+     */
+    ownerHandle: {
+      type: String,
+      default: null,
+      trim: true,
+      lowercase: true,
+      maxlength: 30,
+      immutable: true,
+      index: true,
+    },
+    hubSlug: {
+      type: String,
+      default: null,
+      trim: true,
+      lowercase: true,
+      maxlength: 60,
+      immutable: true,
+      index: true,
+    },
+
+    /**
      * When true, printed QR targets the SPA `/open/:slug` bridge so the visitor
      * can opt in to navigator.geolocation before redirect (requires CLIENT_URL).
      */
@@ -301,6 +324,16 @@ campaignSchema.index({ userId: 1, status: 1 });
 campaignSchema.index({ userId: 1, campaignType: 1, status: 1, createdAt: -1 });
 // Soft-delete-aware list index: powers `My active <type> campaigns, newest first`.
 campaignSchema.index({ userId: 1, isDeleted: 1, campaignType: 1, updatedAt: -1 });
+campaignSchema.index(
+  { ownerHandle: 1, hubSlug: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      ownerHandle: { $exists: true, $type: 'string', $nin: [null, ''] },
+      hubSlug: { $exists: true, $type: 'string', $nin: [null, ''] },
+    },
+  }
+);
 
 const Campaign = mongoose.model('Campaign', campaignSchema);
 module.exports = Campaign;

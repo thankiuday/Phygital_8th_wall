@@ -10,6 +10,8 @@
     "worker": "node src/workers/scanWorker.js",
     "card-render-worker": "node src/workers/cardRenderWorker.js",
     "geo-smoke": "node scripts/geoExtractSmoke.js",
+    "backfill-handles": "node scripts/backfillUserHandles.js",
+    "backfill-campaign-vanity": "node scripts/backfillCampaignVanity.js",
     "lint": "eslint . --ext .js"
   },
   "engines": {

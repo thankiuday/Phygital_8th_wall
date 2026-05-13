@@ -12,7 +12,7 @@ const deviceTypeGuess = () => {
   return 'desktop';
 };
 
-/** Mirror server `HUB_CAMPAIGN_TYPES` — QR with precise geo uses `/open/:slug` for these. */
+/** Mirror server `HUB_CAMPAIGN_TYPES` — hub types resolve to `/l/:redirectSlug`. */
 const HUB_CAMPAIGN_TYPES = new Set([
   'multiple-links-qr',
   'links-video-qr',
@@ -22,12 +22,15 @@ const HUB_CAMPAIGN_TYPES = new Set([
 const isHubCampaignType = (ct) => HUB_CAMPAIGN_TYPES.has(ct);
 
 /**
- * Bridge for dynamic QR with precise geo enabled:
- * - single-link → external URL (after optional scan POST)
- * - all hub types (multiple-links, links-video, links-doc-video) → POST scan then /l/:slug
+ * Bridge for dynamic QR with precise geo:
+ * - Legacy path `/open/:redirectSlug` (opaque nanoid)
+ * - Vanity path `/open/:handle/:hubSlug` (same meta + scan APIs use `redirectSlug` from payload)
  */
 const OpenSingleLinkBridgePage = () => {
-  const { slug } = useParams();
+  const { slug, handle, hubSlug } = useParams();
+  const isVanity = Boolean(handle && hubSlug);
+  const routeKey = isVanity ? `v:${handle}:${hubSlug}` : `s:${slug || ''}`;
+
   const [phase, setPhase] = useState('loading'); // loading | ready | error | redirecting
   const [error, setError] = useState('');
   const [meta, setMeta] = useState(null);
@@ -36,15 +39,23 @@ const OpenSingleLinkBridgePage = () => {
 
   useEffect(() => {
     let cancelled = false;
+    setPhase('loading');
+    setError('');
+    setMeta(null);
+    visitorHashRef.current = '';
+
     (async () => {
       try {
-        const res = await publicApi.get(
-          `/public/dynamic-qr/${encodeURIComponent(slug)}/meta`
-        );
+        const metaPath = isVanity
+          ? `/public/hub/${encodeURIComponent(handle)}/${encodeURIComponent(hubSlug)}/meta`
+          : `/public/dynamic-qr/${encodeURIComponent(slug)}/meta`;
+
+        const res = await publicApi.get(metaPath);
         const data = res.data?.data;
         if (!data?.campaignType) throw new Error('Invalid response');
+        const redirectKey = data.slug || slug;
         if (isHubCampaignType(data.campaignType) && (data.paused || data.status === 'paused')) {
-          window.location.replace(`${window.location.origin}/l/${slug}`);
+          window.location.replace(`${window.location.origin}/l/${redirectKey}`);
           return;
         }
         if (data.campaignType === 'single-link-qr') {
@@ -86,19 +97,22 @@ const OpenSingleLinkBridgePage = () => {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [routeKey, slug, handle, hubSlug, isVanity]);
 
   const redirectTo = useCallback((url) => {
     setPhase('redirecting');
     window.location.assign(url);
   }, []);
 
+  const scanSlug = meta?.slug || slug;
+
   const postSingleScanAndRedirect = useCallback(
     async (body) => {
       setGeoStatus('');
+      if (!scanSlug) return;
       try {
         const res = await publicApi.post(
-          `/public/single-link/${encodeURIComponent(slug)}/scan`,
+          `/public/single-link/${encodeURIComponent(scanSlug)}/scan`,
           body
         );
         const dest = res.data?.data?.destinationUrl;
@@ -112,23 +126,24 @@ const OpenSingleLinkBridgePage = () => {
         );
       }
     },
-    [slug, redirectTo]
+    [scanSlug, redirectTo]
   );
 
   const postMultiScanAndGoHub = useCallback(
     async (body) => {
       setGeoStatus('');
+      if (!scanSlug) return;
       try {
         const vh = visitorHashRef.current;
-        await publicApi.post(`/public/multi-link/${encodeURIComponent(slug)}/scan`, {
+        await publicApi.post(`/public/multi-link/${encodeURIComponent(scanSlug)}/scan`, {
           visitorHash: vh,
           deviceType: deviceTypeGuess(),
           browser: /Chrome/i.test(navigator.userAgent) ? 'Chrome' : 'Other',
           ...body,
         });
-        sessionStorage.setItem(`p8w_vh_${slug}`, vh);
-        sessionStorage.setItem(`p8w_scan_done_${slug}`, '1');
-        redirectTo(`${window.location.origin}/l/${slug}`);
+        sessionStorage.setItem(`p8w_vh_${scanSlug}`, vh);
+        sessionStorage.setItem(`p8w_scan_done_${scanSlug}`, '1');
+        redirectTo(`${window.location.origin}/l/${scanSlug}`);
       } catch (e) {
         setGeoStatus(
           e?.response?.data?.message
@@ -137,7 +152,7 @@ const OpenSingleLinkBridgePage = () => {
         );
       }
     },
-    [slug, redirectTo]
+    [scanSlug, redirectTo]
   );
 
   const handleSkipGeo = () => {

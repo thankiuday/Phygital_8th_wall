@@ -107,6 +107,16 @@ const Step1MultiLinks = ({
         </div>
       </label>
 
+      {preciseGeoAnalytics && (
+        <p className="rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-4 py-2 text-xs text-[var(--text-muted)]">
+          Until you publish, the QR preview uses a temporary /open/… link. After publishing, your live link becomes
+          {' '}
+          <span className="text-[var(--text-secondary)]">/open/your-handle/your-campaign-slug</span>
+          {' '}
+          (a number suffix may be added if that path is already used).
+        </p>
+      )}
+
       <button
         type="button"
         onClick={handleContinue}

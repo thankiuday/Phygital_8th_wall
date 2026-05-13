@@ -52,7 +52,7 @@ const QrFrame = ({
 
   if (variant === 'none') {
     return (
-      <div ref={hostRef} className="w-full">
+      <div ref={hostRef} className="mx-auto w-max max-w-full">
         <div style={{ width: layout.width, height: layout.height }}>{children}</div>
       </div>
     );
@@ -61,7 +61,7 @@ const QrFrame = ({
   // Layouts beyond 'none' add chrome around the QR; the QR itself remains
   // exactly `size × size` so the encoded payload stays scannable.
   return (
-    <div ref={hostRef} className="w-full">
+    <div ref={hostRef} className="mx-auto w-max max-w-full">
       <div style={{ width: layout.width, height: layout.height * scale }}>
         <div
           className="relative origin-top-left"

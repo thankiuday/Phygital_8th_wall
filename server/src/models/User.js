@@ -23,6 +23,21 @@ const userSchema = new mongoose.Schema(
       match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email'],
     },
 
+    /**
+     * Public URL handle (unique, lowercase). Used in vanity hub paths
+     * `/open/{handle}/{hubSlug}`. Immutable once set.
+     */
+    handle: {
+      type: String,
+      default: null,
+      trim: true,
+      lowercase: true,
+      maxlength: 30,
+      unique: true,
+      sparse: true,
+      immutable: true,
+    },
+
     googleId: {
       type: String,
       default: null,

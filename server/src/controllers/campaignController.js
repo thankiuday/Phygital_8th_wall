@@ -2,6 +2,7 @@
 
 const crypto = require('crypto');
 const Campaign = require('../models/Campaign');
+const User = require('../models/User');
 const ScanEvent = require('../models/ScanEvent');
 const LinkClickEvent = require('../models/LinkClickEvent');
 const VideoPlayEvent = require('../models/VideoPlayEvent');
@@ -19,6 +20,8 @@ const { renderCardPng } = require('../services/cardPrintService');
 const { CARD_SIZE_IDS, DEFAULT_CARD_SIZE } = require('../constants/cardSizes');
 const logger = require('../config/logger');
 const { resolveLinkHref } = require('../utils/linkItemResolver');
+const { allocateUniqueHandleFromEmail } = require('../utils/userHandle');
+const { allocateUniqueHubSlugForUser } = require('../utils/campaignHubSlug');
 
 /* ── Defense-in-depth: cap on stringified qrDesign size.  Zod already bounds
    the logo `image` field to 180 KB; this is a belt-and-braces guard against a
@@ -49,6 +52,29 @@ const generateUniqueSlug = async () => {
     logger.warn('redirectSlug collision — retrying', { slug, attempt });
   }
   throw new AppError('Could not allocate a unique short URL — please retry', 500);
+};
+
+const evictDynamicQrMetaForCampaign = (row) => {
+  if (!row?.redirectSlug) return;
+  dynamicQrMetaCache.evict(row.redirectSlug).catch(() => {});
+  if (row.ownerHandle && row.hubSlug) {
+    dynamicQrMetaCache.evict(`v:${row.ownerHandle}/${row.hubSlug}`).catch(() => {});
+  }
+};
+
+/** Allocate `ownerHandle` (from User) + unique `hubSlug` for vanity `/open/...` URLs. */
+const ensureOwnerHubFields = async (userId, campaignNameTrimmed) => {
+  const userDoc = await User.findById(userId).select('handle email').lean();
+  if (!userDoc) throw new AppError('User not found', 401);
+  let ownerHandle = userDoc.handle;
+  if (!ownerHandle) {
+    const u = await User.findById(userId).select('email');
+    if (!u) throw new AppError('User not found', 401);
+    ownerHandle = await allocateUniqueHandleFromEmail(User, u.email);
+    await User.updateOne({ _id: userId }, { $set: { handle: ownerHandle } });
+  }
+  const hubSlug = await allocateUniqueHubSlugForUser(Campaign, userId, campaignNameTrimmed);
+  return { ownerHandle, hubSlug };
 };
 
 /* ─────────────────────────────────────────
@@ -153,6 +179,8 @@ const createSingleLinkCampaign = async (req, res) => {
     redirectSlug = await generateUniqueSlug();
   }
 
+  const { ownerHandle, hubSlug } = await ensureOwnerHubFields(req.user._id, campaignName.trim());
+
   const campaign = await Campaign.create({
     userId: req.user._id,
     campaignType: 'single-link-qr',
@@ -160,6 +188,8 @@ const createSingleLinkCampaign = async (req, res) => {
     destinationUrl, // already normalized + SSRF-checked by Zod transform
     qrDesign: qrDesign || null,
     redirectSlug,
+    ownerHandle,
+    hubSlug,
     preciseGeoAnalytics: !!preciseGeoAnalytics,
     status: 'active',
   });
@@ -253,6 +283,8 @@ const createMultipleLinksCampaign = async (req, res) => {
     redirectSlug = await generateUniqueSlug();
   }
 
+  const { ownerHandle, hubSlug } = await ensureOwnerHubFields(req.user._id, campaignName.trim());
+
   const campaign = await Campaign.create({
     userId: req.user._id,
     campaignType: 'multiple-links-qr',
@@ -260,6 +292,8 @@ const createMultipleLinksCampaign = async (req, res) => {
     linkItems: persistedItems,
     qrDesign: qrDesign || null,
     redirectSlug,
+    ownerHandle,
+    hubSlug,
     preciseGeoAnalytics: !!preciseGeoAnalytics,
     status: 'active',
   });
@@ -433,6 +467,8 @@ const createLinksDocVideoCampaign = async (req, res) => {
     redirectSlug = await generateUniqueSlug();
   }
 
+  const { ownerHandle, hubSlug } = await ensureOwnerHubFields(req.user._id, campaignName.trim());
+
   const campaign = await Campaign.create({
     userId: req.user._id,
     campaignType: 'links-doc-video-qr',
@@ -443,6 +479,8 @@ const createLinksDocVideoCampaign = async (req, res) => {
     linkItems: persistedLinks,
     qrDesign: qrDesign || null,
     redirectSlug,
+    ownerHandle,
+    hubSlug,
     preciseGeoAnalytics: !!preciseGeoAnalytics,
     status: 'active',
   });
@@ -598,6 +636,8 @@ const createDigitalBusinessCardCampaign = async (req, res) => {
     generateUniqueCardSlug(cardSlug, cardContent?.fullName || campaignName),
   ]);
 
+  const { ownerHandle, hubSlug } = await ensureOwnerHubFields(req.user._id, campaignName.trim());
+
   const campaign = await Campaign.create({
     userId: req.user._id,
     campaignType: 'digital-business-card',
@@ -609,6 +649,8 @@ const createDigitalBusinessCardCampaign = async (req, res) => {
     cardPrintSettings: { ...DEFAULT_CARD_PRINT_SETTINGS, ...(cardPrintSettings || {}) },
     qrDesign: qrDesign || null,
     redirectSlug,
+    ownerHandle,
+    hubSlug,
     preciseGeoAnalytics: !!preciseGeoAnalytics,
     status: 'active',
   });
@@ -741,6 +783,8 @@ const createLinksVideoCampaign = async (req, res) => {
     redirectSlug = await generateUniqueSlug();
   }
 
+  const { ownerHandle, hubSlug } = await ensureOwnerHubFields(req.user._id, campaignName.trim());
+
   const campaign = await Campaign.create({
     userId: req.user._id,
     campaignType: 'links-video-qr',
@@ -754,6 +798,8 @@ const createLinksVideoCampaign = async (req, res) => {
     linkItems: persistedItems,
     qrDesign: qrDesign || null,
     redirectSlug,
+    ownerHandle,
+    hubSlug,
     preciseGeoAnalytics: !!preciseGeoAnalytics,
     status: 'active',
   });
@@ -1053,7 +1099,7 @@ const updateCampaign = async (req, res) => {
     && existing.redirectSlug
   ) {
     redirectCache.evict(existing.redirectSlug).catch(() => {});
-    dynamicQrMetaCache.evict(existing.redirectSlug).catch(() => {});
+    evictDynamicQrMetaForCampaign(existing);
   }
 
   if (existing.campaignType === 'digital-business-card') {
@@ -1084,7 +1130,7 @@ const deleteCampaign = async (req, res) => {
 
   if (campaign.redirectSlug) {
     redirectCache.evict(campaign.redirectSlug).catch(() => {});
-    dynamicQrMetaCache.evict(campaign.redirectSlug).catch(() => {});
+    evictDynamicQrMetaForCampaign(campaign);
   }
   if (campaign.cardSlug) cardMetaCache.evict(campaign.cardSlug).catch(() => {});
 
@@ -1178,13 +1224,17 @@ const duplicateCampaign = async (req, res) => {
 
   if (original.campaignType === 'single-link-qr') {
     const redirectSlug = await generateUniqueSlug();
+    const newName = `Copy of ${original.campaignName}`.trim();
+    const { ownerHandle, hubSlug } = await ensureOwnerHubFields(original.userId, newName);
     const copy = await Campaign.create({
       userId: original.userId,
       campaignType: 'single-link-qr',
-      campaignName: `Copy of ${original.campaignName}`,
+      campaignName: newName,
       destinationUrl: original.destinationUrl,
       qrDesign: original.qrDesign,
       redirectSlug,
+      ownerHandle,
+      hubSlug,
       preciseGeoAnalytics: !!original.preciseGeoAnalytics,
       status: 'active',
     });
@@ -1194,6 +1244,8 @@ const duplicateCampaign = async (req, res) => {
   if (original.campaignType === 'multiple-links-qr') {
     const { nanoid } = await import('nanoid');
     const redirectSlug = await generateUniqueSlug();
+    const newName = `Copy of ${original.campaignName}`.trim();
+    const { ownerHandle, hubSlug } = await ensureOwnerHubFields(original.userId, newName);
     const items = (original.linkItems || []).map((it) => ({
       linkId: nanoid(12),
       kind: it.kind,
@@ -1203,10 +1255,12 @@ const duplicateCampaign = async (req, res) => {
     const copy = await Campaign.create({
       userId: original.userId,
       campaignType: 'multiple-links-qr',
-      campaignName: `Copy of ${original.campaignName}`,
+      campaignName: newName,
       linkItems: items,
       qrDesign: original.qrDesign,
       redirectSlug,
+      ownerHandle,
+      hubSlug,
       preciseGeoAnalytics: !!original.preciseGeoAnalytics,
       status: 'active',
     });
@@ -1216,6 +1270,8 @@ const duplicateCampaign = async (req, res) => {
   if (original.campaignType === 'links-video-qr') {
     const { nanoid } = await import('nanoid');
     const redirectSlug = await generateUniqueSlug();
+    const newName = `Copy of ${original.campaignName}`.trim();
+    const { ownerHandle, hubSlug } = await ensureOwnerHubFields(original.userId, newName);
     const items = (original.linkItems || []).map((it) => ({
       linkId: nanoid(12),
       kind: it.kind,
@@ -1225,7 +1281,7 @@ const duplicateCampaign = async (req, res) => {
     const copy = await Campaign.create({
       userId: original.userId,
       campaignType: 'links-video-qr',
-      campaignName: `Copy of ${original.campaignName}`,
+      campaignName: newName,
       videoSource: original.videoSource,
       videoUrl: original.videoUrl,
       videoPublicId: original.videoPublicId,
@@ -1234,6 +1290,8 @@ const duplicateCampaign = async (req, res) => {
       linkItems: items,
       qrDesign: original.qrDesign,
       redirectSlug,
+      ownerHandle,
+      hubSlug,
       preciseGeoAnalytics: !!original.preciseGeoAnalytics,
       status: 'active',
     });
@@ -1246,6 +1304,7 @@ const duplicateCampaign = async (req, res) => {
       generateUniqueSlug(),
       generateUniqueCardSlug(null, newName),
     ]);
+    const { ownerHandle, hubSlug } = await ensureOwnerHubFields(original.userId, newName.trim());
     const sections = await ensureSectionIds(original.cardContent?.sections);
     const copy = await Campaign.create({
       userId: original.userId,
@@ -1258,6 +1317,8 @@ const duplicateCampaign = async (req, res) => {
       cardPrintSettings: original.cardPrintSettings,
       qrDesign: original.qrDesign,
       redirectSlug,
+      ownerHandle,
+      hubSlug,
       preciseGeoAnalytics: !!original.preciseGeoAnalytics,
       status: 'active',
     });
@@ -1267,6 +1328,8 @@ const duplicateCampaign = async (req, res) => {
   if (original.campaignType === 'links-doc-video-qr') {
     const { nanoid } = await import('nanoid');
     const redirectSlug = await generateUniqueSlug();
+    const newName = `Copy of ${original.campaignName}`.trim();
+    const { ownerHandle, hubSlug } = await ensureOwnerHubFields(original.userId, newName);
     const links = (original.linkItems || []).map((it) => ({
       linkId: nanoid(12),
       kind: it.kind,
@@ -1298,13 +1361,15 @@ const duplicateCampaign = async (req, res) => {
     const copy = await Campaign.create({
       userId: original.userId,
       campaignType: 'links-doc-video-qr',
-      campaignName: `Copy of ${original.campaignName}`,
+      campaignName: newName,
       videoSource: original.videoSource,
       videoItems: videos.length ? videos : undefined,
       docItems: docs.length ? docs : undefined,
       linkItems: links,
       qrDesign: original.qrDesign,
       redirectSlug,
+      ownerHandle,
+      hubSlug,
       preciseGeoAnalytics: !!original.preciseGeoAnalytics,
       status: 'active',
     });
@@ -1348,7 +1413,7 @@ const duplicateCampaign = async (req, res) => {
 const getCampaignQR = async (req, res) => {
   const campaign = await Campaign.findOne(
     { _id: req.params.id, userId: req.user._id, isDeleted: { $ne: true } },
-    'qrCodeUrl qrPublicId campaignName campaignType redirectSlug cardSlug qrDesign preciseGeoAnalytics'
+    'qrCodeUrl qrPublicId campaignName campaignType redirectSlug cardSlug qrDesign preciseGeoAnalytics ownerHandle hubSlug'
   ).lean();
 
   if (!campaign) throw new AppError('Campaign not found', 404);
@@ -1367,7 +1432,11 @@ const getCampaignQR = async (req, res) => {
 
     let redirectUrl;
     if (campaign.preciseGeoAnalytics && clientBase) {
-      redirectUrl = `${clientBase}/open/${campaign.redirectSlug}`;
+      if (campaign.hubSlug && campaign.ownerHandle) {
+        redirectUrl = `${clientBase}/open/${campaign.ownerHandle}/${campaign.hubSlug}`;
+      } else {
+        redirectUrl = `${clientBase}/open/${campaign.redirectSlug}`;
+      }
     } else {
       redirectUrl = `${apiRoot}/r/${campaign.redirectSlug}`;
     }
@@ -1376,6 +1445,8 @@ const getCampaignQR = async (req, res) => {
       campaignType: campaign.campaignType,
       redirectUrl,
       redirectSlug: campaign.redirectSlug,
+      ownerHandle: campaign.ownerHandle || null,
+      hubSlug: campaign.hubSlug || null,
       qrDesign: campaign.qrDesign,
       preciseGeoAnalytics: !!campaign.preciseGeoAnalytics,
       ready: true,

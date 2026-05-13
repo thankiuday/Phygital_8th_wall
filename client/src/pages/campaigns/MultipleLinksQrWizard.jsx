@@ -8,6 +8,7 @@ import { campaignService } from '../../services/campaignService';
 import { DEFAULT_DESIGN, hydrateWizardDesignFromDraft } from '../../components/qr/qrDesignModel';
 import Step1MultiLinks from './multiple-links/Step1MultiLinks';
 import Step2DesignQr from './single-link/Step2DesignQr';
+import { slugifyCampaignNamePreview } from '../../utils/hubVanityPreview';
 
 const STEPS = [
   { number: 1, shortLabel: 'Details', label: 'Enter Details' },
@@ -120,13 +121,23 @@ const MultipleLinksQrWizard = () => {
 
   const redirectBase = useMemo(resolveRedirectBase, []);
   const clientAppBase = useMemo(resolveClientAppBase, []);
-  const encodedData = useMemo(
-    () =>
-      preciseGeoAnalytics
-        ? `${clientAppBase}/open/${redirectSlug}`
-        : `${redirectBase}/r/${redirectSlug}`,
-    [redirectBase, clientAppBase, preciseGeoAnalytics, redirectSlug]
-  );
+  const encodedData = useMemo(() => {
+    if (!preciseGeoAnalytics) {
+      return `${redirectBase}/r/${redirectSlug}`;
+    }
+    if (isAuthenticated && user?.handle && campaignName.trim()) {
+      return `${clientAppBase}/open/${user.handle}/${slugifyCampaignNamePreview(campaignName)}`;
+    }
+    return `${clientAppBase}/open/${redirectSlug}`;
+  }, [
+    redirectBase,
+    clientAppBase,
+    preciseGeoAnalytics,
+    redirectSlug,
+    isAuthenticated,
+    user?.handle,
+    campaignName,
+  ]);
 
   const handleStep1Continue = ({ campaignName: name, linkItems: items, preciseGeoAnalytics: pg }) => {
     setCampaignName(name);

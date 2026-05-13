@@ -3,10 +3,15 @@ import { motion } from 'framer-motion';
 import { Download, Share2, Copy, Check, Loader2, RefreshCw } from 'lucide-react';
 import api from '../../services/api';
 import StyledQrPreview from '../qr/StyledQrPreview';
+import QrFrame from '../qr/QrFrame';
+import {
+  buildStyledOptionsFromPersistedDesign,
+  frameAccentFromDesign,
+} from '../qr/qrDesignModel';
+import { downloadFramedDynamicQrPng } from '../../utils/framedQrDownload';
 
-// Matches the inner content area of the 13rem (208px) card with p-3 (12px each side):
-// 208 - 24 = 184. Keeping renderer dimensions aligned prevents visual drift.
-const QR_PREVIEW_SIZE = 184;
+// Same inner pixel size as Step2DesignQr so on-screen QR + PNG download match the wizard.
+const DYNAMIC_QR_PIXEL_SIZE = 224;
 
 /**
  * QRCodeDisplay — renders the campaign QR code with download + share + copy-link actions.
@@ -25,7 +30,8 @@ const QRCodeDisplay = ({
     campaignType === 'single-link-qr'
     || campaignType === 'multiple-links-qr'
     || campaignType === 'links-video-qr'
-    || campaignType === 'links-doc-video-qr';
+    || campaignType === 'links-doc-video-qr'
+    || campaignType === 'digital-business-card';
 
   const [qrUrl, setQrUrl] = useState(initialQrUrl);
   const [polling, setPolling] = useState(!initialQrUrl);
@@ -41,28 +47,11 @@ const QRCodeDisplay = ({
   );
   const styledOptions = useMemo(() => {
     if (!isDynamicQr || !shareUrl) return null;
-    const design = qrDesign || {};
-    return {
-      // Keep preview QR dimensions in lockstep with the visual box on mobile
-      // so dynamic QRs never clip/overflow the card.
-      width: Math.min(design.width || 256, QR_PREVIEW_SIZE),
-      height: Math.min(design.height || 256, QR_PREVIEW_SIZE),
-      margin: design.margin ?? 6,
-      type: 'svg',
-      data: shareUrl,
-      qrOptions: { errorCorrectionLevel: 'Q' },
-      dotsOptions: design.dotsOptions || { type: 'square', color: '#000000' },
-      cornersSquareOptions: design.cornersSquareOptions || { type: 'square', color: '#000000' },
-      cornersDotOptions: design.cornersDotOptions || { type: 'square', color: '#000000' },
-      backgroundOptions: design.backgroundOptions || { color: '#ffffff' },
-      image: design.image || undefined,
-      imageOptions: {
-        hideBackgroundDots: false,
-        imageSize: 0.4,
-        margin: 4,
-        ...(design.imageOptions || {}),
-      },
-    };
+    return buildStyledOptionsFromPersistedDesign(
+      qrDesign,
+      shareUrl,
+      DYNAMIC_QR_PIXEL_SIZE,
+    );
   }, [isDynamicQr, qrDesign, shareUrl]);
 
   /* ── Poll until QR is generated ───────────────────────────── */
@@ -82,7 +71,8 @@ const QRCodeDisplay = ({
         (type === 'single-link-qr'
           || type === 'multiple-links-qr'
           || type === 'links-video-qr'
-          || type === 'links-doc-video-qr')
+          || type === 'links-doc-video-qr'
+          || type === 'digital-business-card')
         && redirectUrl
       ) {
         setShareUrl(redirectUrl);
@@ -105,6 +95,7 @@ const QRCodeDisplay = ({
 
   useEffect(() => {
     if (qrUrl) return;
+    if (!polling) return;
     let attempts = 0;
     const interval = setInterval(async () => {
       await fetchQR();
@@ -117,12 +108,20 @@ const QRCodeDisplay = ({
     }, 2000);
     fetchQR(); // immediate first attempt
     return () => clearInterval(interval);
-  }, [fetchQR, qrUrl]);
+  }, [fetchQR, qrUrl, polling]);
 
   /* ── Download QR as PNG ────────────────────────────────────── */
   const handleDownload = async () => {
     if (isDynamicQr) {
-      downloadRef.current?.({ name: campaignName || 'qr-code', extension: 'png' });
+      const d = qrDesign || {};
+      await downloadFramedDynamicQrPng({
+        downloadApi: downloadRef.current,
+        fileBaseName: campaignName || 'qr-code',
+        frame: d.frame || 'none',
+        frameCaption: d.frameCaption,
+        frameColor: frameAccentFromDesign(d),
+        qrPixelSize: DYNAMIC_QR_PIXEL_SIZE,
+      });
       return;
     }
     if (!qrUrl) return;
@@ -149,11 +148,15 @@ const QRCodeDisplay = ({
       await navigator.share({
         title: campaignName || 'AR Business Card',
         text:
-          campaignType === 'multiple-links-qr' || campaignType === 'links-video-qr'
+          campaignType === 'multiple-links-qr'
+          || campaignType === 'links-video-qr'
+          || campaignType === 'links-doc-video-qr'
             ? 'Scan this QR code to open my link page.'
             : campaignType === 'single-link-qr'
               ? 'Scan this QR code to open the link.'
-              : 'Scan this QR code to see my AR business card!',
+              : campaignType === 'digital-business-card'
+                ? 'Scan this QR code to open my digital business card.'
+                : 'Scan this QR code to see my AR business card!',
         url: shareUrl,
       });
     } else {
@@ -166,7 +169,13 @@ const QRCodeDisplay = ({
   return (
     <div className="flex min-w-0 w-full max-w-full flex-col items-center gap-5 overflow-x-hidden">
       {/* QR image container */}
-      <div className="relative flex h-52 w-52 max-w-full items-center justify-center overflow-hidden rounded-2xl border border-[var(--border-color)] bg-white p-3 shadow-[var(--shadow-md)]">
+      <div
+        className={`relative flex items-center justify-center rounded-2xl border border-[var(--border-color)] bg-white p-3 shadow-[var(--shadow-md)] sm:p-4 ${
+          isDynamicQr
+            ? 'mx-auto inline-flex w-fit max-w-full min-w-0 flex-col overflow-hidden'
+            : 'mx-auto h-52 w-52 overflow-hidden'
+        }`}
+      >
         {polling ? (
           <div className="flex flex-col items-center gap-2">
             <Loader2 size={32} className="animate-spin text-brand-500" />
@@ -183,11 +192,18 @@ const QRCodeDisplay = ({
             </button>
           </div>
         ) : isDynamicQr ? (
-          <StyledQrPreview
-            options={styledOptions}
-            downloadRef={downloadRef}
-            className="h-full w-full"
-          />
+          <QrFrame
+            variant={qrDesign?.frame || 'none'}
+            caption={qrDesign?.frameCaption || 'Scan me!'}
+            color={frameAccentFromDesign(qrDesign)}
+            size={DYNAMIC_QR_PIXEL_SIZE}
+          >
+            <StyledQrPreview
+              options={styledOptions}
+              downloadRef={downloadRef}
+              className="h-full w-full"
+            />
+          </QrFrame>
         ) : (
           <motion.img
             initial={{ opacity: 0, scale: 0.9 }}
@@ -248,7 +264,9 @@ const QRCodeDisplay = ({
           ? 'Print this QR or share the link. When scanned, it opens your link page with video and all destinations.'
           : campaignType === 'single-link-qr'
             ? 'Print this QR or share the link. When scanned, it redirects to your destination URL.'
-            : 'Print this QR on your business card or share the link. When scanned, it opens your AR experience instantly — no app download needed.'}
+            : campaignType === 'digital-business-card'
+              ? 'Print this QR or share the link. When scanned, it opens your digital business card.'
+              : 'Print this QR on your business card or share the link. When scanned, it opens your AR experience instantly — no app download needed.'}
       </p>
     </div>
   );

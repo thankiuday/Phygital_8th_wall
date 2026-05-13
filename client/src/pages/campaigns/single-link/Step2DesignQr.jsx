@@ -21,11 +21,13 @@ import useDebouncedValue from '../../../hooks/useDebouncedValue';
 import {
   buildQrOptions,
   buildQrDesignPayload,
+  frameAccentFromDesign,
   FRAME_OPTIONS,
   DOT_TYPES,
   CORNER_SQUARE_TYPES,
   CORNER_DOT_TYPES,
 } from '../../../components/qr/qrDesignModel';
+import { downloadFramedDynamicQrPng } from '../../../utils/framedQrDownload';
 
 /* ── Reusable accordion wrapper (inline — only used here) ─────────── */
 
@@ -160,55 +162,6 @@ const readAndDownscaleLogo = (file) => new Promise((resolve, reject) => {
   reader.readAsDataURL(file);
 });
 
-const roundedRect = (ctx, x, y, width, height, radius) => {
-  const r = Math.min(radius, width / 2, height / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + width - r, y);
-  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
-  ctx.lineTo(x + width, y + height - r);
-  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
-  ctx.lineTo(x + r, y + height);
-  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
-};
-
-const blobToImage = (blob) => new Promise((resolve, reject) => {
-  const objectUrl = URL.createObjectURL(blob);
-  const img = new Image();
-  img.onload = () => {
-    URL.revokeObjectURL(objectUrl);
-    resolve(img);
-  };
-  img.onerror = () => {
-    URL.revokeObjectURL(objectUrl);
-    reject(new Error('Could not decode QR image for download'));
-  };
-  img.src = objectUrl;
-});
-
-const canvasToBlob = (canvas) => new Promise((resolve, reject) => {
-  canvas.toBlob((blob) => {
-    if (!blob) return reject(new Error('Could not generate image'));
-    resolve(blob);
-  }, 'image/png');
-});
-
-const triggerBlobDownload = (blob, filename) => {
-  const objectUrl = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = objectUrl;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(objectUrl);
-};
-
-/* ── Main Step 2 component ───────────────────────────────────────── */
-
 const Step2DesignQr = ({
   design,
   onDesignChange,
@@ -270,85 +223,14 @@ const Step2DesignQr = ({
   const handleDownload = async () => {
     const downloadApi = downloadRef.current;
     if (!downloadApi) return;
-    if (design.frame === 'none') {
-      downloadApi({ name: 'qr', extension: 'png' });
-      return;
-    }
-
-    try {
-      const qrBlob = await downloadApi.getRawData?.('png');
-      if (!qrBlob) {
-        downloadApi({ name: 'qr', extension: 'png' });
-        return;
-      }
-      const qrImg = await blobToImage(qrBlob);
-      const qrSize = 224;
-      const color = design.dotsUseGradient ? design.dotsGradientStart : design.dotsColor;
-      const caption = (design.frameCaption || 'Scan me!').slice(0, 40);
-      const captionW = 96;
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        downloadApi({ name: 'qr', extension: 'png' });
-        return;
-      }
-
-      let width = qrSize;
-      let height = qrSize;
-      if (design.frame === 'bottom-bar') height = qrSize + 56;
-      if (design.frame === 'bottom-arrow') height = qrSize + 64;
-      if (design.frame === 'right-arrow') width = qrSize + captionW + 16;
-
-      canvas.width = width;
-      canvas.height = height;
-      ctx.clearRect(0, 0, width, height);
-      ctx.drawImage(qrImg, 0, 0, qrSize, qrSize);
-
-      // Common rounded border around the QR square.
-      ctx.lineWidth = 6;
-      ctx.strokeStyle = color;
-      roundedRect(ctx, 3, 3, qrSize - 6, qrSize - 6, 16);
-      ctx.stroke();
-
-      ctx.fillStyle = color;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = '700 24px Inter, Arial, sans-serif';
-
-      if (design.frame === 'bottom-bar') {
-        roundedRect(ctx, 0, qrSize + 12, qrSize, 44, 16);
-        ctx.fill();
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(caption, qrSize / 2, qrSize + 34);
-      } else if (design.frame === 'bottom-arrow') {
-        ctx.beginPath();
-        ctx.moveTo(qrSize / 2 - 12, qrSize + 2);
-        ctx.lineTo(qrSize / 2 + 12, qrSize + 2);
-        ctx.lineTo(qrSize / 2, qrSize + 14);
-        ctx.closePath();
-        ctx.fill();
-        roundedRect(ctx, 0, qrSize + 28, qrSize, 36, 18);
-        ctx.fill();
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(caption, qrSize / 2, qrSize + 46);
-      } else if (design.frame === 'right-arrow') {
-        ctx.beginPath();
-        ctx.moveTo(qrSize + 2, qrSize / 2 - 12);
-        ctx.lineTo(qrSize + 14, qrSize / 2);
-        ctx.lineTo(qrSize + 2, qrSize / 2 + 12);
-        ctx.closePath();
-        ctx.fill();
-        roundedRect(ctx, qrSize + 16, qrSize / 2 - 18, captionW, 36, 18);
-        ctx.fill();
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(caption, qrSize + 16 + captionW / 2, qrSize / 2);
-      }
-
-      const framedBlob = await canvasToBlob(canvas);
-      triggerBlobDownload(framedBlob, 'qr-framed.png');
-    } catch {
-      downloadApi({ name: 'qr', extension: 'png' });
-    }
+    await downloadFramedDynamicQrPng({
+      downloadApi,
+      fileBaseName: 'qr',
+      frame: design.frame,
+      frameCaption: design.frameCaption,
+      frameColor: frameAccentFromDesign(design),
+      qrPixelSize: 224,
+    });
   };
 
   const PreviewPanel = () => (
@@ -389,7 +271,7 @@ const Step2DesignQr = ({
           <QrFrame
             variant={design.frame}
             caption={design.frameCaption}
-            color={design.dotsUseGradient ? design.dotsGradientStart : design.dotsColor}
+            color={frameAccentFromDesign(design)}
             size={224}
           >
             <StyledQrPreview options={previewQrOptions} downloadRef={downloadRef} />

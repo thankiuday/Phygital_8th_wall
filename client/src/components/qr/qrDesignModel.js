@@ -54,7 +54,8 @@ export const DEFAULT_DESIGN = {
   cornersDotColor: '#000000',
 
   backgroundColor: '#ffffff',
-  backgroundTransparent: false,
+  /** New sessions: transparent QR background by default (Step 2 checkbox on). */
+  backgroundTransparent: true,
 
   // Logo (data URL).  Empty string means no logo.  We deliberately do NOT
   // include this in DEFAULT_DESIGN's `image` slot so the empty string is
@@ -63,11 +64,51 @@ export const DEFAULT_DESIGN = {
 };
 
 /**
- * Translate the flat wizard form into the nested options shape that
- * `qr-code-styling` expects.  Everything coming out of this function is
- * already validated by the strict Zod schema on the server, so we keep the
- * client-side builder permissive (no throwing on missing fields).
+ * Frame stroke / label colour from either flat wizard `design` or persisted API `qrDesign`.
+ * Matches Step2DesignQr + QrFrame: gradient → first stop, else solid dot colour.
  */
+export const frameAccentFromDesign = (design) => {
+  if (!design || typeof design !== 'object') return '#000000';
+  const dots = design.dotsOptions;
+  if (dots && typeof dots === 'object') {
+    const stops = dots.gradient?.colorStops;
+    if (Array.isArray(stops) && stops[0]?.color) return stops[0].color;
+    if (typeof dots.color === 'string') return dots.color;
+  }
+  if (design.dotsUseGradient && design.dotsGradientStart) return design.dotsGradientStart;
+  if (typeof design.dotsColor === 'string') return design.dotsColor;
+  return '#000000';
+};
+
+/**
+ * Build `qr-code-styling` options from persisted `qrDesign` (campaign document) + encoded URL.
+ * Used on campaign detail so preview matches wizard output for the same payload.
+ */
+export const buildStyledOptionsFromPersistedDesign = (design, encodedData, pixelSize = 256) => {
+  const d = design && typeof design === 'object' ? design : {};
+  const size = typeof pixelSize === 'number' && pixelSize > 0 ? pixelSize : 256;
+  return {
+    width: size,
+    height: size,
+    margin: d.margin ?? 6,
+    type: 'svg',
+    data: encodedData,
+    qrOptions: { errorCorrectionLevel: 'Q' },
+    dotsOptions: d.dotsOptions || { type: 'square', color: '#000000' },
+    cornersSquareOptions: d.cornersSquareOptions || { type: 'square', color: '#000000' },
+    cornersDotOptions: d.cornersDotOptions || { type: 'square', color: '#000000' },
+    backgroundOptions: d.backgroundOptions || { color: '#ffffff' },
+    image: d.image || undefined,
+    imageOptions: {
+      hideBackgroundDots: Boolean(d.image),
+      imageSize: 0.4,
+      margin: 4,
+      ...(d.imageOptions || {}),
+    },
+  };
+};
+
+/** Flat wizard `design` → nested options for `qr-code-styling`. */
 export const buildQrOptions = (design, encodedData) => {
   const dotsOptions = design.dotsUseGradient
     ? {

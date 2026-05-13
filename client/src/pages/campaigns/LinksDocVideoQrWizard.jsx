@@ -7,6 +7,7 @@ import WizardStepBar from '../../components/ui/WizardStepBar';
 import { campaignService } from '../../services/campaignService';
 import { DEFAULT_DESIGN, hydrateWizardDesignFromDraft } from '../../components/qr/qrDesignModel';
 import Step2DesignQr from './single-link/Step2DesignQr';
+import { slugifyCampaignNamePreview } from '../../utils/hubVanityPreview';
 import Step1LinksDocVideo from './links-doc-video/Step1LinksDocVideo';
 import { createDocSlot, createVideoSlot } from './links-doc-video/linksDocVideoFormUtils';
 
@@ -135,13 +136,23 @@ const LinksDocVideoQrWizard = () => {
 
   const redirectBase = useMemo(resolveRedirectBase, []);
   const clientAppBase = useMemo(resolveClientAppBase, []);
-  const encodedData = useMemo(
-    () =>
-      preciseGeoAnalytics
-        ? `${clientAppBase}/open/${redirectSlug}`
-        : `${redirectBase}/r/${redirectSlug}`,
-    [redirectBase, clientAppBase, preciseGeoAnalytics, redirectSlug]
-  );
+  const encodedData = useMemo(() => {
+    if (!preciseGeoAnalytics) {
+      return `${redirectBase}/r/${redirectSlug}`;
+    }
+    if (isAuthenticated && user?.handle && campaignName.trim()) {
+      return `${clientAppBase}/open/${user.handle}/${slugifyCampaignNamePreview(campaignName)}`;
+    }
+    return `${clientAppBase}/open/${redirectSlug}`;
+  }, [
+    redirectBase,
+    clientAppBase,
+    preciseGeoAnalytics,
+    redirectSlug,
+    isAuthenticated,
+    user?.handle,
+    campaignName,
+  ]);
 
   const handleStep1Continue = (payload) => {
     setStagedPayload(payload);

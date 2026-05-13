@@ -37,6 +37,56 @@ const resolveRedirectBase = () => {
   return typeof window !== 'undefined' ? window.location.origin : '';
 };
 
+/**
+ * Origin for `/open/…` and `/l/…` opened from this dashboard (not encoded in QRs).
+ * Prefer the live document origin so local dev never follows `VITE_APP_URL`
+ * (often the deployed SPA, e.g. Render), which would 404 or mismatch `CLIENT_URL`.
+ */
+const dashboardClientAppOrigin = () => {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
+  const fromEnv = import.meta.env.VITE_APP_URL && String(import.meta.env.VITE_APP_URL).replace(/\/$/, '');
+  return fromEnv || '';
+};
+
+/**
+ * Hub campaigns: `/l/:redirectSlug` when IP-only analytics; `/open/…` when precise-geo
+ * (vanity `ownerHandle/hubSlug` or legacy single-segment slug) so dashboard links match the QR.
+ */
+const hubPublicPageUrl = (campaign) => {
+  const origin = dashboardClientAppOrigin();
+  if (!origin) return null;
+  if (campaign.preciseGeoAnalytics) {
+    if (campaign.ownerHandle && campaign.hubSlug) {
+      return `${origin}/open/${campaign.ownerHandle}/${campaign.hubSlug}`;
+    }
+    if (campaign.redirectSlug) {
+      return `${origin}/open/${campaign.redirectSlug}`;
+    }
+    return null;
+  }
+  return campaign.redirectSlug ? `${origin}/l/${campaign.redirectSlug}` : null;
+};
+
+/** Single-link: `/r/:slug` unless precise geo → same `/open/…` pattern as GET …/qr. */
+const singleLinkPublicOpenUrl = (campaign) => {
+  if (campaign.campaignType !== 'single-link-qr') return null;
+  const redirectBase = resolveRedirectBase();
+  if (campaign.preciseGeoAnalytics) {
+    const origin = dashboardClientAppOrigin();
+    if (!origin) return null;
+    if (campaign.ownerHandle && campaign.hubSlug) {
+      return `${origin}/open/${campaign.ownerHandle}/${campaign.hubSlug}`;
+    }
+    if (campaign.redirectSlug) {
+      return `${origin}/open/${campaign.redirectSlug}`;
+    }
+    return null;
+  }
+  return campaign.redirectSlug ? `${redirectBase}/r/${campaign.redirectSlug}` : null;
+};
+
 const StatusBadge = ({ status }) => {
   const map = {
     active: 'bg-green-500/15 text-green-400 border-green-500/30',
@@ -64,12 +114,8 @@ const ActionMenu = ({ campaign, actionLoading, onEdit, onDuplicate, onToggleStat
     || campaign.campaignType === 'links-video-qr'
     || campaign.campaignType === 'links-doc-video-qr';
   const isDigitalCard = campaign.campaignType === 'digital-business-card';
-  const trackedRedirectUrl = campaign.redirectSlug
-    ? `${resolveRedirectBase()}/r/${campaign.redirectSlug}`
-    : null;
-  const hubPreviewUrl = campaign.redirectSlug
-    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/l/${campaign.redirectSlug}`
-    : null;
+  const trackedRedirectUrl = singleLinkPublicOpenUrl(campaign);
+  const hubPreviewUrl = hubPublicPageUrl(campaign);
   const cardPreviewUrl = isDigitalCard && campaign.cardSlug
     ? `${typeof window !== 'undefined' ? window.location.origin : ''}/card/${campaign.cardSlug}`
     : null;
@@ -298,12 +344,8 @@ const CampaignDetailPage = () => {
     || campaign.campaignType === 'links-doc-video-qr';
   const isLinksDocVideo = campaign.campaignType === 'links-doc-video-qr';
   const isDigitalCard = campaign.campaignType === 'digital-business-card';
-  const trackedRedirectUrl = campaign.redirectSlug
-    ? `${resolveRedirectBase()}/r/${campaign.redirectSlug}`
-    : null;
-  const hubPreviewUrl = campaign.redirectSlug
-    ? `${window.location.origin}/l/${campaign.redirectSlug}`
-    : null;
+  const trackedRedirectUrl = singleLinkPublicOpenUrl(campaign);
+  const hubPreviewUrl = hubPublicPageUrl(campaign);
   const cardPreviewUrl = isDigitalCard && campaign.cardSlug
     ? `${window.location.origin}/card/${campaign.cardSlug}`
     : null;

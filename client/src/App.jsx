@@ -190,6 +190,7 @@ function App() {
             />
 
             {/* ── Public single-link / multi-link bridge (precise geo) ─ */}
+            <Route path="/open/:handle/:hubSlug" element={<OpenSingleLinkBridgePage />} />
             <Route path="/open/:slug" element={<OpenSingleLinkBridgePage />} />
 
             {/* ── Public AR experience ──────────────────────────────── */}
