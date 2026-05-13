@@ -3,9 +3,21 @@ import axios from 'axios';
 
 export const campaignService = {
   /* ── Get Cloudinary signed-upload signature ──────────────── */
-  getUploadSignature: async (resourceType = 'image') => {
-    const res = await api.get(`/campaigns/upload-signature?resourceType=${resourceType}`);
-    return res.data.data;
+  getUploadSignature: async (resourceType = 'image', options = {}) => {
+    const { draft = false } = options;
+    const query = `resourceType=${encodeURIComponent(resourceType)}${draft ? '&draft=1' : ''}`;
+    if (!draft) {
+      const res = await api.get(`/campaigns/upload-signature?${query}`);
+      return res.data.data;
+    }
+    try {
+      const res = await api.get(`/campaigns/upload-signature?${query}`);
+      return res.data.data;
+    } catch (err) {
+      if (err?.response?.status !== 401) throw err;
+      const res = await api.get(`/public/upload-signature?${query}`);
+      return res.data.data;
+    }
   },
 
   /**
@@ -17,8 +29,9 @@ export const campaignService = {
    * @param {Function}              onProgress  — called with 0-100 progress value
    * @returns {{ url, publicId, thumbnailUrl, bytes }}
    */
-  uploadToCloudinary: async (file, resourceType, onProgress) => {
-    const sig = await campaignService.getUploadSignature(resourceType);
+  uploadToCloudinary: async (file, resourceType, onProgress, options = {}) => {
+    const { draft = false } = options;
+    const sig = await campaignService.getUploadSignature(resourceType, { draft });
 
     const formData = new FormData();
     formData.append('file', file);
@@ -26,6 +39,8 @@ export const campaignService = {
     formData.append('timestamp', sig.timestamp);
     formData.append('signature', sig.signature);
     formData.append('folder', sig.folder);
+    if (sig.tags) formData.append('tags', sig.tags);
+    if (sig.context) formData.append('context', sig.context);
 
     const uploadUrl = `https://api.cloudinary.com/v1_1/${sig.cloudName}/${resourceType}/upload`;
 
@@ -55,10 +70,10 @@ export const campaignService = {
    * doc uploads. Always sends the appropriate resource type for the file
    * (raw for PDFs/Office, image for JPG/PNG) so previews keep working.
    */
-  uploadDocumentToCloudinary: async (file, onProgress) => {
+  uploadDocumentToCloudinary: async (file, onProgress, options = {}) => {
     const isImage = file?.type?.startsWith('image/');
     const resourceType = isImage ? 'image' : 'raw';
-    const result = await campaignService.uploadToCloudinary(file, resourceType, onProgress);
+    const result = await campaignService.uploadToCloudinary(file, resourceType, onProgress, options);
     return {
       ...result,
       resourceType,

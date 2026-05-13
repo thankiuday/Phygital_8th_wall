@@ -121,7 +121,7 @@ const SectionEditor = ({ section, onUpdate, onRemove }) => {
         <label className="flex min-h-[46px] cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border-color)] bg-[var(--surface-2)] px-3 py-3 text-xs text-[var(--text-secondary)] hover:border-brand-500/50">
           <UploadIcon size={14} />
           Replace with upload
-          <input type="file" accept="video/*" className="hidden" onChange={onPickVideo} />
+          <input type="file" accept="video/*,.mp4,.webm,.mov,.m4v" className="hidden" onChange={onPickVideo} />
         </label>
       </div>
     );

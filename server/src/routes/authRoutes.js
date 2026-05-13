@@ -15,6 +15,9 @@ const {
   changePassword,
   forgotPassword,
   resetPassword,
+  startGoogleAuth,
+  googleAuthCallback,
+  exchangeGoogleAuthCode,
 } = require('../controllers/authController');
 
 const { protect } = require('../middleware/auth');
@@ -47,6 +50,9 @@ router.post('/login', authLimiter, validate(loginSchema), login);
 router.post('/refresh', refreshAccessToken);
 router.post('/forgot-password', authLimiter, validate(forgotPasswordSchema), forgotPassword);
 router.post('/reset-password/:token', authLimiter, validate(resetPasswordSchema), resetPassword);
+router.get('/google', startGoogleAuth);
+router.get('/google/callback', googleAuthCallback);
+router.post('/google/exchange', authLimiter, exchangeGoogleAuthCode);
 
 /* ─────────────────────────────────────────
    Protected routes — requires valid access token

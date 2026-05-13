@@ -8,7 +8,7 @@ import { campaignService } from '../../../services/campaignService';
 import { detectVideoHost, toEmbedSrc } from '../../../utils/videoEmbed';
 import { buildLinksVideoPayload, validateLinksVideoForm } from './linksVideoFormUtils';
 
-const ACCEPTED_VIDEO_TYPES = 'video/mp4,video/webm,video/quicktime';
+const ACCEPTED_VIDEO_TYPES = 'video/*,.mp4,.webm,.mov,.m4v';
 const MAX_VIDEO_MB = 100;
 const YT_ID_RE = /^[A-Za-z0-9_-]{6,32}$/;
 
@@ -75,6 +75,7 @@ const SourceTab = ({ active, onClick, Icon, label }) => (
 );
 
 const Step1LinksVideo = ({
+  isAuthenticated,
   campaignName,
   onCampaignNameChange,
   onRegenerateName,
@@ -194,7 +195,8 @@ const Step1LinksVideo = ({
       const uploaded = await campaignService.uploadToCloudinary(
         file,
         'video',
-        (p) => setUploadProgress(p)
+        (p) => setUploadProgress(p),
+        { draft: !isAuthenticated }
       );
       setUploadedVideoUrl(uploaded.url);
       setUploadedVideoPublicId(uploaded.publicId);

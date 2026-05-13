@@ -35,24 +35,46 @@ const useAuthStore = create((set, get) => {
     isLoading:       false, // form-submission loading — starts false
     isHydrating:     true,  // page-load session restore — starts true
     error:           null,
+    pendingWelcomeNotification: false,
 
     /* ── register ───────────────────────────────────────────── */
-    register: async (name, email, password) => {
+    register: async (email, password, agreedToCertification) => {
       set({ isLoading: true, error: null });
       try {
-        const data = await authService.register({ name, email, password });
+        const data = await authService.register({ email, password, agreedToCertification });
         set({
           user:            data.user,
           accessToken:     data.accessToken,
           isAuthenticated: true,
           isLoading:       false,
           isHydrating:     false,
+          pendingWelcomeNotification: !!data.showWelcomeNotification,
         });
         return { success: true };
       } catch (err) {
         const message = extractError(err, 'Registration failed');
         set({ isLoading: false, error: message });
         return { success: false, message, errors: err.response?.data?.errors };
+      }
+    },
+
+    completeGoogleAuth: async (code) => {
+      set({ isLoading: true, error: null });
+      try {
+        const data = await authService.exchangeGoogleAuthCode(code);
+        set({
+          user: data.user,
+          accessToken: data.accessToken,
+          isAuthenticated: true,
+          isLoading: false,
+          isHydrating: false,
+          pendingWelcomeNotification: !!data.showWelcomeNotification,
+        });
+        return { success: true };
+      } catch (err) {
+        const message = extractError(err, 'Google authentication failed');
+        set({ isLoading: false, error: message });
+        return { success: false, message };
       }
     },
 
@@ -123,6 +145,7 @@ const useAuthStore = create((set, get) => {
     },
 
     clearError:     ()      => set({ error: null }),
+    markWelcomeNotificationSeen: () => set({ pendingWelcomeNotification: false }),
   };
 });
 

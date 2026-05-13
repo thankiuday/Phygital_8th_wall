@@ -1,5 +1,15 @@
 import api from './api';
 
+const configuredApiUrl = import.meta.env.VITE_API_URL;
+const shouldForceRemoteInDev = import.meta.env.VITE_USE_REMOTE_API === 'true';
+const apiBaseUrl =
+  import.meta.env.DEV && !shouldForceRemoteInDev
+    ? '/api'
+    : (configuredApiUrl || '/api');
+
+const trimTrailingSlash = (value) => value.replace(/\/+$/, '');
+const buildGoogleAuthUrl = () => `${trimTrailingSlash(apiBaseUrl)}/auth/google`;
+
 /**
  * Expects `{ success, message, data }` from our API. Avoids crashes when `data`
  * is null/omitted (misconfigured base URL, empty body, or non-JSON proxy).
@@ -33,6 +43,17 @@ const requireAuthPayload = (res, action) => {
  * All methods return the `data` property of the server response.
  */
 export const authService = {
+  getGoogleAuthUrl: () => buildGoogleAuthUrl(),
+
+  exchangeGoogleAuthCode: async (code) => {
+    const res = await api.post('/auth/google/exchange', { code });
+    const data = requireAuthPayload(res, 'Google auth exchange');
+    if (!data.accessToken || !data.user) {
+      throw new Error('Google auth response missing token or user.');
+    }
+    return data;
+  },
+
   register: async (payload) => {
     const res = await api.post('/auth/register', payload);
     const data = requireAuthPayload(res, 'Register');

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -10,6 +10,11 @@ import {
   PlusCircle,
   Sparkles,
   ExternalLink,
+  Target,
+  Megaphone,
+  Layers,
+  MousePointerClick,
+  X,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -95,9 +100,10 @@ const ChartTooltip = ({ active, payload, label }) => {
 
 /* ── Dashboard Page ──────────────────────────────────────────────── */
 const DashboardPage = () => {
-  const { user } = useAuthStore();
+  const { user, pendingWelcomeNotification, markWelcomeNotificationSeen } = useAuthStore();
   const { stats, recentCampaigns, scanTrend, isLoading, fetchStats } = useDashboardStore();
   const isMobile = useIsMobile();
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
   const chartMargin = isMobile
     ? { top: 6, right: 2, left: 0, bottom: 4 }
     : { top: 4, right: 4, left: -24, bottom: 0 };
@@ -107,6 +113,17 @@ const DashboardPage = () => {
   useEffect(() => {
     fetchStats();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (pendingWelcomeNotification) {
+      setWelcomeOpen(true);
+    }
+  }, [pendingWelcomeNotification]);
+
+  const closeWelcome = () => {
+    setWelcomeOpen(false);
+    markWelcomeNotificationSeen();
+  };
 
   const STAT_CARDS = [
     {
@@ -182,6 +199,78 @@ const DashboardPage = () => {
           <Icon3D icon={Sparkles} size={30} className="h-16 w-16" accent={ICON3D_PRESETS.rose} />
         </div>
       </motion.div>
+
+      {welcomeOpen && (
+        <motion.section
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card relative overflow-hidden rounded-2xl border border-brand-500/25 bg-gradient-to-br from-brand-500/10 via-transparent to-cyan-500/10 p-4 sm:p-5"
+        >
+          <button
+            type="button"
+            onClick={closeWelcome}
+            className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--text-muted)] transition hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
+            aria-label="Dismiss welcome notification"
+          >
+            <X size={14} />
+          </button>
+
+          <div className="mb-4 flex items-start gap-3 pr-10">
+            <Icon3D icon={Sparkles} size={16} className="h-10 w-10" accent={ICON3D_PRESETS.violet} />
+            <div>
+              <h3 className="text-base font-bold text-[var(--text-primary)]">Welcome to Phygital.zone</h3>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                We help businesses convert real-world moments into measurable digital engagement through interactive QR and AR campaigns.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] p-3.5">
+              <div className="mb-2 flex items-center gap-2">
+                <Icon3D icon={Target} size={12} className="h-7 w-7" accent={ICON3D_PRESETS.emerald} rounded="rounded-lg" />
+                <p className="text-sm font-semibold text-[var(--text-primary)]">Who We Are &amp; Our Aim</p>
+              </div>
+              <p className="text-xs leading-5 text-[var(--text-secondary)]">
+                We are a phygital growth platform focused on helping brands bridge physical touchpoints and digital actions, while tracking performance in real time.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] p-3.5">
+              <div className="mb-2 flex items-center gap-2">
+                <Icon3D icon={Megaphone} size={12} className="h-7 w-7" accent={ICON3D_PRESETS.amber} rounded="rounded-lg" />
+                <p className="text-sm font-semibold text-[var(--text-primary)]">Campaigns We Provide</p>
+              </div>
+              <p className="text-xs leading-5 text-[var(--text-secondary)]">
+                Single Link QR, Multiple Links QR, Links + Video QR, Links + Docs + Video QR, and AR Digital Business Card experiences.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] p-3.5">
+              <div className="mb-2 flex items-center gap-2">
+                <Icon3D icon={Layers} size={12} className="h-7 w-7" accent={ICON3D_PRESETS.cyan} rounded="rounded-lg" />
+                <p className="text-sm font-semibold text-[var(--text-primary)]">Quick Steps to Create</p>
+              </div>
+              <ol className="list-decimal space-y-1 pl-4 text-xs leading-5 text-[var(--text-secondary)]">
+                <li>Click <strong>Phygitalize now</strong> from dashboard.</li>
+                <li>Choose your campaign type.</li>
+                <li>Add content (links/docs/video/images).</li>
+                <li>Customize design and publish.</li>
+              </ol>
+            </div>
+
+            <div className="rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] p-3.5">
+              <div className="mb-2 flex items-center gap-2">
+                <Icon3D icon={MousePointerClick} size={12} className="h-7 w-7" accent={ICON3D_PRESETS.rose} rounded="rounded-lg" />
+                <p className="text-sm font-semibold text-[var(--text-primary)]">Other Features</p>
+              </div>
+              <p className="text-xs leading-5 text-[var(--text-secondary)]">
+                Live analytics, campaign management, QR customization, profile/security controls, and share-ready campaign pages.
+              </p>
+            </div>
+          </div>
+        </motion.section>
+      )}
 
       {/* ── Stat cards grid — 2×2 on mobile, 4 cols on lg ─────────── */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">

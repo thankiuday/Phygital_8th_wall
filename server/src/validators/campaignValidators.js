@@ -278,7 +278,7 @@ const createLinksVideoOnlySchema = z
       invalid_type_error: 'videoSource must be "upload" or "link"',
     }),
     videoUrl: cloudinaryUrlField.optional(),
-    videoPublicId: z.string().min(1).max(256).optional(),
+    videoPublicId: z.string().min(1).max(512).optional(),
     externalVideoUrl: externalVideoUrlField.optional(),
     thumbnailUrl: z.string().url().nullable().optional(),
     linkItems: linkItemsField,
@@ -351,7 +351,7 @@ const docItemInputSchema = z
   .object({
     label: z.string().trim().min(1, 'Document label is required').max(80),
     url: cloudinaryUrlField,
-    publicId: z.string().min(1).max(256).optional(),
+    publicId: z.string().min(1).max(512).optional(),
     mimeType: z
       .string()
       .max(128)
@@ -377,7 +377,7 @@ const videoItemInputBase = z
     label: z.string().trim().min(1, 'Video label is required').max(80),
     source: z.enum(['upload', 'link']),
     url: cloudinaryUrlField.optional(),
-    publicId: z.string().min(1).max(256).optional(),
+    publicId: z.string().min(1).max(512).optional(),
     externalVideoUrl: externalVideoUrlField.optional(),
     thumbnailUrl: z.string().url().nullable().optional(),
   })
@@ -423,7 +423,7 @@ const videoItemPatchSchema = z
     label: z.string().trim().min(1).max(80),
     source: z.enum(['upload', 'link']),
     url: cloudinaryUrlField.optional(),
-    publicId: z.string().min(1).max(256).optional(),
+    publicId: z.string().min(1).max(512).optional(),
     externalVideoUrl: externalVideoUrlField.optional(),
     thumbnailUrl: z.string().url().nullable().optional(),
   })
@@ -762,7 +762,7 @@ const updateCampaignSchema = z
     /* ── links-video-qr fields (controller gates by campaignType) ── */
     videoSource: z.enum(['upload', 'link']).optional(),
     videoUrl: cloudinaryUrlField.nullable().optional(),
-    videoPublicId: z.string().min(1).max(256).nullable().optional(),
+    videoPublicId: z.string().min(1).max(512).nullable().optional(),
     externalVideoUrl: externalVideoUrlField.nullable().optional(),
     thumbnailUrl: z.string().url().nullable().optional(),
     /* ── links-doc-video-qr (controller gates by campaignType) ── */

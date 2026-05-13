@@ -16,10 +16,18 @@ const validate = (schema) => (req, res, next) => {
       field: issue.path.join('.'),
       message: issue.message,
     }));
+    const primaryMessage = errors[0]?.message || 'Validation failed';
+
+    // Debug visibility for complex wizard payloads (guest draft restore, etc).
+    console.warn('[validate] request body validation failed', {
+      method: req.method,
+      path: req.originalUrl || req.url,
+      errors,
+    });
 
     return res.status(422).json({
       success: false,
-      message: 'Validation failed',
+      message: primaryMessage,
       errors,
     });
   }
@@ -34,12 +42,6 @@ const validate = (schema) => (req, res, next) => {
    ───────────────────────────────────────── */
 
 const registerSchema = z.object({
-  name: z
-    .string({ required_error: 'Name is required' })
-    .min(2, 'Name must be at least 2 characters')
-    .max(60, 'Name cannot exceed 60 characters')
-    .trim(),
-
   email: z
     .string({ required_error: 'Email is required' })
     .email('Please provide a valid email')
@@ -51,6 +53,12 @@ const registerSchema = z.object({
     .min(8, 'Password must be at least 8 characters')
     .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
     .regex(/[0-9]/, 'Password must contain at least one number'),
+
+  agreedToCertification: z.literal(true, {
+    errorMap: () => ({
+      message: 'You must accept the certification and agreement to create an account',
+    }),
+  }),
 });
 
 const loginSchema = z.object({
@@ -84,14 +92,6 @@ const resetPasswordSchema = z.object({
   path: ['confirmPassword'],
 });
 
-const avatarUrlOrEmpty = z
-  .union([
-    z.string().max(500).url('Avatar must be a valid URL'),
-    z.literal(''),
-    z.null(),
-  ])
-  .optional();
-
 const updateProfileSchema = z
   .object({
     name: z
@@ -100,10 +100,9 @@ const updateProfileSchema = z
       .min(2, 'Name must be at least 2 characters')
       .max(60, 'Name cannot exceed 60 characters')
       .optional(),
-    avatar: avatarUrlOrEmpty,
   })
   .strict()
-  .refine((d) => d.name !== undefined || d.avatar !== undefined, {
+  .refine((d) => d.name !== undefined, {
     message: 'No fields to update',
   });
 

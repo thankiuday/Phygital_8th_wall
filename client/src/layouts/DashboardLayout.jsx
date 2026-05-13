@@ -17,6 +17,8 @@ const PAGE_TITLES = {
   '/dashboard/campaigns/new/digital-business-card/personalized-identity': 'Personalized Identity Card',
   '/dashboard/campaigns/new/digital-business-card/ar': 'AR Digital Business Card',
   '/dashboard/analytics': 'Analytics',
+  '/dashboard/notifications': 'Notifications',
+  '/dashboard/profile': 'Profile',
   '/dashboard/settings': 'Settings',
 };
 
@@ -33,6 +35,8 @@ const TITLE_PREFIXES = [
   ['/dashboard/analytics/', 'Campaign Analytics'],
   ['/dashboard/campaigns', 'Campaigns'],
   ['/dashboard/analytics', 'Analytics'],
+  ['/dashboard/notifications', 'Notifications'],
+  ['/dashboard/profile', 'Profile'],
   ['/dashboard/settings', 'Settings'],
   ['/dashboard', 'Dashboard'],
 ];

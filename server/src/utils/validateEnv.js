@@ -51,6 +51,24 @@ const validateEnv = () => {
     process.exit(1);
   }
 
+  // Google OAuth vars are required only when that flow is enabled/configured.
+  const googleVars = [
+    'GOOGLE_CLIENT_ID',
+    'GOOGLE_CLIENT_SECRET',
+    'GOOGLE_REDIRECT_URI',
+    'CLIENT_URL',
+  ];
+  const hasAnyGoogleVar = googleVars.some((k) => !!process.env[k]);
+  if (hasAnyGoogleVar) {
+    const missingGoogle = googleVars.filter((k) => !process.env[k]);
+    if (missingGoogle.length > 0) {
+      console.error('\n❌ Incomplete Google OAuth environment variables:\n');
+      missingGoogle.forEach((k) => console.error(`  [Google OAuth] ${k}`));
+      console.error('\nSet all Google OAuth vars or remove them all to disable Google auth.\n');
+      process.exit(1);
+    }
+  }
+
   // Warn about optional but missing vars (no crash)
   const warnings = [];
   for (const [group, keys] of Object.entries(OPTIONAL)) {

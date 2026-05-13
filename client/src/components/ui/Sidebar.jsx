@@ -152,11 +152,7 @@ const Sidebar = ({ collapsed, onCollapse, onNavigate }) => {
         <div className={cn('flex items-center gap-3', collapsed && 'justify-center')}>
           {/* Avatar */}
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-brand text-xs font-bold text-white shadow-glow">
-            {user?.avatar ? (
-              <img src={user.avatar} alt={user.name} className="h-full w-full rounded-full object-cover" />
-            ) : (
-              initials
-            )}
+            {initials}
           </div>
 
           <AnimatePresence>

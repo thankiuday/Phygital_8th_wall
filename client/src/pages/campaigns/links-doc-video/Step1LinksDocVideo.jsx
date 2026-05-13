@@ -35,7 +35,7 @@ import {
   validateLinksDocVideoForm,
 } from './linksDocVideoFormUtils';
 
-const ACCEPTED_VIDEO_TYPES = 'video/mp4,video/webm,video/quicktime';
+const ACCEPTED_VIDEO_TYPES = 'video/*,.mp4,.webm,.mov,.m4v';
 const MAX_VIDEO_MB = 100;
 const YT_ID_RE = /^[A-Za-z0-9_-]{6,32}$/;
 
@@ -112,7 +112,7 @@ const formatBytes = (bytes) => {
    - upload mode: drop zone, then "uploaded" preview with thumbnail/label input
    - link mode:   URL input + thumbnail-only preview card (oEmbed best-effort)
    ───────────────────────────────────────────────────────────────────────── */
-const VideoSlotRow = ({ index, slot, source, onChange, onRemove, canRemove }) => {
+const VideoSlotRow = ({ index, slot, source, isAuthenticated, onChange, onRemove, canRemove }) => {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [localPreview, setLocalPreview] = useState('');
@@ -229,8 +229,11 @@ const VideoSlotRow = ({ index, slot, source, onChange, onRemove, canRemove }) =>
     setLocalPreview(preview);
     setUploading(true);
     try {
-      const uploaded = await campaignService.uploadToCloudinary(file, 'video', (p) =>
-        setProgress(p)
+      const uploaded = await campaignService.uploadToCloudinary(
+        file,
+        'video',
+        (p) => setProgress(p),
+        { draft: !isAuthenticated }
       );
       onChange({
         ...slot,
@@ -386,7 +389,7 @@ const VideoSlotRow = ({ index, slot, source, onChange, onRemove, canRemove }) =>
    - drop zone restricted to allowed mime types + size
    - once uploaded, shows file icon + filename + label input
    ───────────────────────────────────────────────────────────────────────── */
-const DocSlotRow = ({ index, slot, onChange, onRemove, canRemove }) => {
+const DocSlotRow = ({ index, slot, isAuthenticated, onChange, onRemove, canRemove }) => {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
@@ -403,8 +406,10 @@ const DocSlotRow = ({ index, slot, onChange, onRemove, canRemove }) => {
     }
     setUploading(true);
     try {
-      const uploaded = await campaignService.uploadDocumentToCloudinary(file, (p) =>
-        setProgress(p)
+      const uploaded = await campaignService.uploadDocumentToCloudinary(
+        file,
+        (p) => setProgress(p),
+        { draft: !isAuthenticated }
       );
       onChange({
         ...slot,
@@ -511,6 +516,7 @@ const DocSlotRow = ({ index, slot, onChange, onRemove, canRemove }) => {
 };
 
 const Step1LinksDocVideo = ({
+  isAuthenticated,
   campaignName,
   onCampaignNameChange,
   onRegenerateName,
@@ -667,6 +673,7 @@ const Step1LinksDocVideo = ({
               index={idx}
               slot={slot}
               source={videoSource}
+              isAuthenticated={isAuthenticated}
               canRemove={videoSlots.length > 0}
               onChange={(next) => updateVideoSlot(slot.uid, next)}
               onRemove={() => removeVideoSlot(slot.uid)}
@@ -703,6 +710,7 @@ const Step1LinksDocVideo = ({
               key={slot.uid}
               index={idx}
               slot={slot}
+              isAuthenticated={isAuthenticated}
               canRemove={docSlots.length > 0}
               onChange={(next) => updateDocSlot(slot.uid, next)}
               onRemove={() => removeDocSlot(slot.uid)}

@@ -126,11 +126,82 @@ export const buildQrOptions = (design, encodedData) => {
 };
 
 /**
+ * True when `design` is already the persisted API shape (e.g. guest draft
+ * saved at auth gate with nested dotsOptions). Step2 always calls this
+ * builder — without this branch, flat-field reads are undefined and Zod
+ * rejects missing dotsOptions.type on the server.
+ */
+const isPersistedQrDesignShape = (design) =>
+  !!(
+    design
+    && typeof design.dotsOptions === 'object'
+    && design.dotsOptions
+    && typeof design.dotsOptions.type === 'string'
+    && typeof design.cornersSquareOptions === 'object'
+    && design.cornersSquareOptions
+    && typeof design.cornersSquareOptions.type === 'string'
+    && typeof design.cornersDotOptions === 'object'
+    && design.cornersDotOptions
+    && typeof design.cornersDotOptions.type === 'string'
+  );
+
+/**
+ * When a guest draft is saved at the auth gate we store `design` as the API
+ * payload (nested dotsOptions, etc.). Rehydrate that into the flat wizard
+ * shape Step2DesignQr expects.
+ */
+export const hydrateWizardDesignFromDraft = (raw) => {
+  if (!raw || typeof raw !== 'object') {
+    return { ...DEFAULT_DESIGN };
+  }
+  if (isPersistedQrDesignShape(raw)) {
+    const dots = raw.dotsOptions;
+    const stops = dots?.gradient?.colorStops;
+    const hasGradient = Array.isArray(stops) && stops.length >= 2;
+    return {
+      ...DEFAULT_DESIGN,
+      frame: raw.frame ?? DEFAULT_DESIGN.frame,
+      frameCaption: raw.frameCaption ?? DEFAULT_DESIGN.frameCaption,
+      dotsType: dots.type,
+      dotsUseGradient: hasGradient,
+      dotsGradientStart: hasGradient ? stops[0].color : DEFAULT_DESIGN.dotsGradientStart,
+      dotsGradientEnd: hasGradient ? stops[1].color : DEFAULT_DESIGN.dotsGradientEnd,
+      dotsColor: dots.color || DEFAULT_DESIGN.dotsColor,
+      cornersSquareType: raw.cornersSquareOptions.type,
+      cornersSquareColor: raw.cornersSquareOptions.color || DEFAULT_DESIGN.cornersSquareColor,
+      cornersDotType: raw.cornersDotOptions.type,
+      cornersDotColor: raw.cornersDotOptions.color || DEFAULT_DESIGN.cornersDotColor,
+      backgroundTransparent: !raw.backgroundOptions,
+      backgroundColor: raw.backgroundOptions?.color || DEFAULT_DESIGN.backgroundColor,
+      logoDataUrl: typeof raw.image === 'string' && raw.image ? raw.image : '',
+    };
+  }
+  return { ...DEFAULT_DESIGN, ...raw };
+};
+
+/**
  * Translate the wizard form into the slim qrDesign payload we persist on the
  * Campaign.  Mirrors the strict server-side schema in
  * server/src/validators/campaignValidators.js.
  */
 export const buildQrDesignPayload = (design) => {
+  if (isPersistedQrDesignShape(design)) {
+    const payload = {
+      width: design.width ?? 256,
+      height: design.height ?? 256,
+      margin: design.margin ?? 6,
+      dotsOptions: design.dotsOptions,
+      cornersSquareOptions: design.cornersSquareOptions,
+      cornersDotOptions: design.cornersDotOptions,
+      backgroundOptions: design.backgroundOptions,
+      frame: design.frame,
+      frameCaption: design.frameCaption || undefined,
+      image: design.image,
+      imageOptions: design.imageOptions,
+    };
+    return Object.fromEntries(Object.entries(payload).filter(([, v]) => v !== undefined));
+  }
+
   const payload = {
     width: 256,
     height: 256,

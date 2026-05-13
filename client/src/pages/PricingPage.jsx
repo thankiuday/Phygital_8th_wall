@@ -146,10 +146,10 @@ const PricingPage = () => {
             transition={{ duration: 0.5 }}
             className="mx-auto max-w-3xl text-center"
           >
-            <p className="mb-2 inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-brand-500">
+            <div className="mb-2 inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-brand-500">
               <Icon3D icon={CreditCard} size={11} className="h-7 w-7" accent={ICON3D_PRESETS.violet} rounded="rounded-md" />
               Pricing
-            </p>
+            </div>
             <h1 className="text-[clamp(2rem,6vw,3.5rem)] font-extrabold leading-tight text-[var(--text-primary)]">
               Simple, Transparent
               <span className="gradient-text"> Pricing</span>

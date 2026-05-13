@@ -7,7 +7,12 @@ const LinkClickEvent = require('../models/LinkClickEvent');
 const VideoPlayEvent = require('../models/VideoPlayEvent');
 const { AppError } = require('../middleware/errorHandler');
 const { success, created } = require('../utils/apiResponse');
-const { generateUploadSignature, deleteCloudinaryAsset } = require('../services/cloudinaryService');
+const {
+  DRAFT_ASSET_TAG,
+  generateUploadSignature,
+  deleteCloudinaryAsset,
+  claimUploadedDraftAssets,
+} = require('../services/cloudinaryService');
 const { generateQRCode } = require('../services/qrService');
 const { redirectCache, dynamicQrMetaCache, cardMetaCache } = require('../utils/redirectCache');
 const { renderCardPng } = require('../services/cardPrintService');
@@ -51,6 +56,7 @@ const generateUniqueSlug = async () => {
    ───────────────────────────────────────── */
 const getUploadSignature = (req, res) => {
   const { resourceType = 'image' } = req.query;
+  const isDraftUpload = req.query.draft === '1' || req.query.draft === 'true';
 
   // `raw` is required for document uploads (PDF / Office files) in the
   // links-doc-video-qr flow; everything else keeps its historical bucket.
@@ -60,8 +66,15 @@ const getUploadSignature = (req, res) => {
 
   // raw → "raws" reads weird; map to "documents" so Cloudinary search is intuitive.
   const folderSuffix = resourceType === 'raw' ? 'documents' : `${resourceType}s`;
-  const folder = `phygital8thwall/${req.user._id}/${folderSuffix}`;
-  const payload = generateUploadSignature({ resourceType, folder });
+  const ownerPrefix = req.user?._id
+    ? `phygital8thwall/${req.user._id}`
+    : 'phygital8thwall/guest';
+  const folder = `${ownerPrefix}/${folderSuffix}`;
+  const payload = generateUploadSignature({
+    resourceType,
+    folder,
+    tags: isDraftUpload ? [DRAFT_ASSET_TAG] : [],
+  });
 
   return success(res, payload, 'Upload signature generated');
 };
@@ -434,6 +447,24 @@ const createLinksDocVideoCampaign = async (req, res) => {
     status: 'active',
   });
 
+  const uploadVideoPublicIds = (persistedVideos || [])
+    .filter((vi) => vi.source === 'upload' && vi.publicId)
+    .map((vi) => vi.publicId);
+  const uploadImageDocPublicIds = (persistedDocs || [])
+    .filter((di) => di.resourceType === 'image' && di.publicId)
+    .map((di) => di.publicId);
+  const uploadRawDocPublicIds = (persistedDocs || [])
+    .filter((di) => di.resourceType !== 'image' && di.publicId)
+    .map((di) => di.publicId);
+
+  if (uploadVideoPublicIds.length || uploadImageDocPublicIds.length || uploadRawDocPublicIds.length) {
+    claimUploadedDraftAssets({
+      video: uploadVideoPublicIds,
+      image: uploadImageDocPublicIds,
+      raw: uploadRawDocPublicIds,
+    }).catch(() => {});
+  }
+
   return created(res, { campaign }, 'Links + Doc + Video QR campaign created successfully');
 };
 
@@ -726,6 +757,10 @@ const createLinksVideoCampaign = async (req, res) => {
     preciseGeoAnalytics: !!preciseGeoAnalytics,
     status: 'active',
   });
+
+  if (videoSource === 'upload' && videoPublicId) {
+    claimUploadedDraftAssets({ video: [videoPublicId] }).catch(() => {});
+  }
 
   return created(res, { campaign }, 'Links + Video QR campaign created successfully');
 };

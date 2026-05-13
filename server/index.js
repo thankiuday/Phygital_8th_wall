@@ -21,6 +21,7 @@ const connectDB    = require('./src/config/db');
 const logger       = require('./src/config/logger');
 const sanitize     = require('./src/middleware/sanitize');
 const { errorHandler, notFound } = require('./src/middleware/errorHandler');
+const { startDraftAssetCleanupScheduler } = require('./src/services/draftAssetCleanupService');
 
 const app  = express();
 const PORT = process.env.PORT || 5000;
@@ -274,6 +275,8 @@ const server = app.listen(PORT, () => {
     url:  `http://localhost:${PORT}`,
   });
 });
+
+startDraftAssetCleanupScheduler();
 
 /* ─────────────────────────────────────────
    HTTP keep-alive tuning for reverse proxies

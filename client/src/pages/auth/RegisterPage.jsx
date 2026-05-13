@@ -1,10 +1,12 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserPlus, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import AuthCard from '../../components/ui/AuthCard';
 import FormInput from '../../components/ui/FormInput';
 import useAuthStore from '../../store/useAuthStore';
+import { authService } from '../../services/authService';
+import useGuestCampaignDraftStore from '../../store/useGuestCampaignDraftStore';
 
 /* ── Password strength meter ─────────────────────────────────────── */
 const getStrength = (pw) => {
@@ -54,9 +56,8 @@ const Req = ({ met, label }) => (
 );
 
 /* ── Client-side validation ──────────────────────────────────────── */
-const validate = ({ name, email, password, confirmPassword }) => {
+const validate = ({ email, password, confirmPassword, agreedToCertification }) => {
   const errs = {};
-  if (!name || name.trim().length < 2) errs.name = 'Name must be at least 2 characters';
   if (!email) errs.email = 'Email is required';
   else if (!/\S+@\S+\.\S+/.test(email)) errs.email = 'Enter a valid email';
   if (!password) errs.password = 'Password is required';
@@ -65,19 +66,50 @@ const validate = ({ name, email, password, confirmPassword }) => {
   else if (!/[0-9]/.test(password)) errs.password = 'Must contain a number';
   if (!confirmPassword) errs.confirmPassword = 'Please confirm your password';
   else if (password !== confirmPassword) errs.confirmPassword = 'Passwords do not match';
+  if (!agreedToCertification) {
+    errs.agreedToCertification = 'You must accept the certification and agreement to create an account';
+  }
   return errs;
+};
+
+const draftTypeToRoute = {
+  'single-link': '/create/dynamic-qr/single-link',
+  'multiple-links': '/create/dynamic-qr/multiple-links',
+  'links-video': '/create/phygital-qr/links-video',
+  'links-doc-video': '/create/phygital-qr/links-doc-video',
+};
+
+const resolveLatestDraftRoute = (drafts = {}) => {
+  const candidates = Object.values(drafts || {}).filter((d) => d?.sourceRoute && d?.updatedAt);
+  if (!candidates.length) return '';
+  const latest = candidates.sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0))[0];
+  return latest?.sourceRoute || '';
 };
 
 const RegisterPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { register: registerUser, isLoading } = useAuthStore();
+  const { consumeContinuation, clearContinuation, getDraft, getDrafts, setContinuation } = useGuestCampaignDraftStore();
+  const googleAuthUrl = authService.getGoogleAuthUrl();
+  const continueTo = location.state?.continueTo || '';
+  const authNotice = location.state?.authMessage || '';
+  const draftTypeFromState = location.state?.draftType || '';
 
-  const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '' });
+  const [form, setForm] = useState({
+    email: '',
+    password: '',
+    confirmPassword: '',
+    agreedToCertification: false,
+  });
   const [errors, setErrors] = useState({});
   const [apiError, setApiError] = useState('');
+  const [redirectingMessage, setRedirectingMessage] = useState('');
+  const redirectTimerRef = useRef(null);
 
   const handleChange = (e) => {
-    setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+    const nextValue = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    setForm((p) => ({ ...p, [e.target.name]: nextValue }));
     if (errors[e.target.name]) setErrors((p) => ({ ...p, [e.target.name]: '' }));
     if (apiError) setApiError('');
   };
@@ -87,12 +119,66 @@ const RegisterPage = () => {
     const errs = validate(form);
     if (Object.keys(errs).length) return setErrors(errs);
 
-    const result = await registerUser(form.name.trim(), form.email, form.password);
+    const result = await registerUser(form.email, form.password, form.agreedToCertification);
     if (result.success) {
-      navigate('/dashboard', { replace: true });
+      const continuation = continueTo
+        ? { continueTo, draftType: draftTypeFromState }
+        : consumeContinuation();
+      const canonicalFromType = continuation?.draftType
+        ? draftTypeToRoute[continuation.draftType]
+        : '';
+      const routedFromDraft =
+        continuation?.draftType
+          ? getDraft(continuation.draftType)?.sourceRoute
+          : '';
+      const latestDraftRoute = resolveLatestDraftRoute(getDrafts());
+      const destination =
+        latestDraftRoute
+        || canonicalFromType
+        || routedFromDraft
+        || continueTo
+        || continuation?.continueTo
+        || '/dashboard';
+      if (!continueTo) clearContinuation();
+      const isDashboard = destination.startsWith('/dashboard');
+      setRedirectingMessage(
+        isDashboard
+          ? 'Account created. Redirecting you to your dashboard...'
+          : 'Account created. Redirecting you back to your saved draft...'
+      );
+      redirectTimerRef.current = setTimeout(() => {
+        navigate(destination, { replace: true });
+      }, 650);
     } else {
       setApiError(result.message);
     }
+  };
+
+  useEffect(
+    () => () => {
+      if (redirectTimerRef.current) {
+        clearTimeout(redirectTimerRef.current);
+      }
+    },
+    []
+  );
+
+  const handleGoogleSignup = (e) => {
+    if (form.agreedToCertification) return;
+    e.preventDefault();
+    setErrors((prev) => ({
+      ...prev,
+      agreedToCertification: 'You must accept the certification and agreement to create an account',
+    }));
+  };
+
+  const handleGoogleRegisterRedirect = () => {
+    if (!continueTo) return;
+    setContinuation({
+      continueTo,
+      draftType: draftTypeFromState || undefined,
+      message: authNotice || 'Your work is saved. Login/Register and come back to continue.',
+    });
   };
 
   return (
@@ -101,6 +187,15 @@ const RegisterPage = () => {
       subtitle="Start building your AR business card campaigns"
     >
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+        {authNotice && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300"
+          >
+            {authNotice}
+          </motion.div>
+        )}
         <AnimatePresence>
           {apiError && (
             <motion.div
@@ -115,19 +210,6 @@ const RegisterPage = () => {
         </AnimatePresence>
 
         <FormInput
-          id="name"
-          name="name"
-          label="Full Name"
-          placeholder="John Doe"
-          value={form.name}
-          onChange={handleChange}
-          error={errors.name}
-          required
-          autoComplete="name"
-          autoFocus
-        />
-
-        <FormInput
           id="email"
           name="email"
           type="email"
@@ -138,6 +220,7 @@ const RegisterPage = () => {
           error={errors.email}
           required
           autoComplete="email"
+          autoFocus
         />
 
         <div>
@@ -176,9 +259,32 @@ const RegisterPage = () => {
           autoComplete="new-password"
         />
 
+        <div className="space-y-2">
+          <label className="flex cursor-pointer items-start gap-2 text-xs text-[var(--text-secondary)]">
+            <input
+              type="checkbox"
+              id="agreedToCertification"
+              name="agreedToCertification"
+              checked={form.agreedToCertification}
+              onChange={handleChange}
+              className="mt-0.5 h-4 w-4 rounded border-[var(--border-color)]"
+              required
+            />
+            <span>
+              I certify and agree to all of the following (required to create an account):{' '}
+              <Link to="/user-certification-agreement" className="font-medium text-brand-400 hover:underline">
+                View Certification &amp; Agreement
+              </Link>
+            </span>
+          </label>
+          {errors.agreedToCertification && (
+            <p className="text-xs text-red-400">{errors.agreedToCertification}</p>
+          )}
+        </div>
+
         <button
           type="submit"
-          disabled={isLoading}
+          disabled={isLoading || !!redirectingMessage}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white shadow-glow transition-all duration-200 hover:bg-brand-500 hover:shadow-glow-lg disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isLoading ? (
@@ -186,20 +292,39 @@ const RegisterPage = () => {
           ) : (
             <UserPlus size={16} />
           )}
-          {isLoading ? 'Creating account…' : 'Create Account'}
+          {isLoading ? 'Creating account…' : redirectingMessage ? 'Redirecting…' : 'Create Account'}
         </button>
+        {redirectingMessage && (
+          <p className="text-center text-xs text-emerald-300">{redirectingMessage}</p>
+        )}
 
-        <p className="text-center text-xs text-[var(--text-muted)]">
-          By creating an account you agree to our{' '}
-          <Link to="/terms" className="text-brand-400 hover:underline">Terms</Link>
-          {' '}and{' '}
-          <Link to="/privacy" className="text-brand-400 hover:underline">Privacy Policy</Link>
-        </p>
+        <div className="pt-1">
+          <p className="mb-2 text-center text-xs text-[var(--text-muted)]">Or continue with</p>
+          <a
+            href={googleAuthUrl}
+            onClick={(e) => {
+              handleGoogleSignup(e);
+              if (!e.defaultPrevented) {
+                handleGoogleRegisterRedirect();
+              }
+            }}
+            className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-[var(--border-color)] bg-white px-4 py-2.5 text-sm font-semibold text-zinc-800 transition-colors hover:bg-zinc-100"
+          >
+            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-zinc-100 text-xs font-bold text-zinc-800">
+              G
+            </span>
+            Sign up with Google
+          </a>
+        </div>
       </form>
 
       <p className="mt-5 text-center text-sm text-[var(--text-muted)]">
         Already have an account?{' '}
-        <Link to="/login" className="font-medium text-brand-400 hover:text-brand-300 hover:underline">
+        <Link
+          to="/login"
+          state={continueTo ? { continueTo, draftType: draftTypeFromState, authMessage: authNotice } : undefined}
+          className="font-medium text-brand-400 hover:text-brand-300 hover:underline"
+        >
           Sign in
         </Link>
       </p>

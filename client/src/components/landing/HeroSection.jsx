@@ -262,10 +262,10 @@ const HeroSection = () => (
         className="flex w-full flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start"
       >
         <Link
-          to="/register"
+          to="/phygitalize-now"
           className="flex min-h-[48px] max-[380px]:min-h-[42px] w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-7 max-[380px]:px-5 py-3.5 max-[380px]:py-2.5 text-sm font-semibold text-white shadow-glow transition-all duration-200 hover:scale-[1.02] hover:bg-brand-500 hover:shadow-glow-lg sm:w-auto"
         >
-          Start for Free
+          Phygitalize now
           <ArrowRight size={16} />
         </Link>
         <a

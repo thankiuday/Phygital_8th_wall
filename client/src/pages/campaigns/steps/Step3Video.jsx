@@ -4,7 +4,7 @@ import FileDropZone from '../../../components/ui/FileDropZone';
 import UploadProgress from '../../../components/ui/UploadProgress';
 import useCampaignStore from '../../../store/useCampaignStore';
 
-const ACCEPTED_TYPES = 'video/mp4,video/webm,video/quicktime';
+const ACCEPTED_TYPES = 'video/*,.mp4,.webm,.mov,.m4v';
 const MAX_SIZE_MB = 100;
 const MAX_DURATION_SEC = 60;
 

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import useAuthStore from '../../store/useAuthStore';
+import useGuestCampaignDraftStore, { GUEST_DRAFT_TYPES } from '../../store/useGuestCampaignDraftStore';
 import WizardStepBar from '../../components/ui/WizardStepBar';
 import { campaignService } from '../../services/campaignService';
-import { DEFAULT_DESIGN } from '../../components/qr/qrDesignModel';
+import { DEFAULT_DESIGN, hydrateWizardDesignFromDraft } from '../../components/qr/qrDesignModel';
 import Step2DesignQr from './single-link/Step2DesignQr';
 import Step1LinksDocVideo from './links-doc-video/Step1LinksDocVideo';
 import { createDocSlot, createVideoSlot } from './links-doc-video/linksDocVideoFormUtils';
@@ -53,7 +54,14 @@ const seedCampaignName = (user) => {
 
 const LinksDocVideoQrWizard = () => {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const location = useLocation();
+  const { user, isAuthenticated } = useAuthStore();
+  const {
+    setDraft,
+    getDraft,
+    clearDraft,
+    setContinuation,
+  } = useGuestCampaignDraftStore();
 
   const [step, setStep] = useState(1);
   const [campaignName, setCampaignName] = useState('');
@@ -68,10 +76,62 @@ const LinksDocVideoQrWizard = () => {
   const [preciseGeoAnalytics, setPreciseGeoAnalytics] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [draftNotice, setDraftNotice] = useState('');
+  const isPublicRoute = !location.pathname.startsWith('/dashboard');
 
   useEffect(() => {
+    const saved = getDraft(GUEST_DRAFT_TYPES.linksDocVideo);
+    if (saved) {
+      setStep(saved.step || 1);
+      setCampaignName(saved.campaignName || '');
+      setVideoSource(saved.videoSource || 'upload');
+      setVideoSlots(saved.videoSlots?.length ? saved.videoSlots : [createVideoSlot()]);
+      setDocSlots(saved.docSlots?.length ? saved.docSlots : [createDocSlot()]);
+      setLinkRows(saved.linkRows || []);
+      setStagedPayload(saved.stagedPayload || null);
+      setDesign(hydrateWizardDesignFromDraft(saved.design));
+      setPreciseGeoAnalytics(!!saved.preciseGeoAnalytics);
+      if (saved.campaignName && saved.seededCampaignName && saved.campaignName === saved.seededCampaignName && user) {
+        setCampaignName(seedCampaignName(user));
+      }
+      setDraftNotice('Draft restored.');
+      return;
+    }
     setCampaignName(seedCampaignName(user));
-  }, [user]);
+  }, [getDraft, user]);
+
+  useEffect(() => {
+    if (isAuthenticated) return;
+    setDraft(GUEST_DRAFT_TYPES.linksDocVideo, {
+      type: GUEST_DRAFT_TYPES.linksDocVideo,
+      sourceRoute: location.pathname,
+      requiresAuthToPublish: true,
+      step,
+      campaignName,
+      seededCampaignName: seedCampaignName(user),
+      videoSource,
+      videoSlots,
+      docSlots,
+      linkRows,
+      stagedPayload,
+      design,
+      preciseGeoAnalytics,
+    });
+  }, [
+    campaignName,
+    design,
+    docSlots,
+    isAuthenticated,
+    linkRows,
+    location.pathname,
+    preciseGeoAnalytics,
+    setDraft,
+    stagedPayload,
+    step,
+    user,
+    videoSlots,
+    videoSource,
+  ]);
 
   const redirectBase = useMemo(resolveRedirectBase, []);
   const clientAppBase = useMemo(resolveClientAppBase, []);
@@ -90,6 +150,39 @@ const LinksDocVideoQrWizard = () => {
 
   const handleSubmit = async (qrDesignPayload) => {
     if (!stagedPayload) return;
+    if (!isAuthenticated) {
+      setDraft(GUEST_DRAFT_TYPES.linksDocVideo, {
+        type: GUEST_DRAFT_TYPES.linksDocVideo,
+        sourceRoute: location.pathname,
+        requiresAuthToPublish: true,
+        step: 2,
+        campaignName,
+        seededCampaignName: seedCampaignName(user),
+        videoSource,
+        videoSlots,
+        docSlots,
+        linkRows,
+        stagedPayload,
+        design: qrDesignPayload,
+        preciseGeoAnalytics,
+      });
+      const authMessage = 'Your work is saved. Login/Register and come back to continue.';
+      setContinuation({
+        continueTo: location.pathname,
+        draftType: GUEST_DRAFT_TYPES.linksDocVideo,
+        message: authMessage,
+      });
+      navigate('/login', {
+        replace: true,
+        state: {
+          continueTo: location.pathname,
+          draftType: GUEST_DRAFT_TYPES.linksDocVideo,
+          authMessage,
+        },
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     setSubmitError('');
     try {
@@ -98,10 +191,15 @@ const LinksDocVideoQrWizard = () => {
         qrDesign: qrDesignPayload,
         redirectSlug,
       });
+      clearDraft(GUEST_DRAFT_TYPES.linksDocVideo);
       navigate(`/dashboard/campaigns/${campaign._id}`);
     } catch (err) {
+      const validationErrors = err?.response?.data?.errors;
+      const validationMessage = Array.isArray(validationErrors) && validationErrors.length
+        ? validationErrors.map((e) => e?.message).filter(Boolean).join(' ')
+        : '';
       const message =
-        err?.response?.data?.errors?.[0]?.message
+        validationMessage
         || err?.response?.data?.message
         || 'Failed to create campaign. Please try again.';
       setSubmitError(message);
@@ -110,7 +208,9 @@ const LinksDocVideoQrWizard = () => {
   };
 
   return (
-    <div className="mx-auto max-w-5xl min-w-0 overflow-x-hidden">
+    <div
+      className={`mx-auto max-w-5xl min-w-0 overflow-x-hidden px-4 sm:px-6 ${isPublicRoute ? 'pt-[calc(var(--navbar-height)+1rem)] sm:pt-[calc(var(--navbar-height)+1.5rem)] pb-6' : ''}`}
+    >
       <div className="mb-6">
         <h2 className="text-xl font-bold text-[var(--text-primary)]">Links + Doc + Video QR</h2>
         <p className="text-sm text-[var(--text-secondary)]">
@@ -120,6 +220,9 @@ const LinksDocVideoQrWizard = () => {
       </div>
 
       <WizardStepBar steps={STEPS} currentStep={step} className="mb-8" />
+      {draftNotice && (
+        <p className="mb-3 text-xs font-medium text-emerald-400">{draftNotice}</p>
+      )}
 
       <div className="glass-card min-w-0 max-w-full overflow-hidden p-4 md:p-6">
         <AnimatePresence mode="wait">
@@ -132,6 +235,7 @@ const LinksDocVideoQrWizard = () => {
           >
             {step === 1 ? (
               <Step1LinksDocVideo
+                isAuthenticated={isAuthenticated}
                 campaignName={campaignName}
                 onCampaignNameChange={setCampaignName}
                 onRegenerateName={() => setCampaignName(seedCampaignName(user))}

@@ -9,6 +9,7 @@ import BrandLockup from './BrandLockup';
 
 const NAV_LINKS = [
   { label: 'Home', to: '/', end: true },
+  { label: 'Phygitalize now', to: '/phygitalize-now' },
   { label: 'Pricing', to: '/pricing' },
   { label: 'About', to: '/about' },
   { label: 'Contact', to: '/contact' },
@@ -84,7 +85,11 @@ const Navbar = () => {
               end={link.end}
               className="text-sm font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--brand)]"
             >
-              {link.label}
+              {link.label === 'Phygitalize now' ? (
+                <span className="brand-word font-semibold">Phygitalize now</span>
+              ) : (
+                link.label
+              )}
             </NavLink>
           ))}
         </nav>
@@ -116,11 +121,7 @@ const Navbar = () => {
                   aria-expanded={userMenuOpen}
                 >
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-brand text-xs font-bold text-white">
-                    {user.avatar ? (
-                      <img src={user.avatar} alt="" className="h-full w-full rounded-full object-cover" />
-                    ) : (
-                      initials
-                    )}
+                    {initials}
                   </div>
                   <span className="max-w-[8rem] truncate text-sm font-medium text-[var(--text-primary)]">
                     {user.name?.split(' ')[0] || 'Account'}
@@ -234,7 +235,11 @@ const Navbar = () => {
                     }`
                   }
                 >
-                  {link.label}
+                  {link.label === 'Phygitalize now' ? (
+                    <span className="brand-word font-semibold">Phygitalize now</span>
+                  ) : (
+                    link.label
+                  )}
                 </NavLink>
               ))}
 

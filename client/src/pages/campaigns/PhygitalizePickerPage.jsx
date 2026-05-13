@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   QrCode,
@@ -13,6 +13,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import Icon3D, { ICON3D_PRESETS } from '../../components/ui/Icon3D';
+import useAuthStore from '../../store/useAuthStore';
 
 const ICON_ACCENTS = {
   'links-video': ICON3D_PRESETS.violet,
@@ -29,7 +30,7 @@ const ICON_ACCENTS = {
 /* ── Section + card data ─────────────────────────────────────────── */
 // `available: true` drives the green badge + copy; routes may still point at
 // ComingSoonPage for types that are not built yet.
-const SECTIONS = [
+const buildSections = (basePath) => [
   {
     id: 'phygital-qr',
     title: 'Phygital QR',
@@ -41,7 +42,7 @@ const SECTIONS = [
         title: 'Links + Video QR',
         description: 'A single QR that surfaces curated links alongside a hero video.',
         icon: Video,
-        to: '/dashboard/campaigns/new/phygital-qr/links-video',
+        to: `${basePath}/phygital-qr/links-video`,
         available: true,
       },
       {
@@ -49,7 +50,7 @@ const SECTIONS = [
         title: 'Links, Doc & Video QR',
         description: 'Bundle links, downloadable documents and video into one scan.',
         icon: FileText,
-        to: '/dashboard/campaigns/new/phygital-qr/links-doc-video',
+        to: `${basePath}/phygital-qr/links-doc-video`,
         available: true,
       },
     ],
@@ -65,7 +66,7 @@ const SECTIONS = [
         title: 'Single Link QR',
         description: 'Point one QR at a single destination and rewrite it whenever you need.',
         icon: Link2,
-        to: '/dashboard/campaigns/new/dynamic-qr/single-link',
+        to: `${basePath}/dynamic-qr/single-link`,
         available: true,
       },
       {
@@ -73,7 +74,7 @@ const SECTIONS = [
         title: 'Multiple Links QR',
         description: 'Serve a curated list of links from one QR — perfect for bios and menus.',
         icon: Layers,
-        to: '/dashboard/campaigns/new/dynamic-qr/multiple-links',
+        to: `${basePath}/dynamic-qr/multiple-links`,
         available: true,
       },
     ],
@@ -161,8 +162,17 @@ const SectionHeader = ({ icon: Icon, title, subtitle, accent }) => (
 );
 
 /* ── Main page ───────────────────────────────────────────────────── */
-const PhygitalizePickerPage = () => (
-  <div className="mx-auto max-w-6xl space-y-8 p-4 sm:p-6">
+const PhygitalizePickerPage = () => {
+  const { isAuthenticated } = useAuthStore();
+  const location = useLocation();
+  const qrBasePath = isAuthenticated ? '/dashboard/campaigns/new' : '/create';
+  const sections = buildSections(qrBasePath);
+  const isPublicRoute = !location.pathname.startsWith('/dashboard');
+
+  return (
+    <div
+      className={`mx-auto max-w-6xl space-y-8 p-4 sm:p-6 ${isPublicRoute ? 'pt-[calc(var(--navbar-height)+1rem)] sm:pt-[calc(var(--navbar-height)+1.5rem)]' : ''}`}
+    >
     {/* Page header */}
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -180,7 +190,7 @@ const PhygitalizePickerPage = () => (
 
     {/* Sections */}
     <div className="space-y-10">
-      {SECTIONS.map((section, sIdx) => (
+      {sections.map((section, sIdx) => (
         <motion.section
           key={section.id}
           initial={{ opacity: 0, y: 12 }}
@@ -202,7 +212,8 @@ const PhygitalizePickerPage = () => (
         </motion.section>
       ))}
     </div>
-  </div>
-);
+    </div>
+  );
+};
 
 export default PhygitalizePickerPage;

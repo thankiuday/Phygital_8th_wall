@@ -23,8 +23,10 @@ import LoginPage          from './pages/auth/LoginPage';
 import RegisterPage       from './pages/auth/RegisterPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ResetPasswordPage  from './pages/auth/ResetPasswordPage';
+import GoogleAuthCallbackPage from './pages/auth/GoogleAuthCallbackPage';
 import ARExperiencePage   from './pages/ARExperiencePage';
 import OpenSingleLinkBridgePage from './pages/OpenSingleLinkBridgePage';
+import UserCertificationAgreementPage from './pages/UserCertificationAgreementPage';
 
 // ── Lazily-loaded pages (split by route — dramatically reduces initial bundle) ─
 const DashboardPage          = lazy(() => import('./pages/dashboard/DashboardPage'));
@@ -44,6 +46,8 @@ const CampaignDetailPage     = lazy(() => import('./pages/campaigns/CampaignDeta
 const AnalyticsPage          = lazy(() => import('./pages/analytics/AnalyticsPage'));
 const CampaignAnalyticsPage  = lazy(() => import('./pages/analytics/CampaignAnalyticsPage'));
 const AccountSettingsPage    = lazy(() => import('./pages/settings/AccountSettingsPage'));
+const ProfilePage            = lazy(() => import('./pages/settings/ProfilePage'));
+const NotificationsPage      = lazy(() => import('./pages/notifications/NotificationsPage'));
 const AdminLayout            = lazy(() => import('./pages/admin/AdminLayout'));
 const AdminDashboardPage     = lazy(() => import('./pages/admin/AdminDashboardPage'));
 const AdminUsersPage         = lazy(() => import('./pages/admin/AdminUsersPage'));
@@ -100,6 +104,11 @@ function App() {
               <Route path="/about" element={<AboutPage />} />
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/pricing" element={<PricingPage />} />
+              <Route path="/phygitalize-now" element={<RouteLoader><PhygitalizePickerPage /></RouteLoader>} />
+              <Route path="/create/phygital-qr/links-video" element={<RouteLoader><LinksVideoQrWizard /></RouteLoader>} />
+              <Route path="/create/phygital-qr/links-doc-video" element={<RouteLoader><LinksDocVideoQrWizard /></RouteLoader>} />
+              <Route path="/create/dynamic-qr/single-link" element={<RouteLoader><SingleLinkQrWizard /></RouteLoader>} />
+              <Route path="/create/dynamic-qr/multiple-links" element={<RouteLoader><MultipleLinksQrWizard /></RouteLoader>} />
             </Route>
 
             {/* ── Auth pages (no navbar/footer) ─────────────────────── */}
@@ -107,6 +116,8 @@ function App() {
             <Route path="/register"               element={<RegisterPage />} />
             <Route path="/forgot-password"        element={<ForgotPasswordPage />} />
             <Route path="/reset-password/:token"  element={<ResetPasswordPage />} />
+            <Route path="/auth/google/callback"   element={<GoogleAuthCallbackPage />} />
+            <Route path="/user-certification-agreement" element={<UserCertificationAgreementPage />} />
 
             {/* ── Protected dashboard routes ─────────────────────────── */}
             <Route
@@ -129,6 +140,8 @@ function App() {
               <Route path="campaigns/:id"        element={<RouteLoader><CampaignDetailPage /></RouteLoader>} />
               <Route path="campaigns/:id/analytics" element={<RouteLoader><CampaignAnalyticsPage /></RouteLoader>} />
               <Route path="analytics"            element={<RouteLoader><AnalyticsPage /></RouteLoader>} />
+              <Route path="notifications"        element={<RouteLoader><NotificationsPage /></RouteLoader>} />
+              <Route path="profile"              element={<RouteLoader><ProfilePage /></RouteLoader>} />
               <Route path="settings"             element={<RouteLoader><AccountSettingsPage /></RouteLoader>} />
             </Route>
 

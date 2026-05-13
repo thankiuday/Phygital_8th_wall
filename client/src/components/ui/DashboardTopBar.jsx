@@ -10,7 +10,7 @@ import useAuthStore from '../../store/useAuthStore';
  * Shows page title (slot via prop), theme toggle, notifications, user menu.
  */
 const DashboardTopBar = ({ title = 'Dashboard', onMobileMenuOpen }) => {
-  const { user, logout } = useAuthStore();
+  const { user, logout, pendingWelcomeNotification } = useAuthStore();
   const navigate = useNavigate();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menuRef = useRef(null);
@@ -55,14 +55,16 @@ const DashboardTopBar = ({ title = 'Dashboard', onMobileMenuOpen }) => {
       <div className="flex items-center gap-2">
         <ThemeToggle />
 
-        {/* Notifications bell — full feature Module 7 */}
         <button
+          type="button"
+          onClick={() => navigate('/dashboard/notifications')}
           className="relative inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 hover:text-brand-400"
           aria-label="Notifications"
         >
           <Bell size={16} />
-          {/* Unread dot */}
-          <span className="absolute right-2.5 top-2.5 h-1.5 w-1.5 rounded-full bg-brand-500" />
+          {pendingWelcomeNotification && (
+            <span className="absolute right-2.5 top-2.5 h-1.5 w-1.5 rounded-full bg-brand-500" />
+          )}
         </button>
 
         {/* User menu */}
@@ -74,11 +76,7 @@ const DashboardTopBar = ({ title = 'Dashboard', onMobileMenuOpen }) => {
             aria-expanded={userMenuOpen}
           >
             <div className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-brand text-xs font-bold text-white">
-              {user?.avatar ? (
-                <img src={user.avatar} alt={user.name} className="h-full w-full rounded-full object-cover" />
-              ) : (
-                initials
-              )}
+              {initials}
             </div>
             <span className="hidden text-sm font-medium text-[var(--text-primary)] md:block">
               {user?.name?.split(' ')[0] || 'User'}
@@ -105,7 +103,7 @@ const DashboardTopBar = ({ title = 'Dashboard', onMobileMenuOpen }) => {
                 </div>
 
                 <Link
-                  to="/dashboard/settings"
+                  to="/dashboard/profile"
                   onClick={() => setUserMenuOpen(false)}
                   className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
                 >

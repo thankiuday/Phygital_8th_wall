@@ -30,6 +30,7 @@ const cardActionQueue = require('../utils/cardActionQueue');
 const { cloudinaryTransform } = require('../utils/cloudinaryTransform');
 const { getRenderJobStatus, verifyPrintToken } = require('../services/cardPrintService');
 const logger = require('../config/logger');
+const { getUploadSignature } = require('../controllers/campaignController');
 
 /** Friendly user-facing card slug — kebab-case, 3-60 chars (mirrors validator). */
 const CARD_SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{1,58}[a-z0-9])?$/;
@@ -62,6 +63,20 @@ const publicLimiter = rateLimit({
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
+});
+
+const publicUploadSignatureLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `${getClientIpFromRequest(req)}:public-upload-signature`,
+  message: 'Too many upload signature requests. Please try again shortly.',
+});
+
+router.get('/upload-signature', publicUploadSignatureLimiter, (req, res, next) => {
+  req.query.draft = '1';
+  return getUploadSignature(req, res, next);
 });
 
 /* ─────────────────────────────────────────
