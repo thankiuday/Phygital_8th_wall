@@ -101,6 +101,7 @@ const Step2Image = () => {
           <li>• Ensure it has <strong>rich visual detail</strong> — not just plain colour.</li>
           <li>• Minimum resolution: <strong>300 × 200 px</strong>.</li>
           <li>• Accepted formats: <strong>JPG, PNG, WebP</strong> · Max 10 MB.</li>
+          <li>• On mobile, <strong>browse</strong> opens your gallery or Files so you can upload an existing photo.</li>
         </ul>
       </div>
 

@@ -116,6 +116,17 @@ const LoginPage = () => {
       }, 650);
     } else {
       setApiError(result.message);
+      if (Array.isArray(result.errors)) {
+        const next = {};
+        for (const e of result.errors) {
+          if (e?.field && typeof e.message === 'string') {
+            if (e.field === 'email' || e.field === 'password') {
+              next[e.field] = e.message;
+            }
+          }
+        }
+        if (Object.keys(next).length) setErrors((p) => ({ ...p, ...next }));
+      }
     }
   };
 

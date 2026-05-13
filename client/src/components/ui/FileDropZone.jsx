@@ -22,15 +22,6 @@ const FileDropZone = ({
   const inputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const [sizeError, setSizeError] = useState('');
-  const isImageOnlyAccept = (() => {
-    if (!accept) return false;
-    const tokens = accept
-      .split(',')
-      .map((part) => part.trim().toLowerCase())
-      .filter(Boolean);
-    if (!tokens.length) return false;
-    return tokens.every((token) => token.startsWith('image/'));
-  })();
 
   const validate = (file) => {
     const maxBytes = maxSizeMB * 1024 * 1024;
@@ -151,12 +142,12 @@ const FileDropZone = ({
         ref={inputRef}
         type="file"
         accept={accept}
-        // For image dropzones, hint phones to use the rear camera so users
-        // can shoot the card directly. Browsers ignore `capture` if accept
-        // doesn't include image MIME types — safe to leave on.
-        capture={isImageOnlyAccept ? 'environment' : undefined}
         className="hidden"
-        onChange={(e) => handleFile(e.target.files?.[0])}
+        onChange={(e) => {
+          handleFile(e.target.files?.[0]);
+          // Allow picking the same file again (mobile gallery / Files).
+          e.target.value = '';
+        }}
       />
     </div>
   );

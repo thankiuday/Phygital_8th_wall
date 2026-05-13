@@ -11,10 +11,10 @@
    CSS Custom Properties — Light Theme (default)
    ───────────────────────────────────────── */
 :root {
-  /* Background layers */
-  --bg-primary: #f5f5dc;
-  --bg-secondary: #eeecd1;
-  --bg-tertiary: #e5e1c2;
+  /* Background layers — Floral White (#FFFAF0) family (light theme) */
+  --bg-primary: #fffaf0;
+  --bg-secondary: #faf6f0;
+  --bg-tertiary: #f5f0e8;
 
   /* Surface cards */
   --surface-1: #ffffff;

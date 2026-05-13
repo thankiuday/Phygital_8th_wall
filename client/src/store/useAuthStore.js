@@ -94,7 +94,7 @@ const useAuthStore = create((set, get) => {
       } catch (err) {
         const message = extractError(err, 'Login failed');
         set({ isLoading: false, error: message });
-        return { success: false, message };
+        return { success: false, message, errors: err.response?.data?.errors };
       }
     },
 
@@ -149,8 +149,49 @@ const useAuthStore = create((set, get) => {
   };
 });
 
-/* Helper — extract a readable message from an Axios error */
-const extractError = (err, fallback) =>
-  err.response?.data?.message || err.message || fallback;
+/**
+ * Readable message for auth forms — prefers API `message`, then validation
+ * `errors[]`, then network / status-specific hints.
+ */
+const extractError = (err, fallback) => {
+  const status = err.response?.status;
+  const data = err.response?.data;
+
+  if (data != null && typeof data === 'object') {
+    const { message, errors } = data;
+    if (typeof message === 'string' && message.trim()) {
+      if (Array.isArray(errors) && errors.length > 1) {
+        const rest = errors
+          .slice(1)
+          .map((e) => (e && typeof e.message === 'string' ? e.message : ''))
+          .filter(Boolean);
+        if (rest.length) return [message.trim(), ...rest].join(' ');
+      }
+      return message.trim();
+    }
+    if (Array.isArray(errors) && errors.length) {
+      const parts = errors
+        .map((e) => (e && typeof e.message === 'string' ? e.message : ''))
+        .filter(Boolean);
+      if (parts.length) return parts.join(' ');
+    }
+  }
+
+  if (status === 429) {
+    return (
+      (data && typeof data === 'object' && typeof data.message === 'string' && data.message)
+      || 'Too many attempts. Please wait a few minutes and try again.'
+    );
+  }
+
+  if (!err.response) {
+    if (err.code === 'ECONNABORTED' || /timeout/i.test(err.message || '')) {
+      return 'Request timed out. Check your connection and try again.';
+    }
+    return 'Unable to reach the server. Check your connection and try again.';
+  }
+
+  return err.message || fallback;
+};
 
 export default useAuthStore;

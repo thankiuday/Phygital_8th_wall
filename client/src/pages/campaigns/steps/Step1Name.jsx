@@ -3,6 +3,7 @@ import { Sparkles, ArrowRight } from 'lucide-react';
 import FormInput from '../../../components/ui/FormInput';
 import useCampaignStore from '../../../store/useCampaignStore';
 import useAuthStore from '../../../store/useAuthStore';
+import { suggestArCampaignName } from '../../../utils/suggestArCampaignName';
 
 const Step1Name = () => {
   const { wizardData, updateWizardData, setWizardStep } = useCampaignStore();
@@ -15,8 +16,7 @@ const Step1Name = () => {
   };
 
   const regenerate = () => {
-    const firstName = user?.name?.split(' ')[0] || 'My';
-    updateWizardData({ campaignName: `${firstName}'s AR Card` });
+    updateWizardData({ campaignName: suggestArCampaignName(user) });
     setError('');
   };
 

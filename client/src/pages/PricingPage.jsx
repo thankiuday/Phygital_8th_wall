@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Check, CreditCard, HelpCircle, Layers, X } from 'lucide-react';
 import SEOHead from '../components/ui/SEOHead';
 import Icon3D, { ICON3D_PRESETS } from '../components/ui/Icon3D';
+import { pricingPlans as plans } from '../data/pricingPlans';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 22 },
@@ -14,77 +15,6 @@ const stagger = {
   hidden: {},
   show: { transition: { staggerChildren: 0.08 } },
 };
-
-const plans = [
-  {
-    id: 'free',
-    name: 'QR (Free)',
-    subtitle: 'Perfect for personal use',
-    monthly: { price: '$0', period: 'per month' },
-    yearly: { price: '$0', period: 'per year' },
-    ctaLabel: 'Get Started',
-    ctaTo: '/register',
-    featured: false,
-    features: [
-      'Dynamic QR codes',
-      'Unlimited QR codes',
-      'Unlimited scans',
-      'Dynamic update',
-      'Basic analytics',
-      'No video/AR hosting',
-      'No AR features',
-      'No custom branding',
-      'No bulk creation',
-      'No API access',
-    ],
-  },
-  {
-    id: 'phygital-qr',
-    name: 'Phygital QR',
-    subtitle: 'Best for SMBs & AR & video storytelling',
-    monthly: { price: '$14.99', period: 'per month' },
-    yearly: { price: '$149', oldPrice: '$179.88', period: 'per year' },
-    ctaLabel: 'Start Free Trial',
-    ctaTo: '/register',
-    featured: true,
-    features: [
-      'Everything in Free',
-      'Video/AR hosting (10 videos)',
-      'Advanced analytics',
-      'Custom branding',
-      'Limited bulk creation',
-      'No AR Navigation',
-      'No AR Search',
-      'No AR Object scan',
-      'No API integration',
-      'No team access',
-    ],
-  },
-  {
-    id: 'enterprise',
-    name: 'Phygital Enterprise',
-    subtitle: 'For enterprises & agencies',
-    monthly: { price: 'Ask for Quote', period: null },
-    yearly: { price: 'Ask for Quote', period: null },
-    ctaLabel: 'Contact Sales',
-    ctaTo: '/contact',
-    featured: false,
-    features: [
-      'Everything in Phygital QR',
-      'Unlimited video/AR hosting',
-      'AR Navigation',
-      'AR Search',
-      'AR Object scan (No QR needed)',
-      'API integration',
-      'Multi-user/team access',
-      'Assign QR to customer email',
-      'Exportable analytics reports',
-      'Full white-label branding',
-      'Bulk creation',
-      'Priority support',
-    ],
-  },
-];
 
 const compareRows = [
   { feature: 'Price (monthly)', free: '$0', pro: '$14.99', enterprise: 'Ask for Quote' },

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import useAuthStore from '../../store/useAuthStore';
 import useCampaignStore from '../../store/useCampaignStore';
 import WizardStepBar from '../../components/ui/WizardStepBar';
+import { suggestArCampaignName } from '../../utils/suggestArCampaignName';
 
 // Steps
 import Step1Name from './steps/Step1Name';
@@ -23,14 +24,17 @@ const NewCampaignPage = () => {
   const { user } = useAuthStore();
   const { wizardStep, resetWizard, updateWizardData } = useCampaignStore();
 
-  // Auto-seed campaign name from username on first load
   useEffect(() => {
     resetWizard();
-    if (user?.name) {
-      const firstName = user.name.split(' ')[0];
-      updateWizardData({ campaignName: `${firstName}'s AR Card` });
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [resetWizard]);
+
+  // Unique default name once the session user is known (avoid empty / duplicate labels).
+  useEffect(() => {
+    if (!user) return;
+    const { wizardData } = useCampaignStore.getState();
+    if (wizardData.campaignName?.trim()) return;
+    updateWizardData({ campaignName: suggestArCampaignName(user) });
+  }, [user, updateWizardData]);
 
   const stepComponents = [
     <Step1Name key={1} />,

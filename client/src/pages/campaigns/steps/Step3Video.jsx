@@ -8,10 +8,15 @@ const ACCEPTED_TYPES = 'video/*,.mp4,.webm,.mov,.m4v';
 const MAX_SIZE_MB = 100;
 const MAX_DURATION_SEC = 60;
 
+const VIDEO_TYPES = new Set(['video/mp4', 'video/webm', 'video/quicktime', 'video/x-m4v', 'video/m4v']);
+const VIDEO_EXT = /\.(mp4|webm|mov|m4v)$/i;
+
 /* ── Client-side video validation ────────────────────────────────── */
 const validateVideo = (file) =>
   new Promise((resolve) => {
-    if (!['video/mp4', 'video/webm', 'video/quicktime'].includes(file.type)) {
+    const typeOk = file.type && VIDEO_TYPES.has(file.type);
+    const extOk = VIDEO_EXT.test(file.name || '');
+    if (!typeOk && !extOk) {
       return resolve('Only MP4, WebM, and MOV videos are accepted.');
     }
 
@@ -130,6 +135,7 @@ const Step3Video = () => {
           </div>
           <p className="flex-1 text-xs text-[var(--text-muted)]">
             Vertical (portrait) video looks best as a hologram above the card. Record in portrait mode on your phone.
+            On mobile, tap <strong>browse</strong> to pick a video from your gallery or Files.
           </p>
         </div>
       </div>

@@ -47,6 +47,22 @@ const isFailedAuthRefreshRequest = (config) => {
   return url.includes('/auth/refresh');
 };
 
+/**
+ * Failed login/register (401) must not trigger a refresh — that replaces the
+ * real error (e.g. "Invalid email or password") with a generic refresh failure.
+ */
+const isPublicAuthMutation401 = (config) => {
+  if (!config) return false;
+  const url = typeof config.url === 'string' ? config.url : '';
+  return (
+    url.includes('/auth/login')
+    || url.includes('/auth/register')
+    || url.includes('/auth/forgot-password')
+    || url.includes('/auth/reset-password')
+    || url.includes('/auth/google/exchange')
+  );
+};
+
 /* ── Request interceptor — attach access token ──────────────────── */
 api.interceptors.request.use(
   (config) => {
@@ -89,6 +105,10 @@ api.interceptors.response.use(
     const orig = error.config;
 
     if (error.response?.status === 401 && isFailedAuthRefreshRequest(orig)) {
+      return Promise.reject(error);
+    }
+
+    if (error.response?.status === 401 && isPublicAuthMutation401(orig)) {
       return Promise.reject(error);
     }
 

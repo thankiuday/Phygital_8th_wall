@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, ChevronDown, LayoutDashboard, LogOut } from 'lucide-react';
+import { Menu, X, ChevronDown, LayoutDashboard, LogOut, Plus } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 import useAuthStore from '../../store/useAuthStore';
 import Icon3D, { ICON3D_PRESETS } from './Icon3D';
@@ -9,11 +9,29 @@ import BrandLockup from './BrandLockup';
 
 const NAV_LINKS = [
   { label: 'Home', to: '/', end: true },
-  { label: 'Phygitalize now', to: '/phygitalize-now' },
+  { label: 'Phygitalize now', to: '/phygitalize-now', isPhygitalize: true },
   { label: 'Pricing', to: '/pricing' },
   { label: 'About', to: '/about' },
   { label: 'Contact', to: '/contact' },
 ];
+
+/**
+ * Phygitalize nav — gradient wordmark + badge sized to the nav link’s text line
+ * (same font-size context as siblings; no taller than the label cap height band).
+ */
+function PhygitalizeNavLabel() {
+  return (
+    <span className="inline-flex items-center gap-1.5 leading-none">
+      <span className="brand-word font-semibold tracking-tight">Phygitalize now</span>
+      <span
+        aria-hidden="true"
+        className="inline-flex h-[1.1em] w-[1.1em] shrink-0 items-center justify-center rounded-[0.22em] bg-gradient-to-br from-cyan-500 to-violet-600 shadow-[0_1px_4px_-1px_rgba(124,58,237,0.4)] ring-1 ring-white/15 transition-[transform,box-shadow] duration-200 hover:scale-[1.04] hover:shadow-[0_2px_8px_-1px_rgba(124,58,237,0.5)]"
+      >
+        <Plus className="h-[0.52em] w-[0.52em] text-white" strokeWidth={2.5} />
+      </span>
+    </span>
+  );
+}
 
 /**
  * Navbar — responsive top navigation with:
@@ -83,13 +101,13 @@ const Navbar = () => {
               key={link.to}
               to={link.to}
               end={link.end}
-              className="text-sm font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--brand)]"
+              className={({ isActive }) =>
+                `text-sm font-medium transition-colors ${
+                  isActive ? 'text-brand-400' : 'text-[var(--text-secondary)] hover:text-[var(--brand)]'
+                } ${link.isPhygitalize ? 'inline-flex items-center' : ''}`
+              }
             >
-              {link.label === 'Phygitalize now' ? (
-                <span className="brand-word font-semibold">Phygitalize now</span>
-              ) : (
-                link.label
-              )}
+              {link.isPhygitalize ? <PhygitalizeNavLabel /> : link.label}
             </NavLink>
           ))}
         </nav>
@@ -232,14 +250,10 @@ const Navbar = () => {
                       isActive
                         ? 'bg-brand-600/10 text-brand-400'
                         : 'text-[var(--text-secondary)] hover:bg-[var(--surface-3)] hover:text-[var(--brand)]'
-                    }`
+                    } ${link.isPhygitalize ? 'flex items-center gap-2' : ''}`
                   }
                 >
-                  {link.label === 'Phygitalize now' ? (
-                    <span className="brand-word font-semibold">Phygitalize now</span>
-                  ) : (
-                    link.label
-                  )}
+                  {link.isPhygitalize ? <PhygitalizeNavLabel /> : link.label}
                 </NavLink>
               ))}
 

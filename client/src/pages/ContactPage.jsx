@@ -51,13 +51,26 @@ const faqItems = [
   },
 ];
 
+const CONTACT_EMAIL = 'hello@phygital.zone';
+
 const ContactPage = () => {
-  const [sent, setSent] = useState(false);
+  const [hint, setHint] = useState(false);
 
   const onSubmit = (e) => {
     e.preventDefault();
-    setSent(true);
-    setTimeout(() => setSent(false), 2500);
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const first = String(fd.get('firstName') ?? '').trim();
+    const last = String(fd.get('lastName') ?? '').trim();
+    const replyEmail = String(fd.get('email') ?? '').trim();
+    const subject = String(fd.get('subject') ?? '').trim();
+    const message = String(fd.get('message') ?? '').trim();
+
+    const body = [`Name: ${first} ${last}`.trim(), `Email: ${replyEmail}`, '', message].join('\n');
+    const mailto = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailto;
+    setHint(true);
+    window.setTimeout(() => setHint(false), 6000);
   };
 
   return (
@@ -126,35 +139,64 @@ const ContactPage = () => {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="space-y-2 text-sm font-medium text-[var(--text-primary)]">
                     <span>First Name</span>
-                    <input className="form-input" placeholder="Enter your first name" required />
+                    <input
+                      name="firstName"
+                      className="form-input"
+                      placeholder="Enter your first name"
+                      autoComplete="given-name"
+                      required
+                    />
                   </label>
                   <label className="space-y-2 text-sm font-medium text-[var(--text-primary)]">
                     <span>Last Name</span>
-                    <input className="form-input" placeholder="Enter your last name" required />
+                    <input
+                      name="lastName"
+                      className="form-input"
+                      placeholder="Enter your last name"
+                      autoComplete="family-name"
+                      required
+                    />
                   </label>
                 </div>
                 <label className="space-y-2 text-sm font-medium text-[var(--text-primary)]">
                   <span>Email Address</span>
-                  <input type="email" className="form-input" placeholder="Enter your email" required />
+                  <input
+                    name="email"
+                    type="email"
+                    className="form-input"
+                    placeholder="Enter your email"
+                    autoComplete="email"
+                    required
+                  />
                 </label>
                 <label className="space-y-2 text-sm font-medium text-[var(--text-primary)]">
                   <span>Subject</span>
-                  <input className="form-input" placeholder="What's this about?" required />
+                  <input name="subject" className="form-input" placeholder="What's this about?" required />
                 </label>
                 <label className="space-y-2 text-sm font-medium text-[var(--text-primary)]">
                   <span>Message</span>
                   <textarea
+                    name="message"
                     className="form-input min-h-[140px] resize-y"
                     placeholder="Tell us how we can help you..."
                     required
                   />
                 </label>
+                {hint && (
+                  <p className="text-sm text-[var(--text-secondary)]">
+                    If your email app didn&apos;t open, send your message directly to{' '}
+                    <a href={`mailto:${CONTACT_EMAIL}`} className="font-medium text-brand-500 hover:text-brand-400">
+                      {CONTACT_EMAIL}
+                    </a>
+                    .
+                  </p>
+                )}
                 <button
                   type="submit"
                   className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-brand-500 hover:shadow-glow"
                 >
                   <Icon3D icon={MessageSquare} size={12} className="h-7 w-7" accent={ICON3D_PRESETS.violet} rounded="rounded-md" />
-                  {sent ? 'Message Sent!' : 'Send Message'}
+                  Send Message
                 </button>
               </form>
             </motion.section>
@@ -171,7 +213,12 @@ const ContactPage = () => {
                   <Icon3D icon={Mail} size={13} className="h-8 w-8" accent={ICON3D_PRESETS.cyan} rounded="rounded-lg" />
                   <h3 className="font-semibold text-[var(--text-primary)]">Email Us Directly</h3>
                 </div>
-                <p className="text-sm font-medium text-[var(--text-primary)]">phygital.zone@gmail.com</p>
+                <a
+                  href={`mailto:${CONTACT_EMAIL}`}
+                  className="text-sm font-medium text-brand-500 hover:text-brand-400"
+                >
+                  {CONTACT_EMAIL}
+                </a>
                 <p className="mt-1 text-sm text-[var(--text-secondary)]">Send us an email anytime</p>
               </motion.article>
 
