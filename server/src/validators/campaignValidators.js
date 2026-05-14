@@ -191,25 +191,36 @@ const linkKindEnum = z.enum([
   'custom',
 ]);
 
-const linkItemInputSchema = z
+/** Plain object shape — must stay a ZodObject so `.extend()` works for PATCH rows. */
+const linkItemObjectSchema = z
   .object({
     kind: linkKindEnum,
     label: z.string().trim().min(1, 'label is required').max(80),
     value: z.string().trim().min(1, 'value is required').max(500),
   })
-  .strict()
-  .refine(
-    (d) => {
-      if (d.kind !== 'email') return true;
-      return z.string().email().safeParse(d.value).success;
-    },
-    { message: 'Invalid email address', path: ['value'] }
-  );
+  .strict();
+
+const linkItemEmailValueRefine = (d) => {
+  if (d.kind !== 'email') return true;
+  return z.string().email().safeParse(d.value).success;
+};
+
+const linkItemEmailRefineConfig = {
+  message: 'Invalid email address',
+  path: ['value'],
+};
+
+const linkItemInputSchema = linkItemObjectSchema.refine(
+  linkItemEmailValueRefine,
+  linkItemEmailRefineConfig
+);
 
 /** PATCH body — optional linkId when updating existing hub rows (preserves analytics). */
-const linkItemPatchSchema = linkItemInputSchema.extend({
-  linkId: z.string().trim().min(8).max(24).optional(),
-});
+const linkItemPatchSchema = linkItemObjectSchema
+  .extend({
+    linkId: z.string().trim().min(8).max(24).optional(),
+  })
+  .refine(linkItemEmailValueRefine, linkItemEmailRefineConfig);
 
 const linkItemsField = z
   .array(linkItemInputSchema)
