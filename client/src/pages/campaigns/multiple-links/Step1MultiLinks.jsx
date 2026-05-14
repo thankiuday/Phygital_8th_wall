@@ -2,7 +2,12 @@ import { useState } from 'react';
 import { ArrowRight, QrCode } from 'lucide-react';
 import FormInput from '../../../components/ui/FormInput';
 import MultiLinksEditor from './MultiLinksEditor';
-import { validateLinkRows, rowsToApiLinkItems } from './multiLinkFormUtils';
+import {
+  validateLinkRows,
+  rowsToApiLinkItems,
+  mergeHubVisitorEmailLinkItems,
+  isHubVisitorEmailInputValid,
+} from './multiLinkFormUtils';
 
 const Step1MultiLinks = ({
   campaignName,
@@ -10,12 +15,15 @@ const Step1MultiLinks = ({
   onRegenerateName,
   linkRows,
   onLinkRowsChange,
+  visitorHubEmail,
+  onVisitorHubEmailChange,
   preciseGeoAnalytics,
   onPreciseGeoAnalyticsChange,
   onContinue,
 }) => {
   const [nameError, setNameError] = useState('');
   const [linkError, setLinkError] = useState('');
+  const [visitorEmailError, setVisitorEmailError] = useState('');
 
   const handleContinue = () => {
     const trimmed = campaignName.trim();
@@ -35,10 +43,16 @@ const Step1MultiLinks = ({
       return;
     }
 
+    if (!isHubVisitorEmailInputValid(visitorHubEmail)) {
+      setVisitorEmailError('Enter a valid email address, or leave this field empty.');
+      return;
+    }
+    setVisitorEmailError('');
+
     setLinkError('');
     onContinue({
       campaignName: trimmed,
-      linkItems: rowsToApiLinkItems(linkRows),
+      linkItems: mergeHubVisitorEmailLinkItems(rowsToApiLinkItems(linkRows), visitorHubEmail),
       preciseGeoAnalytics,
     });
   };
@@ -78,6 +92,24 @@ const Step1MultiLinks = ({
           >
             Regenerate name
           </button>
+        }
+      />
+
+      <FormInput
+        type="email"
+        label="Visitor email (optional)"
+        placeholder="you@example.com — opens compose when tapped on your link page"
+        value={visitorHubEmail}
+        onChange={(e) => {
+          if (visitorEmailError) setVisitorEmailError('');
+          onVisitorHubEmailChange(e.target.value);
+        }}
+        error={visitorEmailError}
+        maxLength={254}
+        hint={
+          <span className="text-[var(--text-muted)]">
+            Shown as an &quot;Email&quot; button at the top of your links. Leave blank if you use the Email preset below instead.
+          </span>
         }
       />
 

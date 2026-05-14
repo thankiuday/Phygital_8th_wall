@@ -51,20 +51,33 @@ const validateEnv = () => {
     process.exit(1);
   }
 
-  // Google OAuth vars are required only when that flow is enabled/configured.
-  const googleVars = [
-    'GOOGLE_CLIENT_ID',
-    'GOOGLE_CLIENT_SECRET',
-    'GOOGLE_REDIRECT_URI',
-    'CLIENT_URL',
-  ];
-  const hasAnyGoogleVar = googleVars.some((k) => !!process.env[k]);
-  if (hasAnyGoogleVar) {
-    const missingGoogle = googleVars.filter((k) => !process.env[k]);
+  // Google OAuth — only validate when Google credentials (or explicit redirect) are set.
+  // Callback URL can be explicit `GOOGLE_REDIRECT_URI` or derived from `RENDER_EXTERNAL_URL` / `API_PUBLIC_URL`.
+  const gId = (process.env.GOOGLE_CLIENT_ID || '').trim();
+  const gSec = (process.env.GOOGLE_CLIENT_SECRET || '').trim();
+  const gRedirExplicit = (process.env.GOOGLE_REDIRECT_URI || '').trim();
+  const clientUrl = (process.env.CLIENT_URL || '').trim();
+  const renderExt = (process.env.RENDER_EXTERNAL_URL || '').trim();
+  const apiPublic = (process.env.API_PUBLIC_URL || '').trim();
+
+  const hasAnyGoogleOAuthVar = !!(gId || gSec || gRedirExplicit);
+  if (hasAnyGoogleOAuthVar) {
+    const missingGoogle = [];
+    if (!gId) missingGoogle.push('GOOGLE_CLIENT_ID');
+    if (!gSec) missingGoogle.push('GOOGLE_CLIENT_SECRET');
+    if (!clientUrl) missingGoogle.push('CLIENT_URL');
+    const hasRedirectSource = !!(gRedirExplicit || renderExt || apiPublic);
+    if (!hasRedirectSource) {
+      missingGoogle.push(
+        'GOOGLE_REDIRECT_URI (or RENDER_EXTERNAL_URL / API_PUBLIC_URL for automatic callback URL)'
+      );
+    }
     if (missingGoogle.length > 0) {
       console.error('\n❌ Incomplete Google OAuth environment variables:\n');
       missingGoogle.forEach((k) => console.error(`  [Google OAuth] ${k}`));
-      console.error('\nSet all Google OAuth vars or remove them all to disable Google auth.\n');
+      console.error(
+        '\nSet the listed variables, or remove Google OAuth vars to disable Google sign-in.\n'
+      );
       process.exit(1);
     }
   }

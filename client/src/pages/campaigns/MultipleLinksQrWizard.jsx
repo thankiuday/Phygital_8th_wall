@@ -69,6 +69,7 @@ const MultipleLinksQrWizard = () => {
   const [design, setDesign] = useState(DEFAULT_DESIGN);
   const [redirectSlug] = useState(() => generatePreviewSlug());
   const [preciseGeoAnalytics, setPreciseGeoAnalytics] = useState(false);
+  const [visitorHubEmail, setVisitorHubEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [draftNotice, setDraftNotice] = useState('');
@@ -83,6 +84,7 @@ const MultipleLinksQrWizard = () => {
       setLinkRows(saved.linkRows || []);
       setDesign(hydrateWizardDesignFromDraft(saved.design));
       setPreciseGeoAnalytics(!!saved.preciseGeoAnalytics);
+      setVisitorHubEmail(saved.visitorHubEmail || '');
       if (saved.campaignName && saved.seededCampaignName && saved.campaignName === saved.seededCampaignName && user) {
         setCampaignName(seedCampaignName(user));
       }
@@ -103,6 +105,7 @@ const MultipleLinksQrWizard = () => {
       seededCampaignName: seedCampaignName(user),
       linkItems,
       linkRows,
+      visitorHubEmail,
       design,
       preciseGeoAnalytics,
     });
@@ -117,6 +120,7 @@ const MultipleLinksQrWizard = () => {
     setDraft,
     step,
     user,
+    visitorHubEmail,
   ]);
 
   const redirectBase = useMemo(resolveRedirectBase, []);
@@ -157,6 +161,7 @@ const MultipleLinksQrWizard = () => {
         seededCampaignName: seedCampaignName(user),
         linkItems,
         linkRows,
+        visitorHubEmail,
         design: qrDesignPayload,
         preciseGeoAnalytics,
       });
@@ -236,6 +241,8 @@ const MultipleLinksQrWizard = () => {
                 onRegenerateName={() => setCampaignName(seedCampaignName(user))}
                 linkRows={linkRows}
                 onLinkRowsChange={setLinkRows}
+                visitorHubEmail={visitorHubEmail}
+                onVisitorHubEmailChange={setVisitorHubEmail}
                 preciseGeoAnalytics={preciseGeoAnalytics}
                 onPreciseGeoAnalyticsChange={setPreciseGeoAnalytics}
                 onContinue={handleStep1Continue}

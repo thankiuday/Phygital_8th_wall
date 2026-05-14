@@ -4,6 +4,7 @@ import { Loader2, MapPin, ExternalLink } from 'lucide-react';
 import publicApi from '../services/publicApi';
 
 const GEO_CONSENT_VERSION = 'browser-geolocation-v1';
+const COUNTDOWN_SEC = 5;
 
 const deviceTypeGuess = () => {
   const ua = navigator.userAgent || '';
@@ -25,6 +26,10 @@ const isHubCampaignType = (ct) => HUB_CAMPAIGN_TYPES.has(ct);
  * Bridge for dynamic QR with precise geo:
  * - Legacy path `/open/:redirectSlug` (opaque nanoid)
  * - Vanity path `/open/:handle/:hubSlug` (same meta + scan APIs use `redirectSlug` from payload)
+ *
+ * Compact modal + countdown: iOS/Safari often requires HTTPS (secure context) for geolocation.
+ * The first permission prompt may still need a user tap; the timer auto-continues without geo if
+ * nothing is granted before it hits zero.
  */
 const OpenSingleLinkBridgePage = () => {
   const { slug, handle, hubSlug } = useParams();
@@ -35,7 +40,12 @@ const OpenSingleLinkBridgePage = () => {
   const [error, setError] = useState('');
   const [meta, setMeta] = useState(null);
   const [geoStatus, setGeoStatus] = useState('');
+  const [secondsLeft, setSecondsLeft] = useState(COUNTDOWN_SEC);
   const visitorHashRef = useRef('');
+  const countdownTimerRef = useRef(null);
+  const geoFlowStartedRef = useRef(false);
+  const geoAttemptedRef = useRef(false);
+  const tryGeoRef = useRef(() => {});
 
   useEffect(() => {
     let cancelled = false;
@@ -43,6 +53,8 @@ const OpenSingleLinkBridgePage = () => {
     setError('');
     setMeta(null);
     visitorHashRef.current = '';
+    geoFlowStartedRef.current = false;
+    geoAttemptedRef.current = false;
 
     (async () => {
       try {
@@ -155,17 +167,80 @@ const OpenSingleLinkBridgePage = () => {
     [scanSlug, redirectTo]
   );
 
-  const handleSkipGeo = () => {
+  const handleSkipGeo = useCallback(() => {
+    geoAttemptedRef.current = true;
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
     if (meta?.campaignType && isHubCampaignType(meta.campaignType)) {
       return postMultiScanAndGoHub({});
     }
     return postSingleScanAndRedirect({});
-  };
+  }, [meta?.campaignType, postMultiScanAndGoHub, postSingleScanAndRedirect]);
 
-  const handleShareGeo = () => {
+  const postWithOptionalCoords = useCallback(
+    (coordsBody) => {
+      if (meta?.campaignType && isHubCampaignType(meta.campaignType)) {
+        return postMultiScanAndGoHub(coordsBody);
+      }
+      return postSingleScanAndRedirect(coordsBody);
+    },
+    [meta?.campaignType, postMultiScanAndGoHub, postSingleScanAndRedirect]
+  );
+
+  const tryGeolocationThenContinue = useCallback(() => {
+    if (geoAttemptedRef.current) return;
+    geoAttemptedRef.current = true;
+    const precise = !!meta?.preciseGeoAnalytics;
+    if (!precise) {
+      handleSkipGeo();
+      return;
+    }
+    if (!window.isSecureContext) {
+      setGeoStatus('Location needs HTTPS. Continuing without precise location.');
+      handleSkipGeo();
+      return;
+    }
+    if (!navigator.geolocation) {
+      setGeoStatus('Location is not supported on this device. Continuing…');
+      handleSkipGeo();
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        postWithOptionalCoords({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracyM: pos.coords.accuracy,
+          consentVersion: GEO_CONSENT_VERSION,
+        });
+      },
+      () => {
+        handleSkipGeo();
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+  }, [meta?.preciseGeoAnalytics, handleSkipGeo, postWithOptionalCoords]);
+
+  useEffect(() => {
+    tryGeoRef.current = tryGeolocationThenContinue;
+  }, [tryGeolocationThenContinue]);
+
+  const handleShareGeo = useCallback(() => {
+    if (!window.isSecureContext) {
+      setGeoStatus('Location requires a secure site (HTTPS). Continuing without it.');
+      handleSkipGeo();
+      return;
+    }
     if (!navigator.geolocation) {
       setGeoStatus('Location is not supported on this device.');
+      handleSkipGeo();
       return;
+    }
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
     }
     setGeoStatus('Waiting for permission…');
     navigator.geolocation.getCurrentPosition(
@@ -176,18 +251,45 @@ const OpenSingleLinkBridgePage = () => {
           accuracyM: pos.coords.accuracy,
           consentVersion: GEO_CONSENT_VERSION,
         };
-        if (meta?.campaignType && isHubCampaignType(meta.campaignType)) {
-          postMultiScanAndGoHub(body);
-        } else {
-          postSingleScanAndRedirect(body);
-        }
+        postWithOptionalCoords(body);
       },
-      (err) => {
-        setGeoStatus(err?.message || 'Location permission denied.');
+      () => {
+        handleSkipGeo();
       },
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
     );
-  };
+  }, [handleSkipGeo, postWithOptionalCoords]);
+
+  useEffect(() => {
+    if (phase !== 'ready') {
+      geoFlowStartedRef.current = false;
+      return undefined;
+    }
+    if (geoFlowStartedRef.current) return undefined;
+    geoFlowStartedRef.current = true;
+    geoAttemptedRef.current = false;
+    setSecondsLeft(COUNTDOWN_SEC);
+    countdownTimerRef.current = setInterval(() => {
+      setSecondsLeft((s) => {
+        if (s <= 1) {
+          if (countdownTimerRef.current) {
+            clearInterval(countdownTimerRef.current);
+            countdownTimerRef.current = null;
+          }
+          tryGeoRef.current();
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => {
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
+      geoFlowStartedRef.current = false;
+    };
+  }, [phase]);
 
   if (phase === 'loading' || phase === 'redirecting') {
     return (
@@ -213,51 +315,73 @@ const OpenSingleLinkBridgePage = () => {
   const isHub = meta?.campaignType ? isHubCampaignType(meta.campaignType) : false;
 
   return (
-    <div className="mx-auto max-w-md px-6 py-12">
-      <div className="mb-6 flex justify-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-500/15 text-brand-400">
-          <MapPin size={28} aria-hidden />
+    <div className="relative flex min-h-[100dvh] items-end justify-center bg-black/50 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))] sm:items-center sm:pb-8">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="bridge-title"
+        className="w-full max-w-sm rounded-2xl border border-[var(--border-color)] bg-[var(--surface-solid)] p-5 shadow-2xl"
+      >
+        <div className="mb-4 flex justify-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-500/15 text-brand-400">
+            <MapPin size={24} aria-hidden />
+          </div>
         </div>
-      </div>
-      <h1 className="text-center text-xl font-bold text-[var(--text-primary)]">
-        {meta?.campaignName || 'Continue'}
-      </h1>
-      <p className="mt-3 text-center text-sm text-[var(--text-secondary)]">
-        {isHub
-          ? precise
-            ? 'Continue to your link page, or optionally share your device location once for richer analytics.'
-            : 'Tap below to open your link page. We record approximate scan analytics from your network.'
-          : precise
-            ? 'You can continue immediately, or optionally share your device location once to improve scan analytics. Location is never required to open your link.'
-            : 'Tap below to open your link. We record approximate scan analytics from your network.'}
-      </p>
+        <h1 id="bridge-title" className="text-center text-lg font-bold text-[var(--text-primary)]">
+          {meta?.campaignName || 'Continue'}
+        </h1>
+        <p className="mt-2 text-center text-xs leading-relaxed text-[var(--text-secondary)]">
+          {isHub
+            ? precise
+              ? 'Optional one-time location for analytics. You can cancel or wait — we continue automatically.'
+              : 'Opening your link page…'
+            : precise
+              ? 'Optional location for scan analytics. Cancel anytime, or wait to continue automatically.'
+              : 'Taking you to your link…'}
+        </p>
 
-      <div className="mt-8 flex flex-col gap-3">
+        <div className="mt-5 flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={handleSkipGeo}
+            className="min-h-[44px] shrink-0 rounded-xl border border-[var(--border-color)] px-4 py-2.5 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-2)]"
+          >
+            Cancel
+          </button>
+          <div className="flex min-h-[44px] flex-1 flex-col items-center justify-center rounded-xl bg-[var(--surface-2)] px-3 py-2">
+            <span className="text-2xl font-bold tabular-nums text-brand-400">{secondsLeft}</span>
+            <span className="text-[10px] font-medium uppercase tracking-wide text-[var(--text-muted)]">
+              sec
+            </span>
+          </div>
+        </div>
+
         {precise && (
           <button
             type="button"
             onClick={handleShareGeo}
-            className="flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-glow transition hover:bg-brand-500"
+            className="mt-3 flex w-full min-h-[48px] items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-glow transition hover:bg-brand-500"
           >
             <MapPin size={18} aria-hidden />
-            Share location (optional)
+            Allow location
           </button>
         )}
+
         <button
           type="button"
           onClick={handleSkipGeo}
-          className={`flex min-h-[48px] items-center justify-center gap-2 rounded-xl border border-[var(--border-color)] px-4 py-3 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-2)] ${
+          className={`mt-2 flex w-full min-h-[48px] items-center justify-center gap-2 rounded-xl border border-[var(--border-color)] px-4 py-3 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[var(--surface-2)] ${
             precise ? '' : 'bg-brand-600 border-transparent text-white hover:bg-brand-500'
           }`}
         >
           <ExternalLink size={18} aria-hidden />
-          {precise ? 'Continue without location' : isHub ? 'Open link page' : 'Continue'}
+          {precise ? 'Continue now' : isHub ? 'Open link page' : 'Continue'}
         </button>
-      </div>
 
-      {geoStatus && (
-        <p className="mt-4 text-center text-xs text-amber-400/90">{geoStatus}</p>
-      )}
+        {geoStatus && (
+          <p className="mt-3 text-center text-xs text-amber-400/90">{geoStatus}</p>
+        )}
+      </div>
     </div>
   );
 };

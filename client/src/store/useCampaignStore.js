@@ -132,7 +132,23 @@ const useCampaignStore = create((set, get) => ({
       set({ isSubmitting: false });
       return { success: true, campaign };
     } catch (err) {
-      const message = err.response?.data?.message || 'Failed to create campaign';
+      const d = err?.response?.data;
+      const validationErrors = d?.errors;
+      const validationMessage = Array.isArray(validationErrors) && validationErrors.length
+        ? validationErrors.map((e) => e?.message).filter(Boolean).join(' ')
+        : '';
+      let message =
+        validationMessage
+        || d?.message
+        || err?.message
+        || 'Failed to create campaign';
+      if (err?.code === 'ECONNABORTED' || err?.message?.includes?.('timeout')) {
+        message = 'Request timed out. Check your connection and try again on Wi‑Fi if possible.';
+      }
+      if (err?.isBadApiResponse) {
+        message =
+          'The app could not reach the API (received HTML instead of JSON). If you are on mobile, set VITE_API_URL to your backend URL in production.';
+      }
       set({ isSubmitting: false, wizardError: message });
       return { success: false, message };
     }

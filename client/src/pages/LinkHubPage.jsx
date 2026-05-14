@@ -11,6 +11,7 @@ import {
   Globe,
   Music2,
   Link2,
+  Mail,
   PauseCircle,
   FileText,
   FileSpreadsheet,
@@ -25,6 +26,7 @@ import HubVideoPlayer from '../components/hub/HubVideoPlayer';
 const KIND_ICONS = {
   contact: Phone,
   whatsapp: MessageCircle,
+  email: Mail,
   instagram: AtSign,
   facebook: Users,
   twitter: Feather,

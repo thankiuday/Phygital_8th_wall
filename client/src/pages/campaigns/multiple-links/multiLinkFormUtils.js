@@ -2,11 +2,33 @@
  * Shared validation + API payload helpers for multiple-links QR (wizard + edit).
  */
 
+const EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Empty string is valid (optional field). */
+export const isHubVisitorEmailInputValid = (raw) => {
+  const t = String(raw || '').trim();
+  if (!t) return true;
+  return EMAIL_OK.test(t);
+};
+
+/** Optional Step-1 “visitor email” prepended as a mailto hub row (one per campaign). */
+export function mergeHubVisitorEmailLinkItems(apiItems, visitorEmailRaw) {
+  const items = Array.isArray(apiItems) ? [...apiItems] : [];
+  const raw = String(visitorEmailRaw || '').trim();
+  if (!raw) return items;
+  if (items.some((it) => it.kind === 'email')) return items;
+  if (!EMAIL_OK.test(raw)) return items;
+  return [{ kind: 'email', label: 'Email', value: raw }, ...items];
+}
+
 export function validateLinkRows(linkRows) {
   if (!linkRows?.length) return 'Add at least one link.';
   for (const row of linkRows) {
     if (!row.value?.trim()) {
       return `Enter a value for “${row.label || row.kind}”.`;
+    }
+    if (row.kind === 'email' && !EMAIL_OK.test(row.value.trim())) {
+      return 'Enter a valid email address for the Email link.';
     }
     if (row.kind === 'custom' && !row.label?.trim()) {
       return 'Each custom link needs a label.';

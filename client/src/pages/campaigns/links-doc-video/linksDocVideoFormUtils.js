@@ -1,4 +1,8 @@
-import { validateLinkRows, rowsToApiLinkItems } from '../multiple-links/multiLinkFormUtils';
+import {
+  validateLinkRows,
+  rowsToApiLinkItems,
+  mergeHubVisitorEmailLinkItems,
+} from '../multiple-links/multiLinkFormUtils';
 import { isAllowedVideoHost, toEmbedSrc } from '../../../utils/videoEmbed';
 
 export const MAX_VIDEO_SLOTS = 5;
@@ -133,6 +137,7 @@ export const buildLinksDocVideoPayload = ({
   docSlots,
   linkRows,
   preciseGeoAnalytics,
+  visitorHubEmail,
 }) => {
   const videoItems = videoSlots
     .filter((slot) => isVideoSlotReady(slot, videoSource))
@@ -171,7 +176,7 @@ export const buildLinksDocVideoPayload = ({
     videoSource,
     videoItems,
     docItems,
-    linkItems: rowsToApiLinkItems(linkRows),
+    linkItems: mergeHubVisitorEmailLinkItems(rowsToApiLinkItems(linkRows), visitorHubEmail),
     preciseGeoAnalytics: !!preciseGeoAnalytics,
   };
 };

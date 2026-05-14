@@ -153,6 +153,18 @@ const useAuthStore = create((set, get) => {
  * Readable message for auth forms — prefers API `message`, then validation
  * `errors[]`, then network / status-specific hints.
  */
+const looksTechnicalMessage = (s) =>
+  typeof s === 'string' &&
+  /redirect_uri|VITE_API_URL|invalid_client|oauth2\.|ECONNREFUSED|ENOTFOUND|could not parse|missing token|empty data from server|invalid payload|Network Error/i.test(
+    s
+  );
+
+const sanitizeAuthMessage = (msg, fallback) => {
+  const t = typeof msg === 'string' ? msg.trim() : '';
+  if (!t || looksTechnicalMessage(t)) return fallback;
+  return t;
+};
+
 const extractError = (err, fallback) => {
   const status = err.response?.status;
   const data = err.response?.data;
@@ -165,15 +177,17 @@ const extractError = (err, fallback) => {
           .slice(1)
           .map((e) => (e && typeof e.message === 'string' ? e.message : ''))
           .filter(Boolean);
-        if (rest.length) return [message.trim(), ...rest].join(' ');
+        if (rest.length) {
+          return sanitizeAuthMessage([message.trim(), ...rest].join(' '), fallback);
+        }
       }
-      return message.trim();
+      return sanitizeAuthMessage(message.trim(), fallback);
     }
     if (Array.isArray(errors) && errors.length) {
       const parts = errors
         .map((e) => (e && typeof e.message === 'string' ? e.message : ''))
         .filter(Boolean);
-      if (parts.length) return parts.join(' ');
+      if (parts.length) return sanitizeAuthMessage(parts.join(' '), fallback);
     }
   }
 
@@ -188,10 +202,13 @@ const extractError = (err, fallback) => {
     if (err.code === 'ECONNABORTED' || /timeout/i.test(err.message || '')) {
       return 'Request timed out. Check your connection and try again.';
     }
-    return 'Unable to reach the server. Check your connection and try again.';
+    return sanitizeAuthMessage(
+      err.message,
+      'Unable to reach the server. Check your connection and try again.'
+    );
   }
 
-  return err.message || fallback;
+  return sanitizeAuthMessage(err.message, fallback);
 };
 
 export default useAuthStore;

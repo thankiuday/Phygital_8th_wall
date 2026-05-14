@@ -7,6 +7,7 @@ import MultiLinksEditor from '../multiple-links/MultiLinksEditor';
 import { campaignService } from '../../../services/campaignService';
 import { detectVideoHost, toEmbedSrc } from '../../../utils/videoEmbed';
 import { buildLinksVideoPayload, validateLinksVideoForm } from './linksVideoFormUtils';
+import { isHubVisitorEmailInputValid } from '../multiple-links/multiLinkFormUtils';
 
 const ACCEPTED_VIDEO_TYPES = 'video/*,.mp4,.webm,.mov,.m4v';
 const MAX_VIDEO_MB = 100;
@@ -81,6 +82,8 @@ const Step1LinksVideo = ({
   onRegenerateName,
   linkRows,
   onLinkRowsChange,
+  visitorHubEmail,
+  onVisitorHubEmailChange,
   preciseGeoAnalytics,
   onPreciseGeoAnalyticsChange,
   onContinue,
@@ -88,6 +91,7 @@ const Step1LinksVideo = ({
   const [nameError, setNameError] = useState('');
   const [videoError, setVideoError] = useState('');
   const [linkError, setLinkError] = useState('');
+  const [visitorEmailError, setVisitorEmailError] = useState('');
 
   const [videoSource, setVideoSource] = useState('upload');
   const [uploading, setUploading] = useState(false);
@@ -211,6 +215,12 @@ const Step1LinksVideo = ({
   };
 
   const handleContinue = () => {
+    if (!isHubVisitorEmailInputValid(visitorHubEmail)) {
+      setVisitorEmailError('Enter a valid email address, or leave this field empty.');
+      return;
+    }
+    setVisitorEmailError('');
+
     const err = validateLinksVideoForm({
       campaignName,
       videoSource,
@@ -240,6 +250,7 @@ const Step1LinksVideo = ({
         externalVideoUrl,
         linkRows,
         preciseGeoAnalytics,
+        visitorHubEmail,
       })
     );
   };
@@ -392,6 +403,20 @@ const Step1LinksVideo = ({
           onLinkRowsChange(next);
         }}
         error={linkError}
+      />
+
+      <FormInput
+        type="email"
+        label="Visitor email (optional)"
+        placeholder="you@example.com — opens compose when tapped on your link page"
+        value={visitorHubEmail}
+        onChange={(e) => {
+          if (visitorEmailError) setVisitorEmailError('');
+          onVisitorHubEmailChange(e.target.value);
+        }}
+        error={visitorEmailError}
+        maxLength={254}
+        hint="Shown as an “Email” button with your links. Leave blank if you add the Email preset in the list above instead."
       />
 
       <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] p-4">

@@ -97,7 +97,11 @@ export const buildStyledOptionsFromPersistedDesign = (design, encodedData, pixel
     dotsOptions: d.dotsOptions || { type: 'square', color: '#000000' },
     cornersSquareOptions: d.cornersSquareOptions || { type: 'square', color: '#000000' },
     cornersDotOptions: d.cornersDotOptions || { type: 'square', color: '#000000' },
-    backgroundOptions: d.backgroundOptions || { color: '#ffffff' },
+    /* Omitted `backgroundOptions` in persisted payload means transparent (see buildQrDesignPayload). */
+    backgroundOptions:
+      d.backgroundOptions && typeof d.backgroundOptions.color === 'string'
+        ? d.backgroundOptions
+        : { color: 'transparent' },
     image: d.image || undefined,
     imageOptions: {
       hideBackgroundDots: Boolean(d.image),

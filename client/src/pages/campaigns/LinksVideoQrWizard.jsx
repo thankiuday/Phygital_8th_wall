@@ -74,6 +74,7 @@ const LinksVideoQrWizard = () => {
   const [design, setDesign] = useState(DEFAULT_DESIGN);
   const [redirectSlug] = useState(() => generatePreviewSlug());
   const [preciseGeoAnalytics, setPreciseGeoAnalytics] = useState(false);
+  const [visitorHubEmail, setVisitorHubEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [draftNotice, setDraftNotice] = useState('');
@@ -93,6 +94,7 @@ const LinksVideoQrWizard = () => {
       setLinkRows(saved.linkRows || []);
       setDesign(hydrateWizardDesignFromDraft(saved.design));
       setPreciseGeoAnalytics(!!saved.preciseGeoAnalytics);
+      setVisitorHubEmail(saved.visitorHubEmail || '');
       if (saved.campaignName && saved.seededCampaignName && saved.campaignName === saved.seededCampaignName && user) {
         setCampaignName(seedCampaignName(user));
       }
@@ -118,6 +120,7 @@ const LinksVideoQrWizard = () => {
       thumbnailUrl,
       linkItems,
       linkRows,
+      visitorHubEmail,
       design,
       preciseGeoAnalytics,
     });
@@ -134,6 +137,7 @@ const LinksVideoQrWizard = () => {
     step,
     thumbnailUrl,
     user,
+    visitorHubEmail,
     videoPublicId,
     videoSource,
     videoUrl,
@@ -196,6 +200,7 @@ const LinksVideoQrWizard = () => {
         thumbnailUrl,
         linkItems,
         linkRows,
+        visitorHubEmail,
         design: qrDesignPayload,
         preciseGeoAnalytics,
       });
@@ -281,6 +286,8 @@ const LinksVideoQrWizard = () => {
                 onRegenerateName={() => setCampaignName(seedCampaignName(user))}
                 linkRows={linkRows}
                 onLinkRowsChange={setLinkRows}
+                visitorHubEmail={visitorHubEmail}
+                onVisitorHubEmailChange={setVisitorHubEmail}
                 preciseGeoAnalytics={preciseGeoAnalytics}
                 onPreciseGeoAnalyticsChange={setPreciseGeoAnalytics}
                 onContinue={handleStep1Continue}

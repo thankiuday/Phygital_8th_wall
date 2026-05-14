@@ -187,6 +187,7 @@ const linkKindEnum = z.enum([
   'linkedin',
   'website',
   'tiktok',
+  'email',
   'custom',
 ]);
 
@@ -196,7 +197,14 @@ const linkItemInputSchema = z
     label: z.string().trim().min(1, 'label is required').max(80),
     value: z.string().trim().min(1, 'value is required').max(500),
   })
-  .strict();
+  .strict()
+  .refine(
+    (d) => {
+      if (d.kind !== 'email') return true;
+      return z.string().email().safeParse(d.value).success;
+    },
+    { message: 'Invalid email address', path: ['value'] }
+  );
 
 /** PATCH body — optional linkId when updating existing hub rows (preserves analytics). */
 const linkItemPatchSchema = linkItemInputSchema.extend({

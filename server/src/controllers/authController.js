@@ -83,14 +83,41 @@ const stateMatches = (providedState, cookieState) => {
   return crypto.timingSafeEqual(a, b);
 };
 
+const trimTrailingSlash = (s) => String(s || '').trim().replace(/\/+$/, '');
+
+/**
+ * OAuth redirect URI sent to Google must match **exactly** what is listed in
+ * Google Cloud Console → Credentials → your OAuth client → Authorized redirect URIs.
+ *
+ * Prefer explicit `GOOGLE_REDIRECT_URI` (e.g. `https://your-api.onrender.com/api/auth/google/callback`).
+ * On Render, if unset, we derive from `RENDER_EXTERNAL_URL` (public URL of this API service).
+ * Alternatively set `API_PUBLIC_URL` to your API origin (with or without trailing `/api`).
+ */
+const resolveGoogleRedirectUri = () => {
+  const explicit = trimTrailingSlash(process.env.GOOGLE_REDIRECT_URI);
+  if (explicit) return explicit;
+
+  const render = trimTrailingSlash(process.env.RENDER_EXTERNAL_URL);
+  if (render) {
+    return `${render}/api/auth/google/callback`;
+  }
+
+  const apiPublic = trimTrailingSlash(process.env.API_PUBLIC_URL);
+  if (apiPublic) {
+    const withApi = apiPublic.endsWith('/api') ? apiPublic : `${apiPublic}/api`;
+    return `${withApi}/auth/google/callback`;
+  }
+
+  return '';
+};
+
 const requireGoogleOauthConfig = () => {
-  const {
-    GOOGLE_CLIENT_ID,
-    GOOGLE_CLIENT_SECRET,
-    GOOGLE_REDIRECT_URI,
-    CLIENT_URL,
-  } = process.env;
-  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_REDIRECT_URI || !CLIENT_URL) {
+  const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+  const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+  const CLIENT_URL = process.env.CLIENT_URL;
+  const GOOGLE_REDIRECT_URI = resolveGoogleRedirectUri();
+
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !CLIENT_URL || !GOOGLE_REDIRECT_URI) {
     throw new AppError('Google authentication is not configured', 500);
   }
   return {
@@ -226,8 +253,19 @@ const googleAuthCallback = async (req, res) => {
         grant_type: 'authorization_code',
       }),
     });
-    if (!tokenRes.ok) return failRedirect('token_exchange_failed');
-    const tokenData = await tokenRes.json();
+    const tokenRaw = await tokenRes.text();
+    let tokenData;
+    try {
+      tokenData = JSON.parse(tokenRaw);
+    } catch {
+      return failRedirect('token_exchange_failed');
+    }
+    if (!tokenRes.ok) {
+      if (tokenData?.error === 'redirect_uri_mismatch') {
+        return failRedirect('google_redirect_uri_mismatch');
+      }
+      return failRedirect('token_exchange_failed');
+    }
     if (!tokenData?.access_token) return failRedirect('token_exchange_failed');
 
     const userInfoRes = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {

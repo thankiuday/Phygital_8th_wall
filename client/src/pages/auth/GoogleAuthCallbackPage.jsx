@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import useAuthStore from '../../store/useAuthStore';
 import useGuestCampaignDraftStore from '../../store/useGuestCampaignDraftStore';
+import { oauthCallbackErrorMessage } from '../../utils/authUiMessages';
 
 const draftTypeToRoute = {
   'single-link': '/create/dynamic-qr/single-link',
@@ -30,11 +31,11 @@ const GoogleAuthCallbackPage = () => {
       const exchangeCode = searchParams.get('code');
       const providerError = searchParams.get('error');
       if (providerError) {
-        setError('Google sign-in was cancelled or failed. Please try again.');
+        setError(oauthCallbackErrorMessage(providerError));
         return;
       }
       if (!exchangeCode) {
-        setError('Google sign-in could not be completed. Missing callback code.');
+        setError(oauthCallbackErrorMessage('missing_code'));
         return;
       }
       const result = await completeGoogleAuth(exchangeCode);
@@ -70,7 +71,7 @@ const GoogleAuthCallbackPage = () => {
       <div className="w-full max-w-md rounded-2xl border border-[var(--border-color)] bg-[var(--surface-1)] p-6 text-center shadow-xl">
         {error ? (
           <>
-            <h1 className="text-lg font-semibold text-[var(--text-primary)]">Google sign-in failed</h1>
+            <h1 className="text-lg font-semibold text-[var(--text-primary)]">We couldn&apos;t finish Google sign-in</h1>
             <p className="mt-2 text-sm text-red-400">{error}</p>
             <Link
               to="/login"

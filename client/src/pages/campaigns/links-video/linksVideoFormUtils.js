@@ -1,4 +1,8 @@
-import { validateLinkRows, rowsToApiLinkItems } from '../multiple-links/multiLinkFormUtils';
+import {
+  validateLinkRows,
+  rowsToApiLinkItems,
+  mergeHubVisitorEmailLinkItems,
+} from '../multiple-links/multiLinkFormUtils';
 import { isAllowedVideoHost, toEmbedSrc } from '../../../utils/videoEmbed';
 
 export const validateLinksVideoForm = ({
@@ -38,6 +42,7 @@ export const buildLinksVideoPayload = ({
   externalVideoUrl,
   linkRows,
   preciseGeoAnalytics,
+  visitorHubEmail,
 }) => ({
   campaignName: campaignName.trim(),
   videoSource,
@@ -50,7 +55,7 @@ export const buildLinksVideoPayload = ({
     : {
       externalVideoUrl: externalVideoUrl.trim(),
     }),
-  linkItems: rowsToApiLinkItems(linkRows),
+  linkItems: mergeHubVisitorEmailLinkItems(rowsToApiLinkItems(linkRows), visitorHubEmail),
   preciseGeoAnalytics: !!preciseGeoAnalytics,
 });
 

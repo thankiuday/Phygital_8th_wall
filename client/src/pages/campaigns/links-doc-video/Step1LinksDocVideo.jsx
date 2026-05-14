@@ -34,6 +34,7 @@ import {
   labelFromFileName,
   validateLinksDocVideoForm,
 } from './linksDocVideoFormUtils';
+import { isHubVisitorEmailInputValid } from '../multiple-links/multiLinkFormUtils';
 
 const ACCEPTED_VIDEO_TYPES = 'video/*,.mp4,.webm,.mov,.m4v';
 const MAX_VIDEO_MB = 100;
@@ -528,6 +529,8 @@ const Step1LinksDocVideo = ({
   onDocSlotsChange,
   linkRows,
   onLinkRowsChange,
+  visitorHubEmail,
+  onVisitorHubEmailChange,
   preciseGeoAnalytics,
   onPreciseGeoAnalyticsChange,
   onContinue,
@@ -535,6 +538,7 @@ const Step1LinksDocVideo = ({
   const [nameError, setNameError] = useState('');
   const [topError, setTopError] = useState('');
   const [linkError, setLinkError] = useState('');
+  const [visitorEmailError, setVisitorEmailError] = useState('');
 
   const updateVideoSlot = (uid, next) =>
     onVideoSlotsChange(videoSlots.map((s) => (s.uid === uid ? next : s)));
@@ -561,6 +565,12 @@ const Step1LinksDocVideo = ({
   };
 
   const handleContinue = () => {
+    if (!isHubVisitorEmailInputValid(visitorHubEmail)) {
+      setVisitorEmailError('Enter a valid email address, or leave this field empty.');
+      return;
+    }
+    setVisitorEmailError('');
+
     const err = validateLinksDocVideoForm({
       campaignName,
       videoSource,
@@ -594,6 +604,7 @@ const Step1LinksDocVideo = ({
         docSlots,
         linkRows,
         preciseGeoAnalytics,
+        visitorHubEmail,
       })
     );
   };
@@ -735,6 +746,20 @@ const Step1LinksDocVideo = ({
           onLinkRowsChange(next);
         }}
         error={linkError}
+      />
+
+      <FormInput
+        type="email"
+        label="Visitor email (optional)"
+        placeholder="you@example.com — opens compose when tapped on your link page"
+        value={visitorHubEmail}
+        onChange={(e) => {
+          if (visitorEmailError) setVisitorEmailError('');
+          onVisitorHubEmailChange(e.target.value);
+        }}
+        error={visitorEmailError}
+        maxLength={254}
+        hint="Shown as an “Email” button with your links. Leave blank if you add the Email preset in the list above instead."
       />
 
       {topError && (

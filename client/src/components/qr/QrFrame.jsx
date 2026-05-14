@@ -32,11 +32,18 @@ const QrFrame = ({
   const [hostWidth, setHostWidth] = useState(0);
 
   const layout = useMemo(() => {
-    if (variant === 'bottom-bar') return { width: size, height: size + 56 };
-    if (variant === 'bottom-arrow') return { width: size, height: size + 64 };
-    if (variant === 'right-arrow') return { width: size + 96 + 16, height: size };
+    const cap = String(caption || '');
+    const approxCharsPerLine = Math.max(8, Math.floor(size / 8));
+    const lineCount = Math.max(1, Math.ceil(cap.length / approxCharsPerLine));
+    const extraH = Math.max(0, lineCount - 1) * 14;
+    if (variant === 'bottom-bar') return { width: size, height: size + 56 + extraH };
+    if (variant === 'bottom-arrow') return { width: size, height: size + 64 + extraH };
+    if (variant === 'right-arrow') {
+      const pillW = Math.min(220, Math.max(96, Math.ceil(cap.length * 6.5) + 28));
+      return { width: size + pillW + 16, height: size };
+    }
     return { width: size, height: size };
-  }, [size, variant]);
+  }, [size, variant, caption]);
 
   useLayoutEffect(() => {
     const node = hostRef.current;
@@ -90,10 +97,10 @@ const QrFrame = ({
                 />
               </div>
               <div
-                className="absolute bottom-0 flex w-full items-center justify-center rounded-2xl text-white"
+                className="absolute bottom-0 flex w-full items-center justify-center rounded-2xl px-2 py-2 text-center text-xs leading-snug text-white break-words sm:text-sm"
                 style={{
                   background: color,
-                  height: 44,
+                  minHeight: 44,
                   left: 0,
                   fontWeight: 700,
                   letterSpacing: 0.5,
@@ -133,10 +140,10 @@ const QrFrame = ({
                 <polygon points="0,0 24,0 12,12" fill={color} />
               </svg>
               <div
-                className="absolute bottom-0 flex w-full items-center justify-center rounded-full text-white"
+                className="absolute bottom-0 flex w-full items-center justify-center rounded-full px-2 py-1.5 text-center text-xs leading-snug text-white break-words sm:text-sm"
                 style={{
                   background: color,
-                  height: 36,
+                  minHeight: 36,
                   left: 0,
                   fontWeight: 700,
                   letterSpacing: 0.5,
@@ -175,11 +182,11 @@ const QrFrame = ({
                 <polygon points="0,0 12,12 0,24" fill={color} />
               </svg>
               <div
-                className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-full text-white"
+                className="absolute right-0 top-1/2 flex max-w-[220px] min-w-[96px] -translate-y-1/2 items-center justify-center rounded-full px-2 py-1.5 text-center text-xs leading-snug text-white break-words sm:text-sm"
                 style={{
                   background: color,
-                  width: 96,
-                  height: 36,
+                  minHeight: 36,
+                  width: Math.min(220, Math.max(96, Math.ceil(String(caption || '').length * 6.5) + 28)),
                   fontWeight: 700,
                   letterSpacing: 0.5,
                 }}

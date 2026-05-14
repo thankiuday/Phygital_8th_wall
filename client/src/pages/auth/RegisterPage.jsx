@@ -6,6 +6,7 @@ import AuthCard from '../../components/ui/AuthCard';
 import FormInput from '../../components/ui/FormInput';
 import useAuthStore from '../../store/useAuthStore';
 import { authService } from '../../services/authService';
+import { oauthCallbackErrorMessage } from '../../utils/authUiMessages';
 import useGuestCampaignDraftStore from '../../store/useGuestCampaignDraftStore';
 
 /* ── Password strength meter ─────────────────────────────────────── */
@@ -173,6 +174,14 @@ const RegisterPage = () => {
     },
     []
   );
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const oauthErr = params.get('error');
+    if (!oauthErr) return;
+    setApiError(oauthCallbackErrorMessage(oauthErr));
+    navigate({ pathname: location.pathname, search: '' }, { replace: true, state: location.state });
+  }, [location.pathname, location.search, location.state, navigate]);
 
   const handleGoogleSignup = (e) => {
     if (form.agreedToCertification) return;

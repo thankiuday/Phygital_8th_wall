@@ -11,6 +11,7 @@ const LINK_KINDS = new Set([
   'linkedin',
   'website',
   'tiktok',
+  'email',
   'custom',
 ]);
 
@@ -67,6 +68,16 @@ const resolveLinkHref = (kind, value) => {
     }
     case 'tiktok':
       return `https://www.tiktok.com/@${handleFromValue(v)}`;
+    case 'email': {
+      const addr = String(v)
+        .replace(/^mailto:/i, '')
+        .split('?')[0]
+        .trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addr)) {
+        throw new RangeError('Invalid email address');
+      }
+      return `mailto:${addr}`;
+    }
     case 'website':
     case 'custom':
       return safeUrl(v);

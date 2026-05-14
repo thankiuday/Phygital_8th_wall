@@ -8,6 +8,7 @@ import {
   Briefcase,
   Globe,
   Music2,
+  Mail,
   Plus,
   Trash2,
 } from 'lucide-react';
@@ -17,6 +18,7 @@ import { newRowKey } from './multiLinkFormUtils';
 export const MULTI_LINK_PRESETS = [
   { kind: 'contact', label: 'Contact Number', Icon: Phone },
   { kind: 'whatsapp', label: 'WhatsApp', Icon: MessageCircle },
+  { kind: 'email', label: 'Email', Icon: Mail },
   { kind: 'instagram', label: 'Instagram', Icon: AtSign },
   { kind: 'facebook', label: 'Facebook', Icon: Users },
   { kind: 'twitter', label: 'Twitter / X', Icon: Feather },
@@ -58,6 +60,7 @@ const MultiLinksEditor = ({ rows, onRowsChange, error }) => {
 
   const valuePlaceholderForKind = (kind) => {
     if (kind === 'contact') return '+1 555 123 4567';
+    if (kind === 'email') return 'you@example.com';
     if (kind === 'whatsapp') return '+91 98765 43210';
     if (kind === 'instagram') return '@yourhandle or https://instagram.com/yourhandle';
     if (kind === 'facebook') return 'https://facebook.com/yourpage';
@@ -125,20 +128,24 @@ const MultiLinksEditor = ({ rows, onRowsChange, error }) => {
                   label={
                     row.kind === 'contact'
                       ? 'Phone number'
-                      : row.kind === 'whatsapp'
-                        ? 'WhatsApp number'
-                        : row.kind === 'website' || row.kind === 'custom'
-                          ? 'URL'
-                          : row.kind === 'linkedin'
-                            ? 'Profile URL or handle'
-                            : 'Username or URL'
+                      : row.kind === 'email'
+                        ? 'Email address'
+                        : row.kind === 'whatsapp'
+                          ? 'WhatsApp number'
+                          : row.kind === 'website' || row.kind === 'custom'
+                            ? 'URL'
+                            : row.kind === 'linkedin'
+                              ? 'Profile URL or handle'
+                              : 'Username or URL'
                   }
                   value={row.value}
                   onChange={(e) => updateRow(row.key, { value: e.target.value })}
                   placeholder={
                     row.kind === 'website' || row.kind === 'custom'
                       ? 'https://example.com'
-                      : valuePlaceholderForKind(row.kind)
+                      : row.kind === 'email'
+                        ? 'you@example.com'
+                        : valuePlaceholderForKind(row.kind)
                   }
                 />
                 <p className="text-xs text-[var(--text-muted)]">{row.label}</p>

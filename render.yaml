@@ -9,6 +9,10 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # SPA origin (OAuth return + cookies). Google OAuth: set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET
+      # in the dashboard. Add this exact Authorized redirect URI in Google Cloud (OAuth client):
+      #   https://phygital8thwall-api.onrender.com/api/auth/google/callback
+      # You may omit GOOGLE_REDIRECT_URI on Render; the API derives it from RENDER_EXTERNAL_URL.
       - key: CLIENT_URL
         value: https://phygital8thwall-client.onrender.com
     healthCheckPath: /health
