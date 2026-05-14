@@ -144,7 +144,11 @@ const arCardCreateSchema = z
     targetImagePublicId: z.string().min(1).optional(),
     videoUrl: z.string().url('videoUrl must be a valid URL'),
     videoPublicId: z.string().min(1).optional(),
-    thumbnailUrl: z.string().url().nullable().optional(),
+    // Mobile clients sometimes send "" for missing thumbnail — treat as absent.
+    thumbnailUrl: z.preprocess(
+      (v) => (v === '' || v === undefined ? null : v),
+      z.union([z.null(), z.string().url('thumbnailUrl must be a valid URL')]).optional()
+    ),
   })
   .strict();
 

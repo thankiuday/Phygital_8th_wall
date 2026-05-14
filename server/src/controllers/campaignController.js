@@ -136,7 +136,7 @@ const createArCardCampaign = async (req, res) => {
     targetImagePublicId,
     videoUrl,
     videoPublicId,
-    thumbnailUrl: thumbnailUrl || null,
+    thumbnailUrl: thumbnailUrl ?? null,
     status: 'active',
   });
 
