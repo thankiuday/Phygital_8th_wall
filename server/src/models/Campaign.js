@@ -105,12 +105,15 @@ const campaignSchema = new mongoose.Schema(
 
     /**
      * redirectSlug — short, opaque, URL-safe id used in the printed QR.
-     * 8-char nanoid; sparse so AR campaigns (which don't have one) don't
-     * collide on the unique index.  Immutable after creation.
+     * 8-char nanoid; unique + sparse index.
+     *
+     * IMPORTANT: do **not** use `default: null`. Sparse indexes still index
+     * `null`, so only one document in the collection could have redirectSlug=null
+     * (E11000 on the second AR campaign). AR / legacy rows must **omit** this
+     * field; hub types always set a non-empty string.
      */
     redirectSlug: {
       type: String,
-      default: null,
       index: { unique: true, sparse: true },
       immutable: true,
     },
