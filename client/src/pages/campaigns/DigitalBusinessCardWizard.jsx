@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Eye, EyeOff, ChevronLeft } from 'lucide-react';
 import { createPortal } from 'react-dom';
@@ -41,6 +41,7 @@ const seedCardName = (user) => {
  */
 const DigitalBusinessCardWizard = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuthStore();
   const draft = useDigitalCardDraftStore();
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -48,6 +49,35 @@ const DigitalBusinessCardWizard = () => {
   // since it's purely a UI affordance for Step 4.
   const [printFace, setPrintFace] = useState('front');
   const canGoBack = draft.step > 0;
+
+  /**
+   * Starting a *new* card (e.g. Identity hub → "Create new business card") uses
+   * `?new=1`. The draft store is persisted in localStorage, so without this
+   * the previous card's fields would reappear after rehydration — we must clear
+   * **after** persist finishes rehydrating or the old snapshot overwrites reset.
+   */
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('new') !== '1') return undefined;
+
+    const applyFreshDraft = () => {
+      useDigitalCardDraftStore.getState().reset();
+      useDigitalCardDraftStore.getState().setCampaignName(seedCardName(useAuthStore.getState().user));
+      useDigitalCardDraftStore.getState().setStep(0);
+      navigate({ pathname: location.pathname, search: '' }, { replace: true });
+    };
+
+    const { persist } = useDigitalCardDraftStore;
+    if (persist?.hasHydrated?.()) {
+      applyFreshDraft();
+      return undefined;
+    }
+    if (typeof persist?.onFinishHydration === 'function') {
+      return persist.onFinishHydration(applyFreshDraft);
+    }
+    const t = window.setTimeout(applyFreshDraft, 0);
+    return () => window.clearTimeout(t);
+  }, [location.pathname, location.search, navigate]);
 
   // First-time visitors get an auto-seeded name. Don't clobber whatever the
   // user typed (or what's already saved in localStorage).
@@ -60,8 +90,9 @@ const DigitalBusinessCardWizard = () => {
   const goTo = (step) => draft.setStep(step);
 
   const finishWizard = () => {
+    const savedId = draft.savedCampaignId;
     draft.reset();
-    navigate('/dashboard/campaigns');
+    navigate(savedId ? `/dashboard/identity?focus=${savedId}` : '/dashboard/identity');
   };
 
   // Step 4 swaps the hub preview for a true printable-card preview (front +
@@ -97,7 +128,9 @@ const DigitalBusinessCardWizard = () => {
             face={printFace}
             mode="preview"
             previewWidth={340}
-            cardSlug={draft.savedCardSlug || draft.cardSlug}
+            qrHubUrl={draft.publicUrl || null}
+            qrPayloadUrl={draft.qrUrl}
+            redirectSlug={draft.savedRedirectSlug}
           />
           <p className="text-[11px] text-[var(--text-muted)]">
             300 DPI, full bleed. Front and back render as two separate PNGs on download.

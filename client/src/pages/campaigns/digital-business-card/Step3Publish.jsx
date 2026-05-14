@@ -245,6 +245,7 @@ const Step3Publish = ({ draft, store, onContinue, onBack }) => {
         cardSlug: savedCampaign.cardSlug || slugToSave || draft.cardSlug,
         qrUrl: qr?.redirectUrl || null,
         publicUrl: qr?.publicUrl || null,
+        redirectSlug: savedCampaign.redirectSlug || null,
       });
       if (savedCampaign.cardSlug && savedCampaign.cardSlug !== draft.cardSlug) {
         store.setSlug(savedCampaign.cardSlug);

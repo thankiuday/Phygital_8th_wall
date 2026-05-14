@@ -3,7 +3,11 @@ import { useParams, useSearchParams } from 'react-router-dom';
 
 import publicApi from '../services/publicApi';
 import { getCardSize } from '../components/card/cardSizes';
-import BusinessCardPrintPreview from '../components/card/BusinessCardPrintPreview';
+import BusinessCardPrintPreview, {
+  mergeCardPrintSettings,
+} from '../components/card/BusinessCardPrintPreview';
+
+const EMPTY_PRINT = {};
 
 /**
  * DigitalCardPrintPage — what Puppeteer screenshots.
@@ -23,8 +27,17 @@ import BusinessCardPrintPreview from '../components/card/BusinessCardPrintPrevie
  */
 
 const fetchPublicMeta = async (id) => {
-  const res = await publicApi.get(`/public/card/${id}/meta`);
-  return res.data.data;
+  /** Avoid stale 304 / browser cache from serving card without `cardPrintSettings` / `redirectUrl` / `publicUrl`. */
+  const res = await publicApi.get(`/public/card/${id}/meta`, {
+    params: { _: Date.now() },
+    headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+  });
+  const body = res.data;
+  const payload = body && typeof body === 'object' ? body.data : null;
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid card meta response');
+  }
+  return payload;
 };
 
 const verifyPrintToken = async (token, campaignId) => {
@@ -68,15 +81,24 @@ const DigitalCardPrintPage = () => {
     })();
   }, [id, token, campaignId]);
 
-  // Mark ready when fonts + images settle. The preview component paints its
-  // own QR; we just wait until everything is laid out before signalling.
+  // Mark ready when fonts settle, QR flag + canvas (if QR enabled for this face),
+  // profile images decoded, then layout flushes.
   useEffect(() => {
     if (!meta) return;
     let cancelled = false;
-    const ready = async () => {
-      try { await document.fonts?.ready; } catch {/* ignore */}
+
+    const expectQrCanvas = () => {
+      const merged = mergeCardPrintSettings(meta.cardPrintSettings);
+      const includeQr = merged.includeQr !== false;
+      const placement = merged.qrPlacement || 'back';
+      const wantFront = placement === 'front' || placement === 'both';
+      const wantBack = placement === 'back' || placement === 'both';
+      return includeQr && (face === 'back' ? wantBack : wantFront);
+    };
+
+    const waitAllImages = () => {
       const imgs = Array.from(document.querySelectorAll('img'));
-      await Promise.all(
+      return Promise.all(
         imgs.map((img) =>
           img.complete
             ? Promise.resolve()
@@ -86,22 +108,54 @@ const DigitalCardPrintPage = () => {
               })
         )
       );
-      // Wait until QR SVG is mounted by the preview component.
-      const waitForQr = async () => {
-        const t0 = Date.now();
-        while (Date.now() - t0 < 10_000) {
-          const qrReady = document.querySelector('[data-qr-ready="1"]');
-          if (qrReady) return;
-          await new Promise((res) => setTimeout(res, 50));
-        }
-      };
-      await waitForQr();
-      // 2 RAFs so QR-styling SVG flushes + any lingering layout settles.
+    };
+
+    const decodeImages = () =>
+      Promise.all(
+        Array.from(document.querySelectorAll('img')).map((img) =>
+          typeof img.decode === 'function'
+            ? img.decode().catch(() => {})
+            : Promise.resolve()
+        )
+      );
+
+    const waitForQrFlag = async () => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < 15_000) {
+        const qrReady = document.querySelector('[data-qr-ready="1"]');
+        if (qrReady) return;
+        await new Promise((res) => setTimeout(res, 40));
+      }
+    };
+
+    /** After flag, ensure a canvas exists when this face should show a QR (Puppeteer must not snapshot an empty mount). */
+    const waitForQrCanvasIfNeeded = async () => {
+      if (!expectQrCanvas()) return;
+      const t0 = Date.now();
+      while (Date.now() - t0 < 10_000) {
+        if (cancelled) return;
+        const root = document.querySelector('[data-qr-ready="1"]');
+        if (root?.querySelector('canvas')) return;
+        await new Promise((res) => setTimeout(res, 40));
+      }
+    };
+
+    const ready = async () => {
+      try {
+        await document.fonts?.ready;
+      } catch {/* ignore */}
+      await waitForQrFlag();
+      await waitForQrCanvasIfNeeded();
+      await waitAllImages();
+      await decodeImages();
       await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
       if (!cancelled) document.documentElement.setAttribute('data-print-ready', '1');
     };
     ready();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      document.documentElement.removeAttribute('data-print-ready');
+    };
   }, [meta, face]);
 
   if (error) {
@@ -125,11 +179,12 @@ const DigitalCardPrintPage = () => {
       <BusinessCardPrintPreview
         content={meta.cardContent || {}}
         design={meta.cardDesign || {}}
-        print={meta.cardPrintSettings || {}}
+        print={meta.cardPrintSettings ?? EMPTY_PRINT}
         face={face}
         mode="print"
         redirectSlug={meta.redirectSlug}
-        cardSlug={meta.cardSlug}
+        qrHubUrl={meta.publicUrl || null}
+        qrPayloadUrl={meta.redirectUrl || null}
       />
     </div>
   );

@@ -16,11 +16,11 @@ import {
  * `BusinessCardPrintPreview` component on this step (with Front/Back tabs).
  * This page renders the controls only; the live mockup never duplicates here.
  *
- * On "Generate PNGs" we trigger one round-trip that asks the server to
+ * On "Generate & download PNGs" we trigger one round-trip that asks the server to
  * render both front and back. The client then polls each face's job id
  * (when BullMQ is on) or receives both URLs immediately (direct-render).
- * "Download" fires two anchor clicks back-to-back so the browser saves both
- * files without the user having to ask for the back face separately.
+ * When both faces succeed, downloads start automatically (staggered). The manual
+ * "Download Card" button remains for grabbing the files again.
  */
 
 const initialJob = () => ({ status: 'idle', url: null, public_id: null, jobId: null, filename: null });
@@ -153,6 +153,16 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
           ? { url: settled.back.url, public_id: settled.back.public_id, filename: settled.back.filename }
           : null,
       });
+
+      const autoFrontReady = settled.front?.status === 'ready' && settled.front?.url;
+      const autoBackReady = settled.back?.status === 'ready' && settled.back?.url;
+      if (autoFrontReady && autoBackReady) {
+        triggerDownload(settled.front.url, settled.front.filename || `card-${p.cardSize}-front.png`);
+        setTimeout(() => {
+          triggerDownload(settled.back.url, settled.back.filename || `card-${p.cardSize}-back.png`);
+        }, 350);
+      }
+
       setBusy(false);
     } catch (err) {
       setError(err?.response?.data?.message || 'Failed to render card. Please try again.');
@@ -233,7 +243,7 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
                 type="button"
                 onClick={() => store.patchPrint({ qrPlacement: q.id })}
                 className={`rounded-full border px-3 py-1 text-xs ${
-                  (p.qrPlacement || 'both') === q.id
+                  (p.qrPlacement || 'back') === q.id
                     ? 'border-brand-500 bg-brand-500/15 text-brand-300'
                     : 'border-[var(--border-color)] bg-[var(--surface-2)] text-[var(--text-secondary)]'
                 }`}
@@ -336,7 +346,7 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
           className="wizard-btn-primary px-4 py-2 disabled:opacity-50"
         >
           {busy || pending ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />}
-          {ready ? 'Re-render PNGs' : 'Generate PNGs'}
+          {ready ? 'Re-render & download' : 'Generate & download PNGs'}
         </button>
 
         {ready && (

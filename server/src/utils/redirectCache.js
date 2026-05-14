@@ -117,7 +117,7 @@ const dynamicQrMetaCache = createSlugCache('qr:meta:');
  * keep Mongo cold on the hot path. Eviction happens in the controller on
  * updateCampaign / deleteCampaign / cardSlug rename.
  */
-const cardMetaCache = createSlugCache('qr:card:meta:');
+const cardMetaCache = createSlugCache('qr:card:meta:v4:');
 
 logger.info(`redirectCache: backend=${redirectCache.backend}`);
 logger.info(`dynamicQrMetaCache: backend=${dynamicQrMetaCache.backend}`);

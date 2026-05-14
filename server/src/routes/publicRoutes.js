@@ -738,14 +738,35 @@ router.get('/card/:slug/meta', cardSlugLimiter, async (req, res) => {
     sections,
   });
 
+  const apiBase =
+    process.env.PUBLIC_REDIRECT_BASE
+    || process.env.API_URL
+    || `${req.protocol}://${req.get('host')}`;
+  const apiRoot = String(apiBase || '').replace(/\/$/, '');
+  const redirectUrl = campaign.redirectSlug
+    ? `${apiRoot}/r/${campaign.redirectSlug}`
+    : null;
+
+  const clientBase = (process.env.CLIENT_URL || '').replace(/\/$/, '');
+  const publicUrl =
+    clientBase && campaign.cardSlug
+      ? `${clientBase}/card/${campaign.cardSlug}`
+      : null;
+
   const payload = {
     campaignName: campaign.campaignName,
     cardSlug: campaign.cardSlug,
     redirectSlug: campaign.redirectSlug,
+    /** Same target the QR endpoint uses — print page + downloads encode this URL. */
+    redirectUrl,
+    /** Friendly hub URL for printed QR (`/card/:slug`). */
+    publicUrl,
     status: campaign.status,
     paused: campaign.status === 'paused',
     cardContent,
     cardDesign: campaign.cardDesign || null,
+    /** Required for /print/card Puppeteer + BusinessCardPrintPreview (QR placement, includeQr, etc.). */
+    cardPrintSettings: campaign.cardPrintSettings || null,
   };
 
   await cardMetaCache.set(slug, payload);

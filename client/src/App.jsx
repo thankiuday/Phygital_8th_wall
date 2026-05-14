@@ -47,6 +47,7 @@ const LinkHubPage            = lazy(() => import('./pages/LinkHubPage'));
 const CampaignDetailPage     = lazy(() => import('./pages/campaigns/CampaignDetailPage'));
 const AnalyticsPage          = lazy(() => import('./pages/analytics/AnalyticsPage'));
 const CampaignAnalyticsPage  = lazy(() => import('./pages/analytics/CampaignAnalyticsPage'));
+const PersonalizedIdentityPage = lazy(() => import('./pages/campaigns/PersonalizedIdentityPage'));
 const AccountSettingsPage    = lazy(() => import('./pages/settings/AccountSettingsPage'));
 const ProfilePage            = lazy(() => import('./pages/settings/ProfilePage'));
 const NotificationsPage      = lazy(() => import('./pages/notifications/NotificationsPage'));
@@ -132,6 +133,7 @@ function App() {
               }
             >
               <Route index element={<RouteLoader><DashboardPage /></RouteLoader>} />
+              <Route path="identity" element={<RouteLoader><PersonalizedIdentityPage /></RouteLoader>} />
               <Route path="campaigns"            element={<RouteLoader><CampaignsListPage /></RouteLoader>} />
               <Route path="campaigns/new"        element={<RouteLoader><PhygitalizePickerPage /></RouteLoader>} />
               <Route path="campaigns/new/phygital-qr/links-video"      element={<RouteLoader><LinksVideoQrWizard /></RouteLoader>} />

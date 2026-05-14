@@ -6,8 +6,9 @@
  * on-screen preview is byte-equivalent to the rendered PNG.
  *
  * All pixel values are at 300 DPI (industry standard for offset/digital
- * printing). The Puppeteer renderer uses `deviceScaleFactor: 1` because
- * these dimensions are already encoded at print resolution.
+ * printing). Puppeteer uses a `deviceScaleFactor` > 1 (`CARD_RENDER_DPR`, default 3)
+ * so exported PNGs carry extra physical pixels for crisp zoom/print on top of
+ * those logical bleed dimensions.
  *
  * Geometry contract per preset:
  *   trim   = visible card area

@@ -60,7 +60,7 @@ const emptyDraft = () => ({
     cardSize: DEFAULT_CARD_SIZE,
     theme: 'white',
     qrPosition: 'bottom-right',
-    qrPlacement: 'both',
+    qrPlacement: 'back',
     includeQr: true,
     displayFields: ['name', 'jobTitle', 'company', 'phone', 'email', 'website'],
     profileZoom: 1,
@@ -70,6 +70,8 @@ const emptyDraft = () => ({
   // Publish state
   savedCampaignId: null,
   savedCardSlug: null,
+  /** Short slug used in GET /r/:savedRedirectSlug (differs from vanity cardSlug). */
+  savedRedirectSlug: null,
   qrUrl: null,
   publicUrl: null,
   // Print state (last known render result)
@@ -165,10 +167,11 @@ const useDigitalCardDraftStore = create(
         }));
       },
 
-      setSavedCampaign: ({ campaignId, cardSlug, qrUrl, publicUrl }) =>
+      setSavedCampaign: ({ campaignId, cardSlug, qrUrl, publicUrl, redirectSlug }) =>
         set({
           savedCampaignId: campaignId,
           savedCardSlug: cardSlug,
+          savedRedirectSlug: redirectSlug || null,
           qrUrl: qrUrl || null,
           publicUrl: publicUrl || null,
         }),
@@ -197,6 +200,7 @@ const useDigitalCardDraftStore = create(
         cardPrintSettings: state.cardPrintSettings,
         savedCampaignId: state.savedCampaignId,
         savedCardSlug: state.savedCardSlug,
+        savedRedirectSlug: state.savedRedirectSlug,
         qrUrl: state.qrUrl,
         publicUrl: state.publicUrl,
       }),

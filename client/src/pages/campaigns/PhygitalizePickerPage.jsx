@@ -90,7 +90,7 @@ const buildSections = (basePath) => [
         title: 'Personalized Identity',
         description: 'A branded digital card with your photo, contacts, and social links.',
         icon: User,
-        to: '/dashboard/campaigns/new/digital-business-card/personalized-identity',
+        to: '/dashboard/identity',
         available: true,
       },
       {

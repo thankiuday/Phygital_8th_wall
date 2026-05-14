@@ -219,6 +219,11 @@ const CampaignDetailPage = () => {
     load();
   }, [id]);
 
+  useEffect(() => {
+    if (!campaign || campaign.campaignType !== 'digital-business-card') return;
+    navigate(`/dashboard/identity?focus=${id}`, { replace: true });
+  }, [campaign, id, navigate]);
+
   const toggleStatus = async () => {
     setActionLoading(true);
     const newStatus = campaign.status === 'active' ? 'paused' : 'active';
@@ -235,7 +240,12 @@ const CampaignDetailPage = () => {
     setActionLoading(true);
     try {
       await campaignService.deleteCampaign(id);
-      navigate('/dashboard/campaigns', { replace: true });
+      navigate(
+        campaign.campaignType === 'digital-business-card'
+          ? '/dashboard/identity'
+          : '/dashboard/campaigns',
+        { replace: true },
+      );
     } finally {
       setActionLoading(false);
     }
@@ -245,7 +255,11 @@ const CampaignDetailPage = () => {
     setActionLoading(true);
     try {
       const copy = await campaignService.duplicateCampaign(id);
-      navigate(`/dashboard/campaigns/${copy._id}`);
+      if (copy.campaignType === 'digital-business-card') {
+        navigate(`/dashboard/identity?focus=${copy._id}`, { replace: true });
+      } else {
+        navigate(`/dashboard/campaigns/${copy._id}`);
+      }
     } catch {
       // silent — user stays on the page
     } finally {
@@ -315,6 +329,15 @@ const CampaignDetailPage = () => {
       <div className="flex flex-col items-center gap-4 py-16 text-center">
         <p className="text-[var(--text-secondary)]">{error || 'Campaign not found.'}</p>
         <Link to="/dashboard/campaigns" className="text-sm text-brand-400 hover:underline">← Back to campaigns</Link>
+      </div>
+    );
+  }
+
+  if (campaign.campaignType === 'digital-business-card') {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-400" aria-hidden />
+        <p className="text-sm text-[var(--text-muted)]">Opening personalized identity…</p>
       </div>
     );
   }

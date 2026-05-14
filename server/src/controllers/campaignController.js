@@ -524,7 +524,7 @@ const DEFAULT_CARD_PRINT_SETTINGS = Object.freeze({
   cardSize: DEFAULT_CARD_SIZE,
   theme: 'white',
   qrPosition: 'bottom-right',
-  qrPlacement: 'both',
+  qrPlacement: 'back',
   includeQr: true,
   displayFields: ['name', 'jobTitle', 'company', 'phone', 'email', 'website'],
   profileZoom: 1.0,
@@ -811,11 +811,43 @@ const createLinksVideoCampaign = async (req, res) => {
   return created(res, { campaign }, 'Links + Video QR campaign created successfully');
 };
 
+/* Allowlist — dashboard list / identity hub rows: omits heavy Mixed blobs
+   (cardContent, cardDesign, cardPrintSettings, qrDesign) so GET payloads stay small.
+   Never expose arbitrary client-driven field paths on .select(). */
+const CAMPAIGN_LIST_VIEW_FIELDS = [
+  '_id',
+  'campaignName',
+  'campaignType',
+  'status',
+  'thumbnailUrl',
+  'targetImageUrl',
+  'videoUrl',
+  'qrCodeUrl',
+  'redirectSlug',
+  'cardSlug',
+  'destinationUrl',
+  'ownerHandle',
+  'hubSlug',
+  'linkItems',
+  'preciseGeoAnalytics',
+  'analytics',
+  'createdAt',
+  'updatedAt',
+];
+
 /* ─────────────────────────────────────────
    GET /api/campaigns
    ───────────────────────────────────────── */
 const getCampaigns = async (req, res) => {
-  const { status, campaignType, page = 1, limit = 12 } = req.query;
+  const {
+    status,
+    campaignType,
+    page = 1,
+    limit = 12,
+    view,
+  } = req.query;
+
+  const viewList = view === 'list';
 
   // Soft-delete filter applied to every dashboard query.
   const filter = { userId: req.user._id, isDeleted: { $ne: true } };
@@ -838,12 +870,21 @@ const getCampaigns = async (req, res) => {
 
   const skip = (Number(page) - 1) * Number(limit);
 
+  // When filtering by type + list view, prefer updatedAt to align with
+  // compound index { userId: 1, isDeleted: 1, campaignType: 1, updatedAt: -1 }.
+  const sort =
+    viewList && filter.campaignType
+      ? { updatedAt: -1 }
+      : { createdAt: -1 };
+
+  let findQuery = Campaign.find(filter).sort(sort).skip(skip).limit(Number(limit));
+
+  if (viewList) {
+    findQuery = findQuery.select(CAMPAIGN_LIST_VIEW_FIELDS.join(' '));
+  }
+
   const [campaigns, total] = await Promise.all([
-    Campaign.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(Number(limit))
-      .lean(),
+    findQuery.lean(),
     Campaign.countDocuments(filter),
   ]);
 

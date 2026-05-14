@@ -196,7 +196,11 @@ const { getCardSize } = require('../constants/cardSizes');
 const renderDirect = async ({ campaignId, userId, cardSlug, size, face, renderHash }) => {
   const sizeSpec = getCardSize(size);
   const requestedFace = face === 'back' ? 'back' : 'front';
-  const renderScale = 2;
+  const renderScaleRaw = Number.parseInt(process.env.CARD_RENDER_DPR || '', 10);
+  const renderScale =
+    Number.isFinite(renderScaleRaw) && renderScaleRaw >= 1
+      ? Math.min(renderScaleRaw, 8)
+      : 3;
   const browser = await getBrowser();
   const page = await browser.newPage();
   const pageErrors = [];
@@ -228,7 +232,7 @@ const renderDirect = async ({ campaignId, userId, cardSlug, size, face, renderHa
     await page.goto(url, { waitUntil: 'networkidle0', timeout: 30_000 });
     // The print page paints a sentinel attribute when fonts/images/QR are settled.
     try {
-      await page.waitForSelector('[data-print-ready="1"]', { timeout: 15_000 });
+      await page.waitForSelector('[data-print-ready="1"]', { timeout: 45_000 });
     } catch (err) {
       throw new Error(
         `Print page did not become ready in time (${requestedFace}). ${err.message}`
