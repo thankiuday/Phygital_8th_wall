@@ -154,7 +154,7 @@ const Step2Image = () => {
           {isUploading ? (
             <><Loader2 size={15} className="animate-spin" /> Uploading…</>
           ) : (
-            <>Next: Upload Video <ArrowRight size={15} /></>
+            <>Next: Place QR <ArrowRight size={15} /></>
           )}
         </button>
       </div>

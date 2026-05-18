@@ -136,19 +136,21 @@ const destinationUrlField = z
     }
   });
 
-const arCardCreateSchema = z
+const qrPlacementSchema = z
   .object({
-    campaignType: z.literal('ar-card'),
-    campaignName: campaignNameField,
-    targetImageUrl: z.string().url('targetImageUrl must be a valid URL'),
-    targetImagePublicId: z.string().min(1).optional(),
-    videoUrl: z.string().url('videoUrl must be a valid URL'),
-    videoPublicId: z.string().min(1).optional(),
-    // Mobile clients sometimes send "" for missing thumbnail — treat as absent.
-    thumbnailUrl: z.preprocess(
-      (v) => (v === '' || v === undefined ? null : v),
-      z.union([z.null(), z.string().url('thumbnailUrl must be a valid URL')]).optional()
-    ),
+    x: z.number().min(0).max(1),
+    y: z.number().min(0).max(1),
+    scale: z.number().min(0.08).max(0.55).optional(),
+    preset: z
+      .enum([
+        'top-left',
+        'top-right',
+        'top-center',
+        'bottom-left',
+        'bottom-right',
+        'center',
+      ])
+      .optional(),
   })
   .strict();
 
@@ -235,6 +237,30 @@ const linkItemsPatchField = z
   .array(linkItemPatchSchema)
   .min(1, 'At least one link is required')
   .max(20, 'Too many links (max 20)');
+
+/** AR card hubs — links are optional; when provided, each row is validated. */
+const linkItemsOptionalField = z.array(linkItemInputSchema).max(20, 'Too many links (max 20)');
+
+const arCardCreateSchema = z
+  .object({
+    campaignType: z.literal('ar-card'),
+    campaignName: campaignNameField,
+    targetImageUrl: z.string().url('targetImageUrl must be a valid URL'),
+    targetImagePublicId: z.string().min(1).optional(),
+    targetImageOriginalUrl: z.string().url().optional(),
+    targetImageOriginalPublicId: z.string().min(1).optional(),
+    videoUrl: z.string().url('videoUrl must be a valid URL'),
+    videoPublicId: z.string().min(1).optional(),
+    linkItems: linkItemsOptionalField.optional(),
+    qrDesign: qrDesignSchema.nullable().optional(),
+    qrPlacement: qrPlacementSchema.nullable().optional(),
+    // Mobile clients sometimes send "" for missing thumbnail — treat as absent.
+    thumbnailUrl: z.preprocess(
+      (v) => (v === '' || v === undefined ? null : v),
+      z.union([z.null(), z.string().url('thumbnailUrl must be a valid URL')]).optional()
+    ),
+  })
+  .strict();
 
 /**
  * POST /api/campaigns/multiple-links — dedicated route (mirrors single-link).
@@ -797,6 +823,10 @@ const updateCampaignSchema = z
     cardContent: cardContentSchema.optional(),
     cardDesign: cardDesignSchema.optional(),
     cardPrintSettings: cardPrintSettingsSchema.optional(),
+    /* ── ar-card composited marker (set once after wizard finalize) ── */
+    targetImageUrl: z.string().url().optional(),
+    targetImagePublicId: z.string().min(1).max(512).nullable().optional(),
+    qrPlacement: qrPlacementSchema.nullable().optional(),
   })
   .strict()
   .refine((d) => Object.keys(d).length > 0, { message: 'No valid fields to update' });

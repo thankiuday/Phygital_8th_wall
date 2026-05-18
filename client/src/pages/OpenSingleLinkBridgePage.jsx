@@ -18,6 +18,7 @@ const HUB_CAMPAIGN_TYPES = new Set([
   'multiple-links-qr',
   'links-video-qr',
   'links-doc-video-qr',
+  'ar-card',
 ]);
 
 const isHubCampaignType = (ct) => HUB_CAMPAIGN_TYPES.has(ct);
@@ -75,6 +76,8 @@ const OpenSingleLinkBridgePage = () => {
         } else if (data.campaignType === 'multiple-links-qr') {
           if (!Array.isArray(data.links)) throw new Error('Invalid response');
         } else if (data.campaignType === 'links-video-qr') {
+          if (!Array.isArray(data.links)) throw new Error('Invalid response');
+        } else if (data.campaignType === 'ar-card') {
           if (!Array.isArray(data.links)) throw new Error('Invalid response');
         } else if (data.campaignType === 'links-doc-video-qr') {
           if (

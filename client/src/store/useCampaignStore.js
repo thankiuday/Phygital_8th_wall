@@ -1,5 +1,23 @@
 import { create } from 'zustand';
 import { campaignService } from '../services/campaignService';
+import {
+  buildArExperienceUrl,
+  compositeQrOnCardImage,
+  downloadImageBlob,
+} from '../utils/compositeQrOnCardImage';
+import { rowsToApiLinkItems } from '../pages/campaigns/multiple-links/multiLinkFormUtils';
+
+const defaultQrDesign = () => ({
+  frame: 'bottom-bar',
+  frameCaption: 'Scan me!',
+});
+
+const defaultQrPlacement = () => ({
+  x: 0.82,
+  y: 0.82,
+  scale: 0.26,
+  preset: 'bottom-right',
+});
 
 /**
  * useCampaignStore — manages the campaign creation wizard state
@@ -7,7 +25,7 @@ import { campaignService } from '../services/campaignService';
  */
 const useCampaignStore = create((set, get) => ({
   /* ── Wizard state ─────────────────────────────────────────── */
-  wizardStep: 1,        // 1 – 4
+  wizardStep: 1,
   wizardData: {
     campaignName: '',
     targetImageFile: null,
@@ -19,8 +37,12 @@ const useCampaignStore = create((set, get) => ({
     videoPublicId: null,
     videoPreview: null,
     thumbnailUrl: null,
+    qrDesign: defaultQrDesign(),
+    qrPlacement: defaultQrPlacement(),
+    linkRows: [],
+    compositedPreviewUrl: null,
   },
-  uploadProgress: { image: 0, video: 0 },
+  uploadProgress: { image: 0, video: 0, composited: 0 },
   isUploading: false,
   isSubmitting: false,
   wizardError: null,
@@ -37,7 +59,9 @@ const useCampaignStore = create((set, get) => ({
   updateWizardData: (patch) =>
     set((s) => ({ wizardData: { ...s.wizardData, ...patch } })),
 
-  resetWizard: () =>
+  resetWizard: () => {
+    const prevPreview = get().wizardData.compositedPreviewUrl;
+    if (prevPreview?.startsWith?.('blob:')) URL.revokeObjectURL(prevPreview);
     set({
       wizardStep: 1,
       wizardData: {
@@ -51,17 +75,18 @@ const useCampaignStore = create((set, get) => ({
         videoPublicId: null,
         videoPreview: null,
         thumbnailUrl: null,
+        qrDesign: defaultQrDesign(),
+        qrPlacement: defaultQrPlacement(),
+        linkRows: [],
+        compositedPreviewUrl: null,
       },
-      uploadProgress: { image: 0, video: 0 },
+      uploadProgress: { image: 0, video: 0, composited: 0 },
       isUploading: false,
       isSubmitting: false,
       wizardError: null,
-    }),
+    });
+  },
 
-  /**
-   * uploadImage — uploads the target card image to Cloudinary.
-   * Called when the user confirms their selection in Step 2.
-   */
   uploadImage: async (file) => {
     set({ isUploading: true, wizardError: null });
     try {
@@ -79,16 +104,12 @@ const useCampaignStore = create((set, get) => ({
         isUploading: false,
       }));
       return { success: true };
-    } catch (err) {
+    } catch {
       set({ isUploading: false, wizardError: 'Image upload failed. Please try again.' });
       return { success: false };
     }
   },
 
-  /**
-   * uploadVideo — uploads the intro video to Cloudinary.
-   * Called when the user confirms their selection in Step 3.
-   */
   uploadVideo: async (file) => {
     set({ isUploading: true, wizardError: null });
     try {
@@ -107,30 +128,66 @@ const useCampaignStore = create((set, get) => ({
         isUploading: false,
       }));
       return { success: true };
-    } catch (err) {
+    } catch {
       set({ isUploading: false, wizardError: 'Video upload failed. Please try again.' });
       return { success: false };
     }
   },
 
   /**
-   * submitCampaign — sends the finalised wizard data to the API.
+   * submitCampaign — create ar-card, composite QR with real AR URL, upload, PATCH marker.
    */
   submitCampaign: async () => {
     const { wizardData } = get();
     set({ isSubmitting: true, wizardError: null });
     try {
+      const linkItems = wizardData.linkRows?.length
+        ? rowsToApiLinkItems(wizardData.linkRows)
+        : [];
+
       const campaign = await campaignService.createCampaign({
         campaignType: 'ar-card',
         campaignName: wizardData.campaignName,
         targetImageUrl: wizardData.targetImageUrl,
         targetImagePublicId: wizardData.targetImagePublicId,
+        targetImageOriginalUrl: wizardData.targetImageUrl,
+        targetImageOriginalPublicId: wizardData.targetImagePublicId,
         videoUrl: wizardData.videoUrl,
         videoPublicId: wizardData.videoPublicId,
         thumbnailUrl: wizardData.thumbnailUrl,
+        linkItems: linkItems.length ? linkItems : undefined,
+        qrDesign: wizardData.qrDesign,
+        qrPlacement: wizardData.qrPlacement,
       });
+
+      const arUrl = buildArExperienceUrl(campaign._id);
+      const imageSrc = wizardData.targetImagePreview || wizardData.targetImageUrl;
+      const blob = await compositeQrOnCardImage({
+        imageSrc,
+        qrDataString: arUrl,
+        placement: wizardData.qrPlacement,
+        qrDesign: wizardData.qrDesign,
+      });
+
+      const file = new File([blob], 'card-with-qr.png', { type: 'image/png' });
+      const upload = await campaignService.uploadToCloudinary(
+        file,
+        'image',
+        (pct) => set((s) => ({ uploadProgress: { ...s.uploadProgress, composited: pct } }))
+      );
+
+      const updated = await campaignService.updateCampaign(campaign._id, {
+        targetImageUrl: upload.url,
+        targetImagePublicId: upload.publicId,
+      });
+
+      const safeName = String(wizardData.campaignName || 'ar-card')
+        .replace(/[/\\?%*:|"<>]/g, '-')
+        .slice(0, 60);
+      downloadImageBlob(blob, `${safeName}-print.png`);
+
       set({ isSubmitting: false });
-      return { success: true, campaign };
+      return { success: true, campaign: updated };
     } catch (err) {
       const d = err?.response?.data;
       const validationErrors = d?.errors;
@@ -169,8 +226,6 @@ const useCampaignStore = create((set, get) => ({
           };
         }
 
-        // Append for "load more" while deduplicating by _id in case of
-        // retry/race or backend page overlap.
         const seen = new Set(s.campaigns.map((c) => String(c._id)));
         const appended = [...s.campaigns];
         for (const row of data.campaigns || []) {
@@ -191,12 +246,10 @@ const useCampaignStore = create((set, get) => ({
     }
   },
 
-  /** Optimistically update a campaign in the list, then sync with the API. */
   updateCampaignInList: async (id, updates) => {
-    // Optimistic update
     set((s) => ({
       campaigns: s.campaigns.map((c) =>
-        c._id === id ? { ...c, ...updates } : c
+        (c._id === id ? { ...c, ...updates } : c)
       ),
     }));
     try {
@@ -205,14 +258,12 @@ const useCampaignStore = create((set, get) => ({
         campaigns: s.campaigns.map((c) => (c._id === id ? updated : c)),
       }));
       return { success: true, campaign: updated };
-    } catch (err) {
-      // Revert on failure — refetch the list
+    } catch {
       get().fetchCampaigns();
-      return { success: false, message: err.response?.data?.message || 'Update failed' };
+      return { success: false, message: 'Update failed' };
     }
   },
 
-  /** Removes a campaign from the list after successful delete. */
   removeCampaignFromList: async (id) => {
     try {
       await campaignService.deleteCampaign(id);
@@ -232,7 +283,6 @@ const useCampaignStore = create((set, get) => ({
     }
   },
 
-  /** Duplicates a campaign and prepends the copy to the list. */
   duplicateCampaignInList: async (id) => {
     try {
       const copy = await campaignService.duplicateCampaign(id);

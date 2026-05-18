@@ -24,7 +24,7 @@ const buildDynamicQrMetaPayload = (campaign) => {
     };
   }
 
-  const hubTypes = ['multiple-links-qr', 'links-video-qr', 'links-doc-video-qr'];
+  const hubTypes = ['multiple-links-qr', 'links-video-qr', 'links-doc-video-qr', 'ar-card'];
   if (!hubTypes.includes(campaign.campaignType)) return null;
 
   if (campaign.status === 'paused') {
@@ -42,6 +42,26 @@ const buildDynamicQrMetaPayload = (campaign) => {
   }
 
   if (campaign.status !== 'active') return null;
+
+  if (campaign.campaignType === 'ar-card') {
+    const clientBase = (process.env.CLIENT_URL || '').replace(/\/$/, '');
+    return {
+      campaignType: 'ar-card',
+      campaignName: campaign.campaignName,
+      videoSource: 'upload',
+      videoUrl: campaign.videoUrl,
+      thumbnailUrl: campaign.thumbnailUrl || null,
+      links: toPublicLinkList(campaign.linkItems || []),
+      preciseGeoAnalytics: !!campaign.preciseGeoAnalytics,
+      slug: campaign.redirectSlug,
+      ownerHandle: campaign.ownerHandle || null,
+      hubSlug: campaign.hubSlug || null,
+      arPageUrl: clientBase && campaign._id
+        ? `${clientBase}/ar/${campaign._id}`
+        : null,
+      campaignId: campaign._id ? String(campaign._id) : null,
+    };
+  }
 
   if (campaign.campaignType === 'links-video-qr') {
     const embedSrc =

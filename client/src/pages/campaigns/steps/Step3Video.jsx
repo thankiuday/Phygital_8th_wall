@@ -96,7 +96,7 @@ const Step3Video = () => {
       if (!result.success) return;
     }
 
-    setWizardStep(4);
+    setWizardStep(5);
   };
 
   return (
@@ -171,7 +171,7 @@ const Step3Video = () => {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <button
           type="button"
-          onClick={() => setWizardStep(2)}
+          onClick={() => setWizardStep(3)}
           disabled={isUploading}
           className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-[var(--border-color)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 disabled:opacity-50"
         >
@@ -187,7 +187,7 @@ const Step3Video = () => {
           {isUploading ? (
             <><Loader2 size={15} className="animate-spin" /> Uploading…</>
           ) : (
-            <>Review Campaign <ArrowRight size={15} /></>
+            <>Next: Social Links <ArrowRight size={15} /></>
           )}
         </button>
       </div>

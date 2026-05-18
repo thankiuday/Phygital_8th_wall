@@ -1,4 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import {
+  compositeQrOnCardImage,
+  getArQrPreviewUrl,
+} from '../../../utils/compositeQrOnCardImage';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -11,6 +15,7 @@ import {
   Tag,
   Rocket,
   LayoutDashboard,
+  Link2,
 } from 'lucide-react';
 import useCampaignStore from '../../../store/useCampaignStore';
 
@@ -73,8 +78,64 @@ const SuccessView = ({ campaign, onSuccess }) => (
 
 /* ── Step 4 — Review & Submit ────────────────────────────────────── */
 const Step4Review = ({ onSuccess }) => {
-  const { wizardData, setWizardStep, submitCampaign, isSubmitting, wizardError } = useCampaignStore();
+  const {
+    wizardData,
+    updateWizardData,
+    setWizardStep,
+    submitCampaign,
+    isSubmitting,
+    wizardError,
+  } = useCampaignStore();
   const [createdCampaign, setCreatedCampaign] = useState(null);
+  const [compositedThumb, setCompositedThumb] = useState('');
+  const [compositedThumbBusy, setCompositedThumbBusy] = useState(false);
+
+  const imageSrc = wizardData.targetImagePreview || wizardData.targetImageUrl;
+
+  useEffect(() => {
+    if (!imageSrc) {
+      setCompositedThumb('');
+      return undefined;
+    }
+
+    let cancelled = false;
+    setCompositedThumbBusy(true);
+
+    (async () => {
+      try {
+        const blob = await compositeQrOnCardImage({
+          imageSrc,
+          qrDataString: getArQrPreviewUrl(),
+          placement: wizardData.qrPlacement,
+          qrDesign: wizardData.qrDesign,
+        });
+        if (cancelled) return;
+
+        const prev = useCampaignStore.getState().wizardData.compositedPreviewUrl;
+        if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev);
+
+        const url = URL.createObjectURL(blob);
+        updateWizardData({ compositedPreviewUrl: url });
+        setCompositedThumb(url);
+      } catch {
+        if (!cancelled) {
+          setCompositedThumb('');
+          updateWizardData({ compositedPreviewUrl: null });
+        }
+      } finally {
+        if (!cancelled) setCompositedThumbBusy(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    imageSrc,
+    wizardData.qrPlacement,
+    wizardData.qrDesign,
+    updateWizardData,
+  ]);
 
   const handleSubmit = async () => {
     const result = await submitCampaign();
@@ -105,14 +166,35 @@ const Step4Review = ({ onSuccess }) => {
         />
         <ReviewRow
           icon={ImageIcon}
-          label="Business Card Image"
+          label="Business Card (raw)"
           value={wizardData.targetImageUrl ? 'Uploaded ✓' : 'Not uploaded'}
           preview={wizardData.targetImagePreview}
+        />
+        <ReviewRow
+          icon={QrCode}
+          label="Print card (with QR)"
+          value={
+            compositedThumbBusy
+              ? 'Generating preview…'
+              : compositedThumb
+                ? 'Preview ready ✓'
+                : 'QR placement pending'
+          }
+          preview={compositedThumb || undefined}
         />
         <ReviewRow
           icon={VideoIcon}
           label="Intro Video"
           value={wizardData.videoUrl ? 'Uploaded ✓' : 'Not uploaded'}
+        />
+        <ReviewRow
+          icon={Link2}
+          label="Profile links"
+          value={
+            wizardData.linkRows?.length
+              ? `${wizardData.linkRows.length} link${wizardData.linkRows.length === 1 ? '' : 's'}`
+              : 'None (optional)'
+          }
         />
       </div>
 
@@ -122,7 +204,8 @@ const Step4Review = ({ onSuccess }) => {
           <Rocket size={16} className="mt-0.5 shrink-0 text-brand-400" />
           <p className="text-[var(--text-secondary)]">
             Your campaign will be set to <strong className="text-[var(--text-primary)]">Active</strong> immediately.
-            A shareable QR code will be generated automatically. You can pause or edit it anytime.
+            We composite your card with a live AR QR, upload the print image, and download a PNG for you.
+            A dashboard QR asset is generated automatically.
           </p>
         </div>
       </div>
@@ -135,12 +218,12 @@ const Step4Review = ({ onSuccess }) => {
       )}
 
       {/* Nav buttons */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <button
           type="button"
-          onClick={() => setWizardStep(3)}
+          onClick={() => setWizardStep(5)}
           disabled={isSubmitting}
-          className="flex items-center gap-2 rounded-xl border border-[var(--border-color)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 disabled:opacity-50"
+          className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-[var(--border-color)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 disabled:opacity-50"
         >
           <ArrowLeft size={15} /> Back
         </button>
@@ -149,7 +232,7 @@ const Step4Review = ({ onSuccess }) => {
           type="button"
           onClick={handleSubmit}
           disabled={isSubmitting}
-          className="flex items-center gap-2 rounded-xl bg-brand-600 px-6 py-2.5 text-sm font-bold text-white shadow-glow hover:bg-brand-500 hover:shadow-glow-lg disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 py-2.5 text-sm font-bold text-white shadow-glow hover:bg-brand-500 hover:shadow-glow-lg disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting ? (
             <><Loader2 size={15} className="animate-spin" /> Creating…</>

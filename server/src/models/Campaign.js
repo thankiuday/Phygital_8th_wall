@@ -66,6 +66,11 @@ const campaignSchema = new mongoose.Schema(
       validate: requiredForType('ar-card', 'targetImageUrl is required for ar-card campaigns'),
     },
     targetImagePublicId: { type: String, default: null },
+    /** Raw upload before QR composite (wizard re-edit / audit). */
+    targetImageOriginalUrl: { type: String, default: null },
+    targetImageOriginalPublicId: { type: String, default: null },
+    /** Normalized placement used when compositing QR onto the card image. */
+    qrPlacement: { type: mongoose.Schema.Types.Mixed, default: null },
 
     videoUrl: {
       type: String,

@@ -15,6 +15,7 @@ const {
   claimUploadedDraftAssets,
 } = require('../services/cloudinaryService');
 const { generateQRCode } = require('../services/qrService');
+const { createArCardCampaignRecord } = require('../services/arCardCampaignService');
 const { redirectCache, dynamicQrMetaCache, cardMetaCache } = require('../utils/redirectCache');
 const { renderCardPng } = require('../services/cardPrintService');
 const { CARD_SIZE_IDS, DEFAULT_CARD_SIZE } = require('../constants/cardSizes');
@@ -119,36 +120,11 @@ const createCampaign = async (req, res) => {
 };
 
 const createArCardCampaign = async (req, res) => {
-  const {
-    campaignName,
-    targetImageUrl,
-    targetImagePublicId,
-    videoUrl,
-    videoPublicId,
-    thumbnailUrl,
-  } = req.body;
-
-  const campaign = await Campaign.create({
+  const campaign = await createArCardCampaignRecord({
     userId: req.user._id,
-    campaignType: 'ar-card',
-    campaignName: campaignName.trim(),
-    targetImageUrl,
-    targetImagePublicId,
-    videoUrl,
-    videoPublicId,
-    thumbnailUrl: thumbnailUrl ?? null,
-    status: 'active',
+    body: req.body,
+    persistLinkItems: persistLinkItemsFromBody,
   });
-
-  generateQRCode(campaign._id.toString(), req.user._id.toString())
-    .then(({ qrCodeUrl, qrPublicId }) => {
-      campaign.qrCodeUrl = qrCodeUrl;
-      campaign.qrPublicId = qrPublicId;
-      return campaign.save({ validateModifiedOnly: true });
-    })
-    .catch((err) => {
-      logger.warn('AR QR generation failed', { campaignId: String(campaign._id), error: err.message });
-    });
 
   return created(res, { campaign }, 'Campaign created successfully');
 };
@@ -959,6 +935,9 @@ const updateCampaign = async (req, res) => {
     cardContent,
     cardDesign,
     cardPrintSettings,
+    targetImageUrl: patchTargetImageUrl,
+    targetImagePublicId: patchTargetImagePublicId,
+    qrPlacement: patchQrPlacement,
   } = req.body;
   const updates = {};
   let previousCardSlug = null;
@@ -1072,6 +1051,16 @@ const updateCampaign = async (req, res) => {
     }
   }
 
+  if (existing.campaignType === 'ar-card') {
+    if (patchTargetImageUrl !== undefined) updates.targetImageUrl = patchTargetImageUrl;
+    if (patchTargetImagePublicId !== undefined) {
+      updates.targetImagePublicId = patchTargetImagePublicId;
+    }
+    if (patchQrPlacement !== undefined) updates.qrPlacement = patchQrPlacement;
+    applyQrDesign();
+    await applyLinkItemsMerge();
+  }
+
   if (existing.campaignType === 'digital-business-card') {
     if (visibility !== undefined) updates.visibility = visibility;
     applyQrDesign();
@@ -1136,7 +1125,8 @@ const updateCampaign = async (req, res) => {
     (existing.campaignType === 'single-link-qr'
       || existing.campaignType === 'multiple-links-qr'
       || existing.campaignType === 'links-video-qr'
-      || existing.campaignType === 'links-doc-video-qr')
+      || existing.campaignType === 'links-doc-video-qr'
+      || existing.campaignType === 'ar-card')
     && existing.redirectSlug
   ) {
     redirectCache.evict(existing.redirectSlug).catch(() => {});

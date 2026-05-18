@@ -42,6 +42,7 @@ const HUB_CAMPAIGN_TYPES = [
   'multiple-links-qr',
   'links-video-qr',
   'links-doc-video-qr',
+  'ar-card',
 ];
 
 /** Hub types that can ship hero/video assets and therefore accept video beacons. */
@@ -89,7 +90,7 @@ router.get('/upload-signature', publicUploadSignatureLimiter, (req, res, next) =
 router.get('/campaigns/:id', publicLimiter, async (req, res) => {
   const campaign = await Campaign.findOne(
     { _id: req.params.id, status: 'active' },
-    'campaignName targetImageUrl videoUrl thumbnailUrl status analytics'
+    'campaignName targetImageUrl videoUrl thumbnailUrl status analytics ownerHandle hubSlug redirectSlug'
   ).lean();
 
   if (!campaign) {
@@ -217,11 +218,13 @@ router.get('/dynamic-qr/:slug/meta', singleLinkSlugLimiter, async (req, res) => 
           'multiple-links-qr',
           'links-video-qr',
           'links-doc-video-qr',
+          'ar-card',
         ],
       },
     },
     'campaignName campaignType destinationUrl preciseGeoAnalytics redirectSlug linkItems '
-      + 'videoSource videoUrl externalVideoUrl thumbnailUrl videoItems docItems status'
+      + 'videoSource videoUrl externalVideoUrl thumbnailUrl videoItems docItems status '
+      + 'ownerHandle hubSlug'
   ).lean();
 
   if (!campaign) throw new AppError('Link not found', 404);
@@ -259,12 +262,14 @@ router.get('/hub/:handle/:hubSlug/meta', hubVanityLimiter, async (req, res) => {
           'multiple-links-qr',
           'links-video-qr',
           'links-doc-video-qr',
+          'ar-card',
         ],
       },
       isDeleted: { $ne: true },
     },
     'campaignName campaignType destinationUrl preciseGeoAnalytics redirectSlug linkItems '
-      + 'videoSource videoUrl externalVideoUrl thumbnailUrl videoItems docItems status'
+      + 'videoSource videoUrl externalVideoUrl thumbnailUrl videoItems docItems status '
+      + 'ownerHandle hubSlug'
   ).lean();
 
   if (!campaign) throw new AppError('Link not found', 404);

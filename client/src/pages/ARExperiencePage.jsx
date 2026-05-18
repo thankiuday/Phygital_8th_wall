@@ -211,6 +211,16 @@ const ARExperiencePage = () => {
           ))}
         </div>
 
+        {campaign?.ownerHandle && campaign?.hubSlug && (
+          <Link
+            to={`/open/${campaign.ownerHandle}/${campaign.hubSlug}`}
+            className="flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white/80 transition hover:border-brand-500/40 hover:text-white"
+          >
+            <ExternalLink size={16} />
+            View profile hub
+          </Link>
+        )}
+
         {/* CTA button */}
         {isMobile ? (
           <motion.button

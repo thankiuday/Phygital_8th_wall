@@ -18,6 +18,7 @@ import {
   FileImage,
   Presentation,
   FileType,
+  Zap,
 } from 'lucide-react';
 import publicApi from '../services/publicApi';
 import SEOHead from '../components/ui/SEOHead';
@@ -40,6 +41,7 @@ const HUB_TYPES = new Set([
   'multiple-links-qr',
   'links-video-qr',
   'links-doc-video-qr',
+  'ar-card',
 ]);
 
 const docIconForMime = (mime = '') => {
@@ -324,7 +326,8 @@ const LinkHubPage = () => {
   }
 
   const { campaignName, links } = meta;
-  const hasHeroVideo = meta.campaignType === 'links-video-qr';
+  const hasHeroVideo = meta.campaignType === 'links-video-qr' || meta.campaignType === 'ar-card';
+  const arPageUrl = meta.campaignType === 'ar-card' ? meta.arPageUrl : null;
   const isMultiAssetHub = meta.campaignType === 'links-doc-video-qr';
   const videoItems = Array.isArray(meta.videoItems) ? meta.videoItems : [];
   const docItems = Array.isArray(meta.docItems) ? meta.docItems : [];
@@ -359,6 +362,16 @@ const LinkHubPage = () => {
               onEvent={onVideoEvent}
             />
           </div>
+        )}
+
+        {arPageUrl && (
+          <a
+            href={arPageUrl}
+            className="mb-5 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl border border-brand-500/40 bg-brand-500/10 px-4 py-3 text-sm font-semibold text-brand-300 transition hover:bg-brand-500/20"
+          >
+            <Zap size={18} aria-hidden />
+            Launch hologram
+          </a>
         )}
 
         {isMultiAssetHub && videoItems.length > 0 && (

@@ -6,17 +6,20 @@ import useCampaignStore from '../../store/useCampaignStore';
 import WizardStepBar from '../../components/ui/WizardStepBar';
 import { suggestArCampaignName } from '../../utils/suggestArCampaignName';
 
-// Steps
 import Step1Name from './steps/Step1Name';
 import Step2Image from './steps/Step2Image';
+import Step3QrPlacement from './steps/Step3QrPlacement';
 import Step3Video from './steps/Step3Video';
+import Step5SocialLinks from './steps/Step5SocialLinks';
 import Step4Review from './steps/Step4Review';
 
 const STEPS = [
   { number: 1, shortLabel: 'Name',   label: 'Name' },
   { number: 2, shortLabel: 'Image',  label: 'Card Image' },
-  { number: 3, shortLabel: 'Video',  label: 'Video' },
-  { number: 4, shortLabel: 'Review', label: 'Review' },
+  { number: 3, shortLabel: 'QR',     label: 'Place QR' },
+  { number: 4, shortLabel: 'Video',  label: 'Video' },
+  { number: 5, shortLabel: 'Links',  label: 'Social Links' },
+  { number: 6, shortLabel: 'Review', label: 'Review' },
 ];
 
 const NewCampaignPage = () => {
@@ -28,7 +31,6 @@ const NewCampaignPage = () => {
     resetWizard();
   }, [resetWizard]);
 
-  // Unique default name once the session user is known (avoid empty / duplicate labels).
   useEffect(() => {
     if (!user) return;
     const { wizardData } = useCampaignStore.getState();
@@ -39,23 +41,23 @@ const NewCampaignPage = () => {
   const stepComponents = [
     <Step1Name key={1} />,
     <Step2Image key={2} />,
-    <Step3Video key={3} />,
-    <Step4Review key={4} onSuccess={(campaign) => navigate(`/dashboard/campaigns`)} />,
+    <Step3QrPlacement key={3} />,
+    <Step3Video key={4} />,
+    <Step5SocialLinks key={5} />,
+    <Step4Review key={6} onSuccess={() => navigate('/dashboard/campaigns')} />,
   ];
 
   return (
-    <div className="mx-auto max-w-2xl">
-      {/* ── Page header ─────────────────────────────────────────── */}
+    <div className="mx-auto max-w-3xl">
       <div className="mb-6">
         <h2 className="text-xl font-bold text-[var(--text-primary)]">Create AR Campaign</h2>
         <p className="text-sm text-[var(--text-secondary)]">
-          Upload your business card + video. Your holographic AR experience will be live in minutes.
+          Upload your card, place a QR, add video and links. Your holographic AR experience goes live on Review.
         </p>
       </div>
 
       <WizardStepBar steps={STEPS} currentStep={wizardStep} className="mb-8" />
 
-      {/* ── Step content — animated slide ───────────────────────── */}
       <div className="glass-card p-6 md:p-8">
         <AnimatePresence mode="wait">
           <motion.div
