@@ -52,7 +52,7 @@ const buildDynamicQrMetaPayload = (campaign) => {
       videoUrl: campaign.videoUrl,
       thumbnailUrl: campaign.thumbnailUrl || null,
       links: toPublicLinkList(campaign.linkItems || []),
-      preciseGeoAnalytics: !!campaign.preciseGeoAnalytics,
+      preciseGeoAnalytics: true,
       slug: campaign.redirectSlug,
       ownerHandle: campaign.ownerHandle || null,
       hubSlug: campaign.hubSlug || null,

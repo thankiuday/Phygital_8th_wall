@@ -1035,6 +1035,9 @@ const updateCampaign = async (req, res) => {
     if (patchQrPlacement !== undefined) updates.qrPlacement = patchQrPlacement;
     applyQrDesign();
     await applyLinkItemsMerge();
+    if (videoUrl !== undefined) updates.videoUrl = videoUrl;
+    if (videoPublicId !== undefined) updates.videoPublicId = videoPublicId;
+    if (thumbnailUrl !== undefined) updates.thumbnailUrl = thumbnailUrl;
   }
 
   if (existing.campaignType === 'digital-business-card') {
@@ -1094,6 +1097,17 @@ const updateCampaign = async (req, res) => {
     updates,
     { new: true, runValidators: true }
   );
+
+  if (existing.campaignType === 'ar-card') {
+    const oldVideoId = existing.videoPublicId;
+    const newVideoId = campaign.videoPublicId;
+    if (oldVideoId && newVideoId && oldVideoId !== newVideoId) {
+      deleteCloudinaryAsset(oldVideoId, 'video').catch(() => {});
+    }
+    if (updates.videoPublicId) {
+      claimUploadedDraftAssets({ video: [updates.videoPublicId] }).catch(() => {});
+    }
+  }
 
   // Evict cache after a successful write so the next scan picks up the new
   // destination / hub data / status.

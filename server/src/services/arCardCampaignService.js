@@ -74,6 +74,7 @@ const createArCardCampaignRecord = async ({ userId, body, persistLinkItems }) =>
     redirectSlug,
     ownerHandle,
     hubSlug,
+    preciseGeoAnalytics: true,
     status: 'active',
   });
 

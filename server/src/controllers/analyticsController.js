@@ -33,6 +33,11 @@ const MULTI_LINK_TYPES = new Set([
   'links-doc-video-qr',
 ]);
 
+const AR_CARD_TYPE = 'ar-card';
+
+/** Hub types including AR profile pages — link-click aggregates apply. */
+const AR_HUB_LINK_TYPES = new Set([...MULTI_LINK_TYPES, AR_CARD_TYPE]);
+
 /** Hub types that surface a hero-style watch funnel rolled up across all videos. */
 const VIDEO_HUB_TYPES = new Set(['links-video-qr', 'links-doc-video-qr']);
 
@@ -154,6 +159,178 @@ const buildScanTrend = async (matchStage, since, timeZone) => {
   ]);
 
   return fillDailySeries(trend, since, timeZone, ['scans', 'uniqueScans']);
+};
+
+/** AR vs hub scan totals for dual-touchpoint campaigns. */
+const aggregateTouchpointTotals = async (matchStage, since, touchpoint) => {
+  const tpMatch = { ...matchStage, touchpoint };
+  const [allTimeRows, periodRows] = await Promise.all([
+    ScanEvent.aggregate([
+      { $match: tpMatch },
+      {
+        $group: {
+          _id: null,
+          scans: { $sum: 1 },
+          uniqueVisitors: { $addToSet: '$visitorHash' },
+          avgSessionDuration: { $avg: '$sessionDurationMs' },
+          avgVideoWatchPercent: { $avg: '$videoWatchPercent' },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          scans: 1,
+          uniqueVisitors: { $size: '$uniqueVisitors' },
+          avgSessionDuration: { $round: ['$avgSessionDuration', 0] },
+          avgVideoWatchPercent: { $round: ['$avgVideoWatchPercent', 1] },
+        },
+      },
+    ]),
+    ScanEvent.aggregate([
+      { $match: { ...tpMatch, scannedAt: { $gte: since } } },
+      {
+        $group: {
+          _id: null,
+          scans: { $sum: 1 },
+          uniqueVisitors: { $addToSet: '$visitorHash' },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          scans: 1,
+          uniqueVisitors: { $size: '$uniqueVisitors' },
+        },
+      },
+    ]),
+  ]);
+
+  return {
+    allTime: allTimeRows[0] || {
+      scans: 0,
+      uniqueVisitors: 0,
+      avgSessionDuration: 0,
+      avgVideoWatchPercent: 0,
+    },
+    period: periodRows[0] || { scans: 0, uniqueVisitors: 0 },
+  };
+};
+
+/** Hero video funnel from ScanEvent rows (links-video-qr + ar-card hub). */
+const buildHeroVideoAnalytics = async (baseMatch, since, timeZone, scansDenominator) => {
+  const match = { ...baseMatch, videoPlayed: true };
+  const periodMatch = { ...match, scannedAt: { $gte: since } };
+
+  const [videoPeriodAgg, watchBucketsAgg, watchTrend] = await Promise.all([
+    ScanEvent.aggregate([
+      { $match: periodMatch },
+      {
+        $group: {
+          _id: null,
+          plays: { $addToSet: { $ifNull: ['$visitorHash', null] } },
+          completions: {
+            $addToSet: {
+              $cond: [
+                { $gte: ['$videoWatchPercent', 95] },
+                { $ifNull: ['$visitorHash', null] },
+                '$$REMOVE',
+              ],
+            },
+          },
+          avgWatchPercent: { $avg: '$videoWatchPercent' },
+          avgWatchSec: { $avg: '$videoWatchedSec' },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          totalPlaysPeriod: { $size: '$plays' },
+          totalCompletionsPeriod: { $size: '$completions' },
+          avgWatchPercent: {
+            $cond: [
+              { $gt: [{ $size: '$plays' }, 0] },
+              { $round: [{ $ifNull: ['$avgWatchPercent', 0] }, 1] },
+              null,
+            ],
+          },
+          avgWatchSec: {
+            $cond: [
+              { $gt: [{ $size: '$plays' }, 0] },
+              { $round: [{ $ifNull: ['$avgWatchSec', 0] }, 0] },
+              null,
+            ],
+          },
+        },
+      },
+    ]),
+    ScanEvent.aggregate([
+      { $match: periodMatch },
+      {
+        $bucket: {
+          groupBy: '$videoWatchPercent',
+          boundaries: [0, 25, 50, 75, 95, 101],
+          default: 'other',
+          output: { visitors: { $addToSet: '$visitorHash' } },
+        },
+      },
+    ]),
+    ScanEvent.aggregate([
+      { $match: periodMatch },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: '%Y-%m-%d', date: '$scannedAt', timezone: timeZone },
+          },
+          plays: { $sum: 1 },
+          completions: { $sum: { $cond: [{ $gte: ['$videoWatchPercent', 95] }, 1, 0] } },
+        },
+      },
+      { $sort: { _id: 1 } },
+      { $project: { _id: 0, date: '$_id', plays: 1, completions: 1 } },
+    ]),
+  ]);
+
+  const periodRow = videoPeriodAgg[0] || {
+    totalPlaysPeriod: 0,
+    totalCompletionsPeriod: 0,
+    avgWatchPercent: 0,
+    avgWatchSec: 0,
+  };
+
+  const totalPlaysAllTime = await ScanEvent.aggregate([
+    { $match: match },
+    { $group: { _id: '$visitorHash' } },
+    { $count: 'count' },
+  ]);
+
+  const bucketMap = new Map(
+    watchBucketsAgg
+      .filter((b) => b._id !== 'other')
+      .map((b) => [String(b._id), Array.isArray(b.visitors) ? b.visitors.filter(Boolean).length : 0])
+  );
+
+  const watchPercentBuckets = [
+    { bucket: 'started', visitors: periodRow.totalPlaysPeriod || 0 },
+    { bucket: '25%', visitors: bucketMap.get('25') || 0 },
+    { bucket: '50%', visitors: bucketMap.get('50') || 0 },
+    { bucket: '75%', visitors: bucketMap.get('75') || 0 },
+    { bucket: 'completed', visitors: bucketMap.get('95') || 0 },
+  ];
+
+  const playRatePeriod = scansDenominator > 0
+    ? Number(((periodRow.totalPlaysPeriod / scansDenominator) * 100).toFixed(1))
+    : null;
+
+  return {
+    playRatePeriod,
+    totalPlaysAllTime: totalPlaysAllTime[0]?.count || 0,
+    totalPlaysPeriod: periodRow.totalPlaysPeriod || 0,
+    totalCompletionsPeriod: periodRow.totalCompletionsPeriod || 0,
+    avgWatchPercent: periodRow.avgWatchPercent ?? null,
+    avgWatchSec: periodRow.avgWatchSec ?? null,
+    watchPercentBuckets,
+    watchTrend: fillDailySeries(watchTrend, since, timeZone, ['plays', 'completions']),
+  };
 };
 
 /**
@@ -488,7 +665,7 @@ exports.getCampaignAnalytics = async (req, res) => {
   const periodStats = totals[0]?.period[0] || { scans: 0, uniqueVisitors: 0 };
 
   let multiLinkAnalytics = null;
-  if (MULTI_LINK_TYPES.has(campaign.campaignType)) {
+  if (AR_HUB_LINK_TYPES.has(campaign.campaignType)) {
     // Outbound-link aggregates only — `kind: 'document'` rows belong to the
     // separate documents block. We default to `'link'` (or null/missing) so
     // pre-migration rows still show up in totals.
@@ -540,15 +717,19 @@ exports.getCampaignAnalytics = async (req, res) => {
   }
 
   let videoAnalytics = null;
-  if (VIDEO_HUB_TYPES.has(campaign.campaignType)) {
-    const usesPerAssetVideoTelemetry = campaign.campaignType === 'links-doc-video-qr';
-    const videoEventModel = usesPerAssetVideoTelemetry ? VideoPlayEvent : ScanEvent;
-    const dateField = usesPerAssetVideoTelemetry ? 'occurredAt' : 'scannedAt';
-    const watchPercentField = usesPerAssetVideoTelemetry ? '$watchPercent' : '$videoWatchPercent';
-    const watchSecField = usesPerAssetVideoTelemetry ? '$watchedSec' : '$videoWatchedSec';
-    const baseVideoMatch = usesPerAssetVideoTelemetry
-      ? { campaignId: cid }
-      : { ...match, videoPlayed: true };
+  if (campaign.campaignType === 'links-video-qr') {
+    videoAnalytics = await buildHeroVideoAnalytics(
+      match,
+      since,
+      timeZone,
+      periodStats.scans || 0
+    );
+  } else if (campaign.campaignType === 'links-doc-video-qr') {
+    const videoEventModel = VideoPlayEvent;
+    const dateField = 'occurredAt';
+    const watchPercentField = '$watchPercent';
+    const watchSecField = '$watchedSec';
+    const baseVideoMatch = { campaignId: cid };
     const periodVideoMatch = {
       ...baseVideoMatch,
       [dateField]: { $gte: since },
@@ -857,6 +1038,59 @@ exports.getCampaignAnalytics = async (req, res) => {
     };
   }
 
+  let arCardAnalytics = null;
+  if (campaign.campaignType === AR_CARD_TYPE) {
+    const [arTotals, hubTotals, arScanTrend, hubVisitTrend] = await Promise.all([
+      aggregateTouchpointTotals(match, since, 'ar'),
+      aggregateTouchpointTotals(match, since, 'hub'),
+      buildScanTrend({ ...match, touchpoint: 'ar' }, since, timeZone),
+      buildScanTrend({ ...match, touchpoint: 'hub' }, since, timeZone),
+    ]);
+
+    const hubVideo = await buildHeroVideoAnalytics(
+      { ...match, touchpoint: 'hub' },
+      since,
+      timeZone,
+      hubTotals.period.scans || 0
+    );
+
+    allTime.totalScans = arTotals.allTime.scans;
+    allTime.uniqueVisitors = arTotals.allTime.uniqueVisitors;
+    allTime.avgSessionDuration = arTotals.allTime.avgSessionDuration;
+    allTime.avgVideoWatchPercent = arTotals.allTime.avgVideoWatchPercent;
+
+    periodStats.scans = arTotals.period.scans;
+    periodStats.uniqueVisitors = arTotals.period.uniqueVisitors;
+
+    scanTrend = arScanTrend;
+
+    arCardAnalytics = {
+      ar: {
+        scans: arTotals.allTime.scans,
+        uniqueVisitors: arTotals.allTime.uniqueVisitors,
+        avgSessionMs: arTotals.allTime.avgSessionDuration,
+        avgVideoWatchPercent: arTotals.allTime.avgVideoWatchPercent,
+        periodScans: arTotals.period.scans,
+        periodUniqueVisitors: arTotals.period.uniqueVisitors,
+        scanTrend: arScanTrend,
+      },
+      hub: {
+        visits: hubTotals.allTime.scans,
+        uniqueVisitors: hubTotals.allTime.uniqueVisitors,
+        avgSessionMs: hubTotals.allTime.avgSessionDuration,
+        periodVisits: hubTotals.period.scans,
+        periodUniqueVisitors: hubTotals.period.uniqueVisitors,
+        visitTrend: hubVisitTrend,
+      },
+      combined: {
+        totalTouchpoints:
+          (arTotals.allTime.scans || 0) + (hubTotals.allTime.scans || 0),
+      },
+      multiLink: multiLinkAnalytics,
+      hubVideo,
+    };
+  }
+
   return success(res, {
     campaign: {
       _id:          campaign._id,
@@ -876,6 +1110,7 @@ exports.getCampaignAnalytics = async (req, res) => {
     videoAnalytics,
     assetAnalytics,
     cardAnalytics,
+    arCardAnalytics,
   });
 };
 

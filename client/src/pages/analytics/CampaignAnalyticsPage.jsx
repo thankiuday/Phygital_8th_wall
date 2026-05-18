@@ -42,14 +42,17 @@ const TOOLTIP_STYLE  = {
 // campaign type only renders metrics that actually apply to it.
 const TYPE_CONFIG = {
   'ar-card': {
-    headerSub: 'Scan performance for this campaign',
-    scanLabel: 'Total scans',
+    headerSub: 'AR hologram performance, with profile hub activity below',
+    scanLabel: 'AR scans',
     showAvgSession: true,
     avgSessionSub: 'Time in AR',
     showVideoCompletion: true,
-    showLinkClicksTile: false,
-    locationsTitle: 'Top scan locations',
-    scanEmptyHint: "Once someone scans this campaign's QR code, the trend will populate here.",
+    showLinkClicksTile: true,
+    showHubSection: true,
+    showHubVideoSection: true,
+    locationsTitle: 'Top visitor locations',
+    scanEmptyHint: 'Scans appear after someone launches the hologram from your card.',
+    hubScanEmptyHint: 'Visits appear after someone opens your profile hub page.',
   },
   'single-link-qr': {
     headerSub: 'Redirects from this dynamic QR',
@@ -191,17 +194,26 @@ const CampaignAnalyticsPage = () => {
   const videoAnalytics = campaignData?.videoAnalytics;
   const assetAnalytics = campaignData?.assetAnalytics;
   const cardAnalytics  = campaignData?.cardAnalytics;
+  const arCardAnalytics = campaignData?.arCardAnalytics;
   const campaignType = campaign?.campaignType;
   const typeConfig = TYPE_CONFIG[campaignType] || DEFAULT_TYPE_CONFIG;
+  const isArCard = campaignType === 'ar-card';
   const isVideoHub =
     campaignType === 'links-video-qr' || campaignType === 'links-doc-video-qr';
   const isLinksDocVideo = campaignType === 'links-doc-video-qr';
   const isDigitalCard = campaignType === 'digital-business-card';
+  const hubMultiLink = isArCard ? arCardAnalytics?.multiLink : multiLink;
+  const hubVideoAnalytics = isArCard ? arCardAnalytics?.hubVideo : videoAnalytics;
+  const showHubVideoSection =
+    (isVideoHub && videoAnalytics) ||
+    (isArCard && typeConfig.showHubVideoSection && hubVideoAnalytics);
+  const activeHubVideo = isArCard ? hubVideoAnalytics : videoAnalytics;
+  const hubVisitTrend = isArCard ? arCardAnalytics?.hub?.visitTrend : [];
 
   const periodLinkClicks = useMemo(() => {
-    if (!multiLink?.clicksByLinkPeriod?.length) return 0;
-    return multiLink.clicksByLinkPeriod.reduce((acc, r) => acc + (r.clicks || 0), 0);
-  }, [multiLink]);
+    if (!hubMultiLink?.clicksByLinkPeriod?.length) return 0;
+    return hubMultiLink.clicksByLinkPeriod.reduce((acc, r) => acc + (r.clicks || 0), 0);
+  }, [hubMultiLink]);
 
   const fmtDuration = (ms) => {
     if (!ms) return '—';
@@ -293,7 +305,7 @@ const CampaignAnalyticsPage = () => {
             />
             <StatCard
               icon={Users}
-              label="Unique Visitors"
+              label={isArCard ? 'Unique AR visitors' : 'Unique Visitors'}
               value={stats.uniqueVisitors?.toLocaleString()}
               sub={`+${periodStats.uniqueVisitors || 0} this period`}
               accent={ICON3D_PRESETS.cyan}
@@ -310,13 +322,22 @@ const CampaignAnalyticsPage = () => {
             {typeConfig.showVideoCompletion && (
               <StatCard
                 icon={PlayCircle}
-                label="Video Completion"
+                label={isArCard ? 'AR video completion' : 'Video Completion'}
                 value={stats.avgVideoWatchPercent ? `${stats.avgVideoWatchPercent}%` : '—'}
-                sub="Avg watch %"
+                sub={isArCard ? 'Avg watch % in hologram' : 'Avg watch %'}
                 accent={ICON3D_PRESETS.amber}
               />
             )}
-            {typeConfig.showLinkClicksTile && (
+            {isArCard && arCardAnalytics?.combined && (
+              <StatCard
+                icon={BarChart3}
+                label="Total touchpoints"
+                value={arCardAnalytics.combined.totalTouchpoints?.toLocaleString() ?? '—'}
+                sub="AR scans + hub visits (all time)"
+                accent={ICON3D_PRESETS.slate}
+              />
+            )}
+            {typeConfig.showLinkClicksTile && !isArCard && (
               <StatCard
                 icon={MousePointerClick}
                 label="Link clicks"
@@ -347,10 +368,52 @@ const CampaignAnalyticsPage = () => {
         )}
       </div>
 
+      {isArCard && arCardAnalytics?.hub && (
+        <>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+            Profile hub
+          </h2>
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <StatCard
+              icon={ScanLine}
+              label="Hub visits"
+              value={arCardAnalytics.hub.visits?.toLocaleString()}
+              sub={`+${arCardAnalytics.hub.periodVisits || 0} this period`}
+              accent={ICON3D_PRESETS.cyan}
+            />
+            <StatCard
+              icon={Users}
+              label="Unique hub visitors"
+              value={arCardAnalytics.hub.uniqueVisitors?.toLocaleString()}
+              sub={`+${arCardAnalytics.hub.periodUniqueVisitors || 0} this period`}
+              accent={ICON3D_PRESETS.emerald}
+            />
+            <StatCard
+              icon={Clock}
+              label="Avg hub session"
+              value={fmtDuration(arCardAnalytics.hub.avgSessionMs)}
+              sub="Time on link page"
+              accent={ICON3D_PRESETS.violet}
+            />
+            {typeConfig.showLinkClicksTile && (
+              <StatCard
+                icon={MousePointerClick}
+                label="Link clicks"
+                value={periodLinkClicks.toLocaleString()}
+                sub="Outbound taps (this period)"
+                accent={ICON3D_PRESETS.amber}
+              />
+            )}
+          </div>
+        </>
+      )}
+
       {/* ── Scan trend ─────────────────────────────────────────────────── */}
       <div className="glass-card p-5">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-[var(--text-primary)]">Scan Trend</h2>
+          <h2 className="text-base font-semibold text-[var(--text-primary)]">
+            {isArCard ? 'AR scan trend' : 'Scan Trend'}
+          </h2>
           <span className="text-xs text-[var(--text-muted)]">Last {period}</span>
         </div>
         {isLoadingCamp ? (
@@ -396,7 +459,7 @@ const CampaignAnalyticsPage = () => {
               <Area
                 type="monotone" dataKey="scans"
                 stroke="#7c3aed" strokeWidth={2} fill="url(#cGradScans)"
-                name="Total Scans" dot={false} activeDot={{ r: 4 }}
+                name={isArCard ? 'AR scans' : 'Total Scans'} dot={false} activeDot={{ r: 4 }}
               />
               <Area
                 type="monotone" dataKey="uniqueScans"
@@ -408,6 +471,80 @@ const CampaignAnalyticsPage = () => {
         )}
       </div>
 
+      {isArCard && (
+        <div className="glass-card p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-[var(--text-primary)]">Hub visits</h2>
+            <span className="text-xs text-[var(--text-muted)]">Last {period}</span>
+          </div>
+          {isLoadingCamp ? (
+            <ChartSkeleton h="h-56" />
+          ) : !hubVisitTrend?.length ? (
+            <div className="flex h-56 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border-color)] text-center">
+              <BarChart3 size={28} className="text-[var(--text-muted)]/60" />
+              <p className="text-sm font-medium text-[var(--text-secondary)]">No hub visits for this period</p>
+              <p className="max-w-xs text-xs text-[var(--text-muted)]">
+                {typeConfig.hubScanEmptyHint}
+              </p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={hubVisitTrend} margin={chartMargin}>
+                <defs>
+                  <linearGradient id="cGradHubVisits" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="cGradHubUniq" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid-stroke)" />
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={(d) => d.slice(5)}
+                  tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  allowDecimals={false}
+                  width={yAxisWidth}
+                  tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip contentStyle={TOOLTIP_STYLE} />
+                {!isMobile && (
+                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+                )}
+                <Area
+                  type="monotone"
+                  dataKey="scans"
+                  stroke="#06b6d4"
+                  strokeWidth={2}
+                  fill="url(#cGradHubVisits)"
+                  name="Hub visits"
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="uniqueScans"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  fill="url(#cGradHubUniq)"
+                  name="Unique"
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      )}
+
       {/* ── Multi-link: clicks by link + click trend ───────────────────── */}
       {typeConfig.showLinkClicksTile && (
         <>
@@ -417,17 +554,17 @@ const CampaignAnalyticsPage = () => {
               <h2 className="text-base font-semibold text-[var(--text-primary)]">Clicks by link</h2>
               <span className="ml-auto text-xs text-[var(--text-muted)]">Last {period}</span>
             </div>
-            {isLoadingCamp || !multiLink ? (
+            {isLoadingCamp || !hubMultiLink ? (
               <ChartSkeleton h="h-48" />
-            ) : !multiLink.clicksByLinkPeriod?.length ? (
+            ) : !hubMultiLink.clicksByLinkPeriod?.length ? (
               <div className="flex h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border-color)] text-center">
                 <MousePointerClick size={24} className="text-[var(--text-muted)]/60" />
                 <p className="text-sm text-[var(--text-secondary)]">No link clicks in this period yet</p>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={Math.min(360, multiLink.clicksByLinkPeriod.length * 36 + 40)}>
+              <ResponsiveContainer width="100%" height={Math.min(360, hubMultiLink.clicksByLinkPeriod.length * 36 + 40)}>
                 <BarChart
-                  data={multiLink.clicksByLinkPeriod}
+                  data={hubMultiLink.clicksByLinkPeriod}
                   layout="vertical"
                   margin={{ top: 4, right: 12, bottom: 4, left: 8 }}
                   barCategoryGap="18%"
@@ -454,16 +591,16 @@ const CampaignAnalyticsPage = () => {
               <h2 className="text-base font-semibold text-[var(--text-primary)]">Click trend</h2>
               <span className="text-xs text-[var(--text-muted)]">Last {period}</span>
             </div>
-            {isLoadingCamp || !multiLink ? (
+            {isLoadingCamp || !hubMultiLink ? (
               <ChartSkeleton h="h-56" />
-            ) : !multiLink.clickTrend?.length ? (
+            ) : !hubMultiLink.clickTrend?.length ? (
               <div className="flex h-56 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--text-muted)]/30 text-center">
                 <BarChart3 size={28} className="text-[var(--text-muted)]/60" />
                 <p className="text-sm font-medium text-[var(--text-secondary)]">No click activity for this period</p>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={multiLink.clickTrend} margin={chartMargin}>
+                <AreaChart data={hubMultiLink.clickTrend} margin={chartMargin}>
                   <defs>
                     <linearGradient id="cGradClicks" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.45} />
@@ -503,34 +640,39 @@ const CampaignAnalyticsPage = () => {
         </>
       )}
 
-      {isVideoHub && videoAnalytics && (
+      {showHubVideoSection && (
         <>
+          {isArCard && (
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+              Hub video
+            </h2>
+          )}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
             <StatCard
               icon={PlayCircle}
               label="Play Rate"
-              value={videoAnalytics?.playRatePeriod != null ? `${videoAnalytics.playRatePeriod}%` : '—'}
+              value={activeHubVideo?.playRatePeriod != null ? `${activeHubVideo.playRatePeriod}%` : '—'}
               sub="Plays / hub visits (period)"
               accent={ICON3D_PRESETS.amber}
             />
             <StatCard
               icon={PlayCircle}
               label="Video Plays"
-              value={(videoAnalytics?.totalPlaysPeriod || 0).toLocaleString()}
+              value={(activeHubVideo?.totalPlaysPeriod || 0).toLocaleString()}
               sub="This period"
               accent={ICON3D_PRESETS.violet}
             />
             <StatCard
               icon={Clock}
               label="Avg Watch %"
-              value={videoAnalytics?.avgWatchPercent != null ? `${videoAnalytics.avgWatchPercent}%` : '—'}
+              value={activeHubVideo?.avgWatchPercent != null ? `${activeHubVideo.avgWatchPercent}%` : '—'}
               sub="Across viewers"
               accent={ICON3D_PRESETS.cyan}
             />
             <StatCard
               icon={Clock}
               label="Avg Watch Time"
-              value={fmtSeconds(videoAnalytics?.avgWatchSec)}
+              value={fmtSeconds(activeHubVideo?.avgWatchSec)}
               sub="Across viewers"
               accent={ICON3D_PRESETS.emerald}
             />
@@ -541,13 +683,13 @@ const CampaignAnalyticsPage = () => {
               <h2 className="text-base font-semibold text-[var(--text-primary)]">Watch funnel</h2>
               <span className="text-xs text-[var(--text-muted)]">Last {period}</span>
             </div>
-            {!videoAnalytics?.watchPercentBuckets?.length ? (
+            {!activeHubVideo?.watchPercentBuckets?.length ? (
               <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-[var(--border-color)] text-sm text-[var(--text-muted)]">
                 No video watch data yet
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={videoAnalytics.watchPercentBuckets} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                <BarChart data={activeHubVideo.watchPercentBuckets} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid-stroke)" />
                   <XAxis dataKey="bucket" tick={{ fill: 'var(--text-muted)', fontSize: 12 }} axisLine={false} tickLine={false} />
                   <YAxis allowDecimals={false} width={yAxisWidth} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -563,13 +705,13 @@ const CampaignAnalyticsPage = () => {
               <h2 className="text-base font-semibold text-[var(--text-primary)]">Watch trend</h2>
               <span className="text-xs text-[var(--text-muted)]">Last {period}</span>
             </div>
-            {!videoAnalytics?.watchTrend?.length ? (
+            {!activeHubVideo?.watchTrend?.length ? (
               <div className="flex h-56 items-center justify-center rounded-xl border border-dashed border-[var(--border-color)] text-sm text-[var(--text-muted)]">
                 No video trend data yet
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={videoAnalytics.watchTrend} margin={chartMargin}>
+                <AreaChart data={activeHubVideo.watchTrend} margin={chartMargin}>
                   <defs>
                     <linearGradient id="cGradPlays" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.45} />

@@ -71,7 +71,10 @@ const normalizeAndPersist = async (event) => {
   // Resolve the campaign owner (we need userId on ScanEvent for the analytics
   // dashboard).  This adds one cheap indexed lookup, but we're already off the
   // hot path here.
-  const camp = await Campaign.findById(event.campaignId, '_id userId preciseGeoAnalytics').lean();
+  const camp = await Campaign.findById(
+    event.campaignId,
+    '_id userId preciseGeoAnalytics campaignType'
+  ).lean();
   if (!camp) return; // Campaign deleted between scan and worker
 
   const geo = await lookupGeo(event.ip, {
@@ -90,7 +93,7 @@ const normalizeAndPersist = async (event) => {
 
   const allowGeo =
     event.allowBrowserGeo === true
-    && camp.preciseGeoAnalytics === true;
+    && (camp.preciseGeoAnalytics === true || camp.campaignType === 'ar-card');
 
   const blat = event.browserLatitude;
   const blng = event.browserLongitude;
@@ -138,10 +141,14 @@ const normalizeAndPersist = async (event) => {
       ? event.visitorHash.trim().slice(0, 128)
       : hashIp(event.ip);
 
+  const touchpoint =
+    event.touchpoint === 'ar' || event.touchpoint === 'hub' ? event.touchpoint : 'hub';
+
   const scanDoc = await ScanEvent.create({
     campaignId: camp._id,
     userId: camp.userId,
     visitorHash,
+    touchpoint,
     deviceType:
       event.deviceType && ['mobile', 'tablet', 'desktop', 'unknown'].includes(event.deviceType)
         ? event.deviceType

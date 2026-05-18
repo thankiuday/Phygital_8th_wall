@@ -541,7 +541,8 @@ export class ARExperience {
       updateSession(
         this._campaign._id,
         Date.now() - this._sessionStart,
-        this._getVideoWatchPercent()
+        this._getVideoWatchPercent(),
+        this._campaign.redirectSlug
       );
     }
     if (this._mindarThree?.renderer) {

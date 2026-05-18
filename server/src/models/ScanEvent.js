@@ -25,6 +25,14 @@ const scanEventSchema = new mongoose.Schema(
     // Fingerprint to count unique vs repeat visitors
     visitorHash: { type: String, index: true },
 
+    /** `ar` = hologram engine; `hub` = profile link page (incl. bridge entry). */
+    touchpoint: {
+      type: String,
+      enum: ['ar', 'hub'],
+      default: 'hub',
+      index: true,
+    },
+
     // Device / browser info
     deviceType: { type: String, enum: ['mobile', 'tablet', 'desktop', 'unknown'], default: 'unknown' },
     browser: { type: String, default: 'unknown' },
@@ -63,6 +71,7 @@ const scanEventSchema = new mongoose.Schema(
 
 scanEventSchema.index({ userId: 1, scannedAt: -1 });
 scanEventSchema.index({ campaignId: 1, scannedAt: -1 });
+scanEventSchema.index({ campaignId: 1, touchpoint: 1, scannedAt: -1 });
 scanEventSchema.index({ campaignId: 1, videoPlayed: 1 });
 
 /**

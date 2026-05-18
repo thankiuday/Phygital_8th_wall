@@ -12,6 +12,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { publicService } from '../services/publicService';
+import { getVisitorHashForCampaign } from '../utils/visitorHash';
 import useThemeStore, { applyThemeClass } from '../store/useThemeStore';
 import BrandWord from '../components/ui/BrandWord';
 import BrandLockup from '../components/ui/BrandLockup';
@@ -22,15 +23,6 @@ const getDeviceType = () => {
   if (/tablet|ipad|playbook|silk/i.test(ua)) return 'tablet';
   if (/mobile|android|iphone|ipod|blackberry|windows phone/i.test(ua)) return 'mobile';
   return 'desktop';
-};
-
-/* ── Simple visitor hash (fingerprint) ──────────────────────────── */
-const getVisitorHash = () => {
-  const stored = sessionStorage.getItem('p8w_vid');
-  if (stored) return stored;
-  const hash = Math.random().toString(36).slice(2) + Date.now().toString(36);
-  sessionStorage.setItem('p8w_vid', hash);
-  return hash;
 };
 
 /* ── Steps shown on the page ─────────────────────────────────────── */
@@ -69,7 +61,7 @@ const ARExperiencePage = () => {
         publicService.recordScan(campaignId, {
           deviceType: getDeviceType(),
           browser: navigator.userAgent.slice(0, 100),
-          visitorHash: getVisitorHash(),
+          visitorHash: getVisitorHashForCampaign(data?.redirectSlug),
         }).catch(() => {}); // non-blocking
       } catch (err) {
         if (err.response?.status === 404) {

@@ -42,7 +42,7 @@ export const loadCampaign = async (campaignId) => {
  *
  * @param {string} campaignId
  */
-export const recordScan = (campaignId) => {
+export const recordScan = (campaignId, redirectSlug) => {
   const deviceType = /Mobi|Android/i.test(navigator.userAgent) ? 'mobile' : 'desktop';
 
   fetch(`${API_BASE}/public/campaigns/${campaignId}/scan`, {
@@ -51,7 +51,7 @@ export const recordScan = (campaignId) => {
     body: JSON.stringify({
       deviceType,
       browser: navigator.userAgent.slice(0, 100),
-      visitorHash: getVisitorHash(),
+      visitorHash: getVisitorHash(redirectSlug),
     }),
   }).catch(() => {}); // intentionally non-blocking
 };
@@ -65,8 +65,8 @@ export const recordScan = (campaignId) => {
  * @param {number} sessionDurationMs
  * @param {number} videoWatchPercent   0-100
  */
-export const updateSession = (campaignId, sessionDurationMs, videoWatchPercent) => {
-  const visitorHash = getVisitorHash();
+export const updateSession = (campaignId, sessionDurationMs, videoWatchPercent, redirectSlug) => {
+  const visitorHash = getVisitorHash(redirectSlug);
   fetch(`${API_BASE}/public/campaigns/${campaignId}/session`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -76,8 +76,18 @@ export const updateSession = (campaignId, sessionDurationMs, videoWatchPercent) 
   }).catch(() => {});
 };
 
-/** Returns a session-scoped visitor fingerprint stored in sessionStorage. */
-const getVisitorHash = () => {
+/** Shared with hub bridge — keyed by campaign redirectSlug when available. */
+const getVisitorHash = (redirectSlug) => {
+  if (redirectSlug) {
+    const key = `p8w_vh_${String(redirectSlug)}`;
+    let hash = sessionStorage.getItem(key);
+    if (!hash) {
+      hash = crypto.randomUUID?.()
+        || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      sessionStorage.setItem(key, hash);
+    }
+    return hash;
+  }
   const key = 'p8w_vid';
   let hash = sessionStorage.getItem(key);
   if (!hash) {

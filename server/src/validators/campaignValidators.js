@@ -238,6 +238,11 @@ const linkItemsPatchField = z
   .min(1, 'At least one link is required')
   .max(20, 'Too many links (max 20)');
 
+/** PATCH — optional links (ar-card edit can clear all hub links). */
+const linkItemsOptionalPatchField = z
+  .array(linkItemPatchSchema)
+  .max(20, 'Too many links (max 20)');
+
 /** AR card hubs — links are optional; when provided, each row is validated. */
 const linkItemsOptionalField = z.array(linkItemInputSchema).max(20, 'Too many links (max 20)');
 
@@ -784,8 +789,8 @@ const createCampaignSchema = z.preprocess((raw) => {
 }, z.discriminatedUnion('campaignType', [arCardCreateSchema, singleLinkCreateSchema]));
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Update schema — campaignType is immutable; redirectSlug is immutable;
-   targetImageUrl / videoUrl are immutable post-create (they live on Cloudinary).
+   Update schema — campaignType is immutable; redirectSlug is immutable.
+   ar-card may PATCH videoUrl / linkItems (optional empty array).
    ─────────────────────────────────────────────────────────────────────────── */
 
 const updateCampaignSchema = z
@@ -807,7 +812,7 @@ const updateCampaignSchema = z
       })
       .optional(),
     qrDesign: qrDesignSchema.nullable().optional(),
-    linkItems: linkItemsPatchField.optional(),
+    linkItems: z.union([linkItemsPatchField, linkItemsOptionalPatchField]).optional(),
     /* ── links-video-qr fields (controller gates by campaignType) ── */
     videoSource: z.enum(['upload', 'link']).optional(),
     videoUrl: cloudinaryUrlField.nullable().optional(),

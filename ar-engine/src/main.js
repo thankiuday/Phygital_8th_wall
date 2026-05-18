@@ -49,7 +49,7 @@ const init = async () => {
   }
 
   // Fire-and-forget scan recording
-  recordScan(campaignId);
+  recordScan(campaignId, campaign.redirectSlug);
 
   // Update page title
   document.title = `${campaign.campaignName} — Phygital AR`;

@@ -192,10 +192,16 @@ const OpenSingleLinkBridgePage = () => {
     [meta?.campaignType, postMultiScanAndGoHub, postSingleScanAndRedirect]
   );
 
+  /** Hub + AR profile entry: optional browser location (AR cards always use this bridge). */
+  const wantsPreciseGeo = useCallback(() => {
+    if (!meta) return false;
+    return !!meta.preciseGeoAnalytics || meta.campaignType === 'ar-card';
+  }, [meta]);
+
   const tryGeolocationThenContinue = useCallback(() => {
     if (geoAttemptedRef.current) return;
     geoAttemptedRef.current = true;
-    const precise = !!meta?.preciseGeoAnalytics;
+    const precise = wantsPreciseGeo();
     if (!precise) {
       handleSkipGeo();
       return;
@@ -224,7 +230,7 @@ const OpenSingleLinkBridgePage = () => {
       },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
-  }, [meta?.preciseGeoAnalytics, handleSkipGeo, postWithOptionalCoords]);
+  }, [wantsPreciseGeo, handleSkipGeo, postWithOptionalCoords]);
 
   useEffect(() => {
     tryGeoRef.current = tryGeolocationThenContinue;
@@ -314,7 +320,7 @@ const OpenSingleLinkBridgePage = () => {
     );
   }
 
-  const precise = !!meta?.preciseGeoAnalytics;
+  const precise = wantsPreciseGeo();
   const isHub = meta?.campaignType ? isHubCampaignType(meta.campaignType) : false;
 
   return (

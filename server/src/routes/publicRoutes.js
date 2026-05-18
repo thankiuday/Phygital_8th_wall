@@ -46,7 +46,7 @@ const HUB_CAMPAIGN_TYPES = [
 ];
 
 /** Hub types that can ship hero/video assets and therefore accept video beacons. */
-const VIDEO_CAPABLE_HUB_TYPES = ['links-video-qr', 'links-doc-video-qr'];
+const VIDEO_CAPABLE_HUB_TYPES = ['links-video-qr', 'links-doc-video-qr', 'ar-card'];
 
 const classifyBrowserFromUa = (ua = '') => {
   const u = String(ua || '').toLowerCase();
@@ -108,7 +108,7 @@ router.get('/campaigns/:id', publicLimiter, async (req, res) => {
 router.post('/campaigns/:id/scan', publicLimiter, async (req, res) => {
   const campaign = await Campaign.findOne(
     { _id: req.params.id, status: 'active' },
-    '_id userId analytics'
+    '_id'
   );
 
   if (!campaign) {
@@ -120,24 +120,17 @@ router.post('/campaigns/:id/scan', publicLimiter, async (req, res) => {
     ? browser.trim()
     : classifyBrowserFromUa(req.get('user-agent'));
 
-  // Create scan event
-  await ScanEvent.create({
+  scanQueue.enqueue({
     campaignId: campaign._id,
-    userId: campaign.userId,
+    ip: getClientIpFromRequest(req),
+    ua: req.get('user-agent'),
+    cfCountry: getCfIpCountry(req),
+    ts: Date.now(),
+    touchpoint: 'ar',
     visitorHash,
     deviceType,
     browser: resolvedBrowser,
-    scannedAt: new Date(),
   });
-
-  // Increment embedded counters on Campaign (fast read path for dashboard)
-  await Campaign.updateOne(
-    { _id: campaign._id },
-    {
-      $inc: { 'analytics.totalScans': 1 },
-      $set: { 'analytics.lastScannedAt': new Date() },
-    }
-  );
 
   return success(res, {}, 'Scan recorded');
 });
@@ -156,8 +149,9 @@ router.patch('/campaigns/:id/session', publicLimiter, async (req, res) => {
   // Update the most-recent ScanEvent for this visitor + campaign
   await ScanEvent.findOneAndUpdate(
     {
-      campaignId:  req.params.id,
+      campaignId: req.params.id,
       visitorHash,
+      touchpoint: 'ar',
     },
     {
       $max: {
@@ -303,7 +297,7 @@ router.post(
         status: 'active',
         campaignType: { $in: HUB_CAMPAIGN_TYPES },
       },
-      '_id preciseGeoAnalytics'
+      '_id campaignType preciseGeoAnalytics'
     ).lean();
 
     if (!campaign) throw new AppError('Link not found', 404);
@@ -318,6 +312,9 @@ router.post(
       consentVersion,
     } = req.body;
 
+    const allowBrowserGeo =
+      campaign.preciseGeoAnalytics === true || campaign.campaignType === 'ar-card';
+
     scanQueue.enqueue({
       campaignId: campaign._id,
       slug,
@@ -325,7 +322,8 @@ router.post(
       ua: req.get('user-agent'),
       cfCountry: getCfIpCountry(req),
       ts: Date.now(),
-      allowBrowserGeo: campaign.preciseGeoAnalytics === true,
+      touchpoint: 'hub',
+      allowBrowserGeo,
       browserLatitude: latitude,
       browserLongitude: longitude,
       browserAccuracyM: accuracyM,
@@ -361,6 +359,7 @@ const updateMultiLinkSession = async (req, res) => {
     {
       campaignId: campaign._id,
       visitorHash,
+      touchpoint: 'hub',
     },
     {
       $max: {
@@ -506,6 +505,7 @@ router.post(
       {
         campaignId: campaign._id,
         visitorHash,
+        touchpoint: 'hub',
       },
       {
         ...update,
@@ -513,6 +513,7 @@ router.post(
           campaignId: campaign._id,
           userId: campaign.userId,
           visitorHash,
+          touchpoint: 'hub',
           deviceType: 'unknown',
           browser: 'unknown',
           os: 'unknown',
