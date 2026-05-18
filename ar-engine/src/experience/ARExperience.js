@@ -77,10 +77,13 @@ const FPS_RESTORE_THRESHOLD = 50;
 const FPS_SAMPLE_FRAMES     = 60;
 
 // ─────────────────────────────────────────────────────────────────────────────
+const SCAN_OVERLAY_ID = 'ar-scanning-overlay';
+
 export class ARExperience {
   constructor({ container, campaign }) {
     this._container = container;
     this._campaign  = campaign;
+    this._setupScanningOverlay();
 
     // Three.js / MindAR objects
     this._mindarThree  = null;
@@ -119,6 +122,28 @@ export class ARExperience {
     this._renderLoop   = null;
   }
 
+  _setupScanningOverlay() {
+    const img = document.getElementById('ar-scan-target-img');
+    const nameEl = document.getElementById('ar-scan-campaign-name');
+    const url = this._campaign.targetImageUrl || this._campaign.targetImageOriginalUrl;
+    if (img && url) {
+      img.src = url;
+      img.alt = this._campaign.campaignName
+        ? `Point your camera at ${this._campaign.campaignName}`
+        : 'Point your camera at this card';
+    }
+    if (nameEl && this._campaign.campaignName) {
+      nameEl.textContent = this._campaign.campaignName;
+    }
+  }
+
+  _setScanningOverlayVisible(visible) {
+    const el = document.getElementById(SCAN_OVERLAY_ID);
+    if (!el) return;
+    el.classList.toggle('hidden', !visible);
+    el.setAttribute('aria-hidden', visible ? 'false' : 'true');
+  }
+
   // ───────────────────────────────────────────────────────────────────────────
   // boot
   // ───────────────────────────────────────────────────────────────────────────
@@ -152,7 +177,7 @@ export class ARExperience {
       imageTargetSrc: mindBlobUrl,
       maxTrack:       1,
       uiLoading:      'no',
-      uiScanning:     'yes',
+      uiScanning:     `#${SCAN_OVERLAY_ID}`,
       uiError:        'no',
 
       // One-Euro: tight cutoff at rest, opens on motion
@@ -198,6 +223,7 @@ export class ARExperience {
     this._sessionStart = Date.now();
     updateLoadingProgress(100, 'Ready!');
     hideLoading();
+    this._setScanningOverlayVisible(true);
 
     // ── Render loop ──────────────────────────────────────────────────────────
     const sc = this._scratch;
@@ -414,6 +440,8 @@ export class ARExperience {
   // Event handlers
   // ───────────────────────────────────────────────────────────────────────────
   _onTargetFound() {
+    this._setScanningOverlayVisible(false);
+
     // Prime the smoothed billboard quaternion toward the camera so the very
     // first frame already faces the user (no slerp ramp-in shimmer).
     const sc = this._scratch;
@@ -434,6 +462,8 @@ export class ARExperience {
   }
 
   _onTargetLost() {
+    this._setScanningOverlayVisible(true);
+
     animateTargetLost(this._plane, PLANE_REST_Z);
     this._videoEl?.pause();
     // Keep controls visible — user may want to keep using them; spinner hides

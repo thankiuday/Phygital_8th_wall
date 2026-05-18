@@ -238,10 +238,87 @@
       }
 
       /* ------------------------------------------------------------------ */
-      /* MindAR scanning hint override — match brand colours                */
+      /* Custom scanning overlay — shows the image to point the camera at   */
       /* ------------------------------------------------------------------ */
-      .mindar-ui-overlay .mindar-ui-scanning > .scanline {
-        background: linear-gradient(180deg, transparent, #7c3aed88) !important;
+      #ar-scanning-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 15;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        padding: max(16px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+        pointer-events: none;
+        background: rgba(0, 0, 0, 0.35);
+      }
+      #ar-scanning-overlay.hidden {
+        display: none !important;
+      }
+      .ar-scan-title {
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.75);
+        text-align: center;
+      }
+      .ar-scan-target-frame {
+        position: relative;
+        width: min(78vw, 320px);
+        max-height: min(52vh, 420px);
+        aspect-ratio: 1.6;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow:
+          0 0 0 2px rgba(255, 255, 255, 0.9),
+          0 12px 40px rgba(0, 0, 0, 0.55);
+        background: #111;
+      }
+      #ar-scan-target-img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        background: #0a0a0a;
+      }
+      .ar-scan-corner {
+        position: absolute;
+        width: 28px;
+        height: 28px;
+        border: 3px solid #fff;
+        opacity: 0.95;
+      }
+      .ar-scan-corner-tl { top: 8px; left: 8px; border-right: none; border-bottom: none; border-radius: 6px 0 0 0; }
+      .ar-scan-corner-tr { top: 8px; right: 8px; border-left: none; border-bottom: none; border-radius: 0 6px 0 0; }
+      .ar-scan-corner-bl { bottom: 8px; left: 8px; border-right: none; border-top: none; border-radius: 0 0 0 6px; }
+      .ar-scan-corner-br { bottom: 8px; right: 8px; border-left: none; border-top: none; border-radius: 0 0 6px 0; }
+      .ar-scan-line {
+        position: absolute;
+        left: 6%;
+        right: 6%;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, #a78bfa, #7c3aed, #a78bfa, transparent);
+        box-shadow: 0 0 12px #7c3aed;
+        animation: ar-scan-sweep 2.2s ease-in-out infinite;
+        pointer-events: none;
+      }
+      @keyframes ar-scan-sweep {
+        0%, 100% { top: 12%; opacity: 0.35; }
+        50% { top: 82%; opacity: 1; }
+      }
+      .ar-scan-hint {
+        max-width: 280px;
+        text-align: center;
+        font-size: 14px;
+        line-height: 1.45;
+        color: rgba(255, 255, 255, 0.88);
+        text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+      }
+      .ar-scan-campaign {
+        font-weight: 700;
+        color: #c4b5fd;
       }
 
       /* ------------------------------------------------------------------ */
@@ -346,6 +423,22 @@
   </head>
 
   <body>
+    <!-- Custom MindAR scanning UI — target preview image inside the frame -->
+    <div id="ar-scanning-overlay" class="hidden" aria-hidden="true">
+      <p class="ar-scan-title">Scan this image</p>
+      <div class="ar-scan-target-frame">
+        <img id="ar-scan-target-img" alt="Point your camera at this card" crossorigin="anonymous" />
+        <span class="ar-scan-corner ar-scan-corner-tl" aria-hidden="true"></span>
+        <span class="ar-scan-corner ar-scan-corner-tr" aria-hidden="true"></span>
+        <span class="ar-scan-corner ar-scan-corner-bl" aria-hidden="true"></span>
+        <span class="ar-scan-corner ar-scan-corner-br" aria-hidden="true"></span>
+        <span class="ar-scan-line" aria-hidden="true"></span>
+      </div>
+      <p class="ar-scan-hint">
+        Point your camera at <span class="ar-scan-campaign" id="ar-scan-campaign-name">your card</span>
+      </p>
+    </div>
+
     <!-- AR canvas container — MindARThree injects <canvas> here -->
     <div id="ar-root"></div>
 

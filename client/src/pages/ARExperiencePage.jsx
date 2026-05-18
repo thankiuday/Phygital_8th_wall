@@ -166,9 +166,9 @@ const ARExperiencePage = () => {
         {/* Thumbnail / card preview */}
         <div className="relative">
           <div className="relative overflow-hidden rounded-2xl border border-white/10 shadow-glow">
-            {campaign?.thumbnailUrl ? (
+            {(campaign?.targetImageUrl || campaign?.thumbnailUrl) ? (
               <img
-                src={campaign.thumbnailUrl}
+                src={campaign.targetImageUrl || campaign.thumbnailUrl}
                 alt={campaign.campaignName}
                 className="h-48 w-48 object-cover"
               />
