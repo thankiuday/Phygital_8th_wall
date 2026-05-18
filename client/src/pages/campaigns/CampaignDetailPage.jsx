@@ -99,7 +99,8 @@ const ActionMenu = ({ campaign, actionLoading, onEdit, onDuplicate, onToggleStat
   const isHubType =
     campaign.campaignType === 'multiple-links-qr'
     || campaign.campaignType === 'links-video-qr'
-    || campaign.campaignType === 'links-doc-video-qr';
+    || campaign.campaignType === 'links-doc-video-qr'
+    || campaign.campaignType === 'ar-card';
   const isDigitalCard = campaign.campaignType === 'digital-business-card';
   const trackedRedirectUrl = singleLinkPublicOpenUrl(campaign);
   const hubPreviewUrl = hubPublicPageUrl(campaign);
@@ -351,7 +352,8 @@ const CampaignDetailPage = () => {
   const isHubType =
     campaign.campaignType === 'multiple-links-qr'
     || campaign.campaignType === 'links-video-qr'
-    || campaign.campaignType === 'links-doc-video-qr';
+    || campaign.campaignType === 'links-doc-video-qr'
+    || campaign.campaignType === 'ar-card';
   const isLinksDocVideo = campaign.campaignType === 'links-doc-video-qr';
   const isDigitalCard = campaign.campaignType === 'digital-business-card';
   const trackedRedirectUrl = singleLinkPublicOpenUrl(campaign);

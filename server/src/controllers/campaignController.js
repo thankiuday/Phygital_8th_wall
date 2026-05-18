@@ -29,31 +29,7 @@ const { allocateUniqueHubSlugForUser } = require('../utils/campaignHubSlug');
    schema regression that lets through a giant nested gradient or similar. ── */
 const MAX_QR_DESIGN_BYTES = 32_768;
 
-/* ── nanoid is ESM-only as of v4 — we lazy-import once and cache the binding.
-   Doing this once at module load (before any request hits us) keeps the create
-   handler synchronous-feeling for callers. ── */
-let nanoidPromise = null;
-const getNanoid = () => {
-  if (!nanoidPromise) {
-    nanoidPromise = import('nanoid').then((m) => m.customAlphabet(
-      // URL-safe, no look-alikes (0/O, 1/l/I), 8 chars → ~218 trillion combos
-      '23456789abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ',
-      8
-    ));
-  }
-  return nanoidPromise;
-};
-
-const generateUniqueSlug = async () => {
-  const nanoid = await getNanoid();
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const slug = nanoid();
-    const exists = await Campaign.exists({ redirectSlug: slug });
-    if (!exists) return slug;
-    logger.warn('redirectSlug collision — retrying', { slug, attempt });
-  }
-  throw new AppError('Could not allocate a unique short URL — please retry', 500);
-};
+const { generateUniqueRedirectSlug: generateUniqueSlug } = require('../utils/redirectSlugAllocator');
 
 const evictDynamicQrMetaForCampaign = (row) => {
   if (!row?.redirectSlug) return;

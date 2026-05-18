@@ -28,6 +28,7 @@ export function getDynamicQrEncodedUrl({
     'multiple-links-qr',
     'links-video-qr',
     'links-doc-video-qr',
+    'ar-card',
   ]);
   if (!types.has(campaignType)) return null;
 
@@ -49,7 +50,12 @@ export function getDynamicQrEncodedUrl({
   return null;
 }
 
-const HUB_TYPES = new Set(['multiple-links-qr', 'links-video-qr', 'links-doc-video-qr']);
+const HUB_TYPES = new Set([
+  'multiple-links-qr',
+  'links-video-qr',
+  'links-doc-video-qr',
+  'ar-card',
+]);
 
 /**
  * Dashboard "Open link page" for hub types (browser entry, not necessarily identical to QR host if envs differ).

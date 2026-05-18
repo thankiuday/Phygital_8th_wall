@@ -7,30 +7,12 @@ const logger = require('../config/logger');
 const { generateQRCode } = require('./qrService');
 const { allocateUniqueHubSlugForUser } = require('../utils/campaignHubSlug');
 const { allocateUniqueHandleFromEmail } = require('../utils/userHandle');
+const { generateUniqueRedirectSlug } = require('../utils/redirectSlugAllocator');
 
 /**
  * arCardCampaignService — AR business card create + hub field allocation.
  * Keeps campaignController thin; reuses the same patterns as hub QR campaigns.
  */
-
-let nanoidPromise = null;
-const getNanoid = async () => {
-  if (!nanoidPromise) {
-    nanoidPromise = import('nanoid').then((m) => m.nanoid);
-  }
-  return nanoidPromise;
-};
-
-const generateUniqueRedirectSlug = async () => {
-  const nanoid = await getNanoid();
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const slug = nanoid();
-    const exists = await Campaign.exists({ redirectSlug: slug });
-    if (!exists) return slug;
-    logger.warn('redirectSlug collision — retrying', { slug, attempt });
-  }
-  throw new AppError('Could not allocate a unique short URL — please retry', 500);
-};
 
 const ensureOwnerHubFields = async (userId, campaignNameTrimmed) => {
   const userDoc = await User.findById(userId).select('handle email').lean();
