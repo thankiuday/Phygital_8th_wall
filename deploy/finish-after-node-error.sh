@@ -11,18 +11,22 @@ hash -r
 node -v
 npm -v
 
-echo "=== Build and start app ==="
+echo "=== Reinstall deps on Node 20 (fixes rolldown native binding) ==="
 cd "$APP_ROOT"
+rm -rf node_modules client/node_modules server/node_modules ar-engine/node_modules
+rm -f package-lock.json
+npm install
+
+echo "=== Build and start app ==="
 cp "$SECRETS_FILE" server/.env
 grep -q '^REDIS_URL=' server/.env || echo 'REDIS_URL=redis://127.0.0.1:6379' >> server/.env
 cp deploy/env/client.env.production client/.env.production
 cp deploy/env/ar-engine.env.production ar-engine/.env.production
 
-npm install
 npm run build:client
 npm run build:ar
 
-pm2 delete phygital-api phygital-scan-worker phygital-render-worker 2>/dev/null || true
+pm2 delete phygital-backend phygital-api phygital-scan-worker phygital-render-worker 2>/dev/null || true
 pm2 start deploy/pm2.ecosystem.config.cjs --only phygital-api
 grep -q '^REDIS_URL=' server/.env && pm2 start deploy/pm2.ecosystem.config.cjs --only phygital-scan-worker,phygital-render-worker 2>/dev/null || true
 pm2 save

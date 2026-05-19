@@ -91,6 +91,10 @@ if ! command -v node >/dev/null || [[ "$NODE_MAJOR" -lt 20 ]]; then
   apt-get install -y nodejs
   hash -r
   log "Node after upgrade: $(node -v)"
+  # node_modules from an older Node must be rebuilt (Vite 8 / rolldown native bindings)
+  rm -rf "${APP_ROOT}/node_modules" "${APP_ROOT}/client/node_modules" \
+    "${APP_ROOT}/server/node_modules" "${APP_ROOT}/ar-engine/node_modules" 2>/dev/null || true
+  rm -f "${APP_ROOT}/package-lock.json" 2>/dev/null || true
 fi
 
 apt-get install -y git nginx curl
@@ -135,7 +139,7 @@ npm run build:ar
 
 log "=== Step 4: PM2 ==="
 cd "$APP_ROOT"
-pm2 delete phygital-api phygital-scan-worker phygital-render-worker 2>/dev/null || true
+pm2 delete phygital-backend phygital-api phygital-scan-worker phygital-render-worker 2>/dev/null || true
 pm2 start deploy/pm2.ecosystem.config.cjs --only phygital-api
 
 if grep -q '^REDIS_URL=' "$APP_ROOT/server/.env" 2>/dev/null; then
