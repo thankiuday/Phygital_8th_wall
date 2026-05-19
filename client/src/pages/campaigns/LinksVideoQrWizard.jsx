@@ -9,6 +9,7 @@ import { DEFAULT_DESIGN, hydrateWizardDesignFromDraft } from '../../components/q
 import Step2DesignQr from './single-link/Step2DesignQr';
 import { slugifyCampaignNamePreview } from '../../utils/hubVanityPreview';
 import Step1LinksVideo from './links-video/Step1LinksVideo';
+import { resolveClientAppBase } from '../../utils/clientAppBase';
 
 const STEPS = [
   { number: 1, shortLabel: 'Details', label: 'Enter Details' },
@@ -22,12 +23,6 @@ const resolveRedirectBase = () => {
   if (import.meta.env.VITE_API_URL) {
     return String(import.meta.env.VITE_API_URL).replace(/\/api\/?$/, '').replace(/\/$/, '');
   }
-  return typeof window !== 'undefined' ? window.location.origin : '';
-};
-
-const resolveClientAppBase = () => {
-  const fromEnv = import.meta.env.VITE_APP_URL && String(import.meta.env.VITE_APP_URL).replace(/\/$/, '');
-  if (fromEnv) return fromEnv;
   return typeof window !== 'undefined' ? window.location.origin : '';
 };
 

@@ -17,10 +17,12 @@ const REQUIRED = {
   'MongoDB': [
     'MONGO_URI',
   ],
-  'Cloudinary': [
-    'CLOUDINARY_CLOUD_NAME',
-    'CLOUDINARY_API_KEY',
-    'CLOUDINARY_API_SECRET',
+  'AWS S3': [
+    'AWS_REGION',
+    'AWS_S3_BUCKET',
+    'AWS_ACCESS_KEY_ID',
+    'AWS_SECRET_ACCESS_KEY',
+    'AWS_S3_PUBLIC_BASE_URL',
   ],
 };
 

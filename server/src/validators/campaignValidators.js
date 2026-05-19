@@ -311,11 +311,14 @@ const externalVideoUrlField = z
     return normalized;
   });
 
-const cloudinaryUrlField = z
+/** HTTPS asset URL (S3 / CloudFront, or legacy Cloudinary). */
+const storageUrlField = z
   .string()
   .min(1, 'videoUrl is required')
   .max(2048, 'videoUrl cannot exceed 2048 characters')
   .url('videoUrl must be a valid URL');
+
+const cloudinaryUrlField = storageUrlField;
 
 /**
  * POST /api/campaigns/links-video — dedicated route mirroring multiple-links.

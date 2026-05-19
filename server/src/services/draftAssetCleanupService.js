@@ -1,7 +1,7 @@
 'use strict';
 
 const logger = require('../config/logger');
-const { cleanupDraftAssetsByAge } = require('./cloudinaryService');
+const { cleanupDraftAssetsByAge } = require('./storageService');
 
 let cleanupTimer = null;
 

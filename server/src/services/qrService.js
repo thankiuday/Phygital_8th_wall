@@ -1,52 +1,45 @@
 'use strict';
 
 const QRCode = require('qrcode');
-const { cloudinary, configureCloudinary } = require('../config/cloudinary');
-
-configureCloudinary();
+const { uploadBuffer } = require('./storageService');
 
 /**
  * generateQRCode
  *
- * Creates a QR code PNG for the given AR page URL and uploads it to Cloudinary.
- * Returns the public CDN URL of the QR image.
+ * Creates a QR code PNG for the AR page URL and uploads it to S3.
  *
- * Strategy:
- *   1. Generate QR as a base64 PNG data-URI in memory (no temp files needed).
- *   2. Stream it directly to Cloudinary upload API.
- *   3. Store the returned secure_url on the Campaign document.
- *
- * @param {string} campaignId  — MongoDB _id of the campaign
- * @param {string} userId      — Owner's _id (for folder organisation)
+ * @param {string} campaignId
+ * @param {string} userId
  * @returns {Promise<{ qrCodeUrl: string, qrPublicId: string }>}
  */
 const generateQRCode = async (campaignId, userId) => {
   const arPageUrl = `${process.env.CLIENT_URL}/ar/${campaignId}`;
 
-  // Build a styled QR code data URL
   const dataUrl = await QRCode.toDataURL(arPageUrl, {
-    errorCorrectionLevel: 'H',  // High — tolerates up to 30% damage
+    errorCorrectionLevel: 'H',
     type: 'image/png',
     width: 512,
     margin: 2,
     color: {
-      dark: '#7c3aed',   // brand purple dots
-      light: '#ffffff',  // white background
+      dark: '#7c3aed',
+      light: '#ffffff',
     },
   });
 
-  // Upload the base64 PNG to Cloudinary
-  const uploadResult = await cloudinary.uploader.upload(dataUrl, {
-    folder: `phygital8thwall/${userId}/qrcodes`,
-    public_id: `qr_${campaignId}`,
-    overwrite: true,
-    resource_type: 'image',
-    format: 'png',
+  const base64 = dataUrl.replace(/^data:image\/png;base64,/, '');
+  const buffer = Buffer.from(base64, 'base64');
+  const key = `phygital8thwall/${userId}/qrcodes/qr_${campaignId}.png`;
+
+  const uploadResult = await uploadBuffer({
+    buffer,
+    key,
+    contentType: 'image/png',
+    tags: 'status=permanent',
   });
 
   return {
-    qrCodeUrl: uploadResult.secure_url,
-    qrPublicId: uploadResult.public_id,
+    qrCodeUrl: uploadResult.url,
+    qrPublicId: uploadResult.publicId,
   };
 };
 

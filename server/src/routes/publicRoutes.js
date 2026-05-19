@@ -23,16 +23,19 @@ const {
   publicCardSessionSchema,
 } = require('../validators/publicScanValidators');
 const { buildDynamicQrMetaPayload } = require('../utils/dynamicQrMetaPayload');
+const { enrichPublicAssetUrls } = require('../utils/publicAssetUrls');
 const { SLUG_RE } = require('../constants/singleLinkSlug');
 const { USER_HANDLE_RE } = require('../utils/userHandle');
 const { HUB_SLUG_RE } = require('../utils/campaignHubSlug');
 const { dynamicQrMetaCache, cardMetaCache } = require('../utils/redirectCache');
 const { toEmbedSrc, detectVideoHost } = require('../utils/videoEmbed');
 const cardActionQueue = require('../utils/cardActionQueue');
-const { cloudinaryTransform } = require('../utils/cloudinaryTransform');
+const { assetUrl } = require('../utils/assetUrl');
 const { getRenderJobStatus, verifyPrintToken } = require('../services/cardPrintService');
 const logger = require('../config/logger');
 const { getUploadSignature } = require('../controllers/campaignController');
+const { GetObjectCommand } = require('@aws-sdk/client-s3');
+const { getS3Client, getBucket } = require('../config/s3');
 
 /** Friendly user-facing card slug — kebab-case, 3-60 chars (mirrors validator). */
 const CARD_SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{1,58}[a-z0-9])?$/;
@@ -82,6 +85,61 @@ router.get('/upload-signature', publicUploadSignatureLimiter, (req, res, next) =
   return getUploadSignature(req, res, next);
 });
 
+const mediaLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 400,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const MANAGED_MEDIA_PREFIX = 'phygital8thwall/';
+
+/**
+ * GET /api/public/media/phygital8thwall/...
+ * Streams private S3 objects for hub / AR (supports Range for video seeking).
+ */
+router.use('/media', mediaLimiter, async (req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    return next();
+  }
+
+  const key = decodeURIComponent(String(req.path || '').replace(/^\//, ''));
+  if (!key.startsWith(MANAGED_MEDIA_PREFIX)) {
+    throw new AppError('Forbidden', 403);
+  }
+
+  try {
+    const params = { Bucket: getBucket(), Key: key };
+    const range = req.headers.range;
+    if (range) params.Range = range;
+
+    const obj = await getS3Client().send(new GetObjectCommand(params));
+
+    if (obj.ContentType) res.setHeader('Content-Type', obj.ContentType);
+    if (obj.ContentLength != null) res.setHeader('Content-Length', String(obj.ContentLength));
+    if (obj.AcceptRanges) res.setHeader('Accept-Ranges', obj.AcceptRanges);
+    if (obj.ContentRange) res.setHeader('Content-Range', obj.ContentRange);
+    if (obj.ETag) res.setHeader('ETag', obj.ETag);
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.status(range && obj.ContentRange ? 206 : 200);
+
+    if (req.method === 'HEAD') {
+      return res.end();
+    }
+
+    if (!obj.Body) {
+      throw new AppError('Not found', 404);
+    }
+
+    return obj.Body.pipe(res);
+  } catch (err) {
+    if (err?.name === 'NoSuchKey' || err?.$metadata?.httpStatusCode === 404) {
+      throw new AppError('Not found', 404);
+    }
+    return next(err);
+  }
+});
+
 /* ─────────────────────────────────────────
    GET /api/public/campaigns/:id
    No auth. Used by the AR engine and public AR landing page.
@@ -97,7 +155,8 @@ router.get('/campaigns/:id', publicLimiter, async (req, res) => {
     throw new AppError('Campaign not found or is currently inactive', 404);
   }
 
-  return success(res, { campaign });
+  const enriched = await enrichPublicAssetUrls(campaign);
+  return success(res, { campaign: enriched });
 });
 
 /* ─────────────────────────────────────────
@@ -201,7 +260,9 @@ router.get('/dynamic-qr/:slug/meta', singleLinkSlugLimiter, async (req, res) => 
   if (!SLUG_RE.test(slug)) throw new AppError('Invalid link code', 400);
 
   const cached = await dynamicQrMetaCache.get(slug);
-  if (cached) return success(res, cached);
+  if (cached) {
+    return success(res, await enrichPublicAssetUrls(cached));
+  }
 
   const campaign = await Campaign.findOne(
     {
@@ -228,7 +289,7 @@ router.get('/dynamic-qr/:slug/meta', singleLinkSlugLimiter, async (req, res) => 
   if (!payload) throw new AppError('Link not found', 404);
 
   await dynamicQrMetaCache.set(slug, payload);
-  return success(res, payload);
+  return success(res, await enrichPublicAssetUrls(payload));
 });
 
 /* ─────────────────────────────────────────
@@ -244,7 +305,9 @@ router.get('/hub/:handle/:hubSlug/meta', hubVanityLimiter, async (req, res) => {
 
   const vanityKey = `${handle}/${hubSlug}`;
   const cached = await dynamicQrMetaCache.get(`v:${vanityKey}`);
-  if (cached) return success(res, cached);
+  if (cached) {
+    return success(res, await enrichPublicAssetUrls(cached));
+  }
 
   const campaign = await Campaign.findOne(
     {
@@ -276,7 +339,7 @@ router.get('/hub/:handle/:hubSlug/meta', hubVanityLimiter, async (req, res) => {
   if (campaign.redirectSlug) {
     await dynamicQrMetaCache.set(campaign.redirectSlug, payload);
   }
-  return success(res, payload);
+  return success(res, await enrichPublicAssetUrls(payload));
 });
 
 /* ─────────────────────────────────────────
@@ -674,10 +737,10 @@ const applyImageTransforms = (cardContent) => {
   if (!cardContent) return cardContent;
   const next = { ...cardContent };
   if (next.profileImageUrl) {
-    next.profileImageUrl = cloudinaryTransform(next.profileImageUrl, { w: 480, h: 480, crop: 'fill', gravity: 'face' });
+    next.profileImageUrl = assetUrl(next.profileImageUrl, { w: 480, h: 480 });
   }
   if (next.bannerImageUrl) {
-    next.bannerImageUrl = cloudinaryTransform(next.bannerImageUrl, { w: 1200, h: 600, crop: 'fill' });
+    next.bannerImageUrl = assetUrl(next.bannerImageUrl, { w: 1200, h: 600 });
   }
   if (Array.isArray(next.sections)) {
     next.sections = next.sections.map((sec) => {
@@ -686,7 +749,7 @@ const applyImageTransforms = (cardContent) => {
           ...sec,
           images: sec.images.map((img) => ({
             ...img,
-            url: cloudinaryTransform(img.url, { w: 800 }),
+            url: assetUrl(img.url, { w: 800 }),
           })),
         };
       }

@@ -23,6 +23,7 @@ import {
 import publicApi from '../services/publicApi';
 import SEOHead from '../components/ui/SEOHead';
 import HubVideoPlayer from '../components/hub/HubVideoPlayer';
+import { resolvePlaybackMediaUrl } from '../utils/assetUrl';
 
 const KIND_ICONS = {
   contact: Phone,
@@ -121,21 +122,41 @@ const LinkHubPage = () => {
         visitorHashRef.current = vh;
         sessionStartRef.current = Date.now();
 
+        if (!cancelled) {
+          const normalized = {
+            ...data,
+            videoUrl: resolvePlaybackMediaUrl(data.videoUrl),
+            thumbnailUrl: resolvePlaybackMediaUrl(data.thumbnailUrl),
+            videoItems: Array.isArray(data.videoItems)
+              ? data.videoItems.map((vi) => ({
+                ...vi,
+                videoUrl: resolvePlaybackMediaUrl(vi.videoUrl),
+                thumbnailUrl: resolvePlaybackMediaUrl(vi.thumbnailUrl),
+              }))
+              : data.videoItems,
+            docItems: Array.isArray(data.docItems)
+              ? data.docItems.map((di) => ({
+                ...di,
+                url: resolvePlaybackMediaUrl(di.url),
+              }))
+              : data.docItems,
+          };
+          setMeta(normalized);
+          setPhase('ready');
+        }
+
         const scanDoneKey = `p8w_scan_done_${slug}`;
         const skipScan = sessionStorage.getItem(scanDoneKey) === '1';
         if (skipScan) {
           sessionStorage.removeItem(scanDoneKey);
         } else {
-          await publicApi.post(`/public/multi-link/${encodeURIComponent(slug)}/scan`, {
-            visitorHash: vh,
-            deviceType: deviceTypeGuess(),
-            browser: /Chrome/i.test(navigator.userAgent) ? 'Chrome' : 'Other',
-          });
-        }
-
-        if (!cancelled) {
-          setMeta(data);
-          setPhase('ready');
+          publicApi
+            .post(`/public/multi-link/${encodeURIComponent(slug)}/scan`, {
+              visitorHash: vh,
+              deviceType: deviceTypeGuess(),
+              browser: /Chrome/i.test(navigator.userAgent) ? 'Chrome' : 'Other',
+            })
+            .catch(() => {});
         }
       } catch (e) {
         if (!cancelled) {

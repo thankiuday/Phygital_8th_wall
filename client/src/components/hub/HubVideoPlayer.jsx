@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PlayCircle } from 'lucide-react';
+import { resolvePlaybackMediaUrl } from '../../utils/assetUrl';
 
 const emitProgressEveryMs = 5000;
 
@@ -70,6 +71,7 @@ const HubVideoPlayer = ({
   const playerRef = useRef(null);
   const intervalRef = useRef(null);
   const [armed, setArmed] = useState(false);
+  const [mediaError, setMediaError] = useState(false);
   const playSentRef = useRef(false);
 
   const safeEmit = (payload) => {
@@ -88,6 +90,7 @@ const HubVideoPlayer = ({
   // Reset armed/play tracking when the video source changes.
   useEffect(() => {
     setArmed(false);
+    setMediaError(false);
     playSentRef.current = false;
   }, [embedSrc, videoUrl, source, embedHost]);
 
@@ -253,20 +256,37 @@ const HubVideoPlayer = ({
 
   const liteHost = source === 'link' && (embedHost === 'youtube' || embedHost === 'vimeo' || embedHost === 'facebook');
   const litePoster = embedHost === 'youtube' ? (thumbnailUrl || youtubePoster) : thumbnailUrl;
+  const playbackVideoUrl = useMemo(
+    () => resolvePlaybackMediaUrl(videoUrl),
+    [videoUrl]
+  );
+  const playbackPosterUrl = useMemo(
+    () => resolvePlaybackMediaUrl(thumbnailUrl),
+    [thumbnailUrl]
+  );
 
   // ── Render ─────────────────────────────────────────────────────────────
 
-  if (source === 'upload' && videoUrl) {
+  if (source === 'upload' && playbackVideoUrl) {
     return (
-      <video
-        ref={nativeRef}
-        src={videoUrl}
-        controls
-        playsInline
-        preload="metadata"
-        poster={thumbnailUrl || undefined}
-        className="aspect-video w-full rounded-2xl border border-[var(--border-color)] bg-black object-contain"
-      />
+      <div className="flex flex-col gap-2">
+        <video
+          ref={nativeRef}
+          src={playbackVideoUrl}
+          controls
+          playsInline
+          preload="metadata"
+          crossOrigin="anonymous"
+          poster={playbackPosterUrl || undefined}
+          onError={() => setMediaError(true)}
+          className="aspect-video w-full rounded-2xl border border-[var(--border-color)] bg-black object-contain"
+        />
+        {mediaError && (
+          <p className="text-center text-xs text-amber-400">
+            Video could not load. Refresh the page or try again in a moment.
+          </p>
+        )}
+      </div>
     );
   }
 

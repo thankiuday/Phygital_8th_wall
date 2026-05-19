@@ -12,8 +12,9 @@ const {
   DRAFT_ASSET_TAG,
   generateUploadSignature,
   deleteCloudinaryAsset,
+  deleteStorageAssets,
   claimUploadedDraftAssets,
-} = require('../services/cloudinaryService');
+} = require('../services/storageService');
 const { generateQRCode } = require('../services/qrService');
 const { createArCardCampaignRecord } = require('../services/arCardCampaignService');
 const { redirectCache, dynamicQrMetaCache, cardMetaCache } = require('../utils/redirectCache');
@@ -57,26 +58,27 @@ const ensureOwnerHubFields = async (userId, campaignNameTrimmed) => {
 /* ─────────────────────────────────────────
    GET /api/campaigns/upload-signature
    ───────────────────────────────────────── */
-const getUploadSignature = (req, res) => {
+const getUploadSignature = async (req, res) => {
   const { resourceType = 'image' } = req.query;
   const isDraftUpload = req.query.draft === '1' || req.query.draft === 'true';
+  const contentType = String(req.query.contentType || 'application/octet-stream').split(';')[0].trim();
+  const filename = String(req.query.filename || 'file').trim() || 'file';
 
-  // `raw` is required for document uploads (PDF / Office files) in the
-  // links-doc-video-qr flow; everything else keeps its historical bucket.
   if (!['image', 'video', 'raw'].includes(resourceType)) {
     throw new AppError('resourceType must be "image", "video", or "raw"', 400);
   }
 
-  // raw → "raws" reads weird; map to "documents" so Cloudinary search is intuitive.
   const folderSuffix = resourceType === 'raw' ? 'documents' : `${resourceType}s`;
   const ownerPrefix = req.user?._id
     ? `phygital8thwall/${req.user._id}`
     : 'phygital8thwall/guest';
   const folder = `${ownerPrefix}/${folderSuffix}`;
-  const payload = generateUploadSignature({
+  const payload = await generateUploadSignature({
     resourceType,
     folder,
     tags: isDraftUpload ? [DRAFT_ASSET_TAG] : [],
+    contentType,
+    filename,
   });
 
   return success(res, payload, 'Upload signature generated');
@@ -1163,60 +1165,41 @@ const deleteCampaign = async (req, res) => {
     return success(res, { soft: true }, 'Campaign deleted');
   }
 
-  // Cloudinary cleanup for assets we own. Everything is best-effort and
-  // intentionally non-fatal so user deletion never gets stuck on third-party IO.
-  const cloudinaryDeletes = [];
-  if (campaign.targetImagePublicId) {
-    cloudinaryDeletes.push(deleteCloudinaryAsset(campaign.targetImagePublicId, 'image'));
-  }
-  if (campaign.videoPublicId) {
-    cloudinaryDeletes.push(deleteCloudinaryAsset(campaign.videoPublicId, 'video'));
-  }
-  if (campaign.qrPublicId) {
-    cloudinaryDeletes.push(deleteCloudinaryAsset(campaign.qrPublicId, 'image'));
-  }
-  // links-doc-video-qr: per-asset Cloudinary cleanup
+  // S3 cleanup for assets we own (batch delete, best-effort).
+  const storageKeys = [];
+  if (campaign.targetImagePublicId) storageKeys.push(campaign.targetImagePublicId);
+  if (campaign.targetImageOriginalPublicId) storageKeys.push(campaign.targetImageOriginalPublicId);
+  if (campaign.videoPublicId) storageKeys.push(campaign.videoPublicId);
+  if (campaign.qrPublicId) storageKeys.push(campaign.qrPublicId);
   for (const vi of campaign.videoItems || []) {
-    if (vi.source === 'upload' && vi.publicId) {
-      cloudinaryDeletes.push(deleteCloudinaryAsset(vi.publicId, 'video'));
-    }
+    if (vi.source === 'upload' && vi.publicId) storageKeys.push(vi.publicId);
   }
   for (const di of campaign.docItems || []) {
-    if (di.publicId) {
-      cloudinaryDeletes.push(
-        deleteCloudinaryAsset(di.publicId, di.resourceType === 'image' ? 'image' : 'raw')
-      );
-    }
+    if (di.publicId) storageKeys.push(di.publicId);
   }
-  // digital-business-card profile / banner / gallery cleanup
   if (campaign.campaignType === 'digital-business-card') {
-    if (campaign.cardContent?.profileImagePublicId) {
-      cloudinaryDeletes.push(deleteCloudinaryAsset(campaign.cardContent.profileImagePublicId, 'image'));
-    }
-    if (campaign.cardContent?.bannerImagePublicId) {
-      cloudinaryDeletes.push(deleteCloudinaryAsset(campaign.cardContent.bannerImagePublicId, 'image'));
-    }
+    if (campaign.cardContent?.profileImagePublicId) storageKeys.push(campaign.cardContent.profileImagePublicId);
+    if (campaign.cardContent?.bannerImagePublicId) storageKeys.push(campaign.cardContent.bannerImagePublicId);
     for (const sec of campaign.cardContent?.sections || []) {
       if (sec.type === 'imageGallery' && Array.isArray(sec.images)) {
         for (const img of sec.images) {
-          if (img.publicId) cloudinaryDeletes.push(deleteCloudinaryAsset(img.publicId, 'image'));
+          if (img.publicId) storageKeys.push(img.publicId);
         }
       }
       if (sec.type === 'video' && sec.source === 'upload' && sec.publicId) {
-        cloudinaryDeletes.push(deleteCloudinaryAsset(sec.publicId, 'video'));
+        storageKeys.push(sec.publicId);
       }
     }
   }
-  if (cloudinaryDeletes.length) {
-    const results = await Promise.allSettled(cloudinaryDeletes);
-    results.forEach((r) => {
-      if (r.status === 'rejected') {
-        logger.warn('Cloudinary cleanup failed during campaign delete', {
-          campaignId: String(campaign._id),
-          error: r.reason?.message || String(r.reason),
-        });
-      }
-    });
+  if (storageKeys.length) {
+    try {
+      await deleteStorageAssets(storageKeys);
+    } catch (err) {
+      logger.warn('S3 cleanup failed during campaign delete', {
+        campaignId: String(campaign._id),
+        error: err?.message || String(err),
+      });
+    }
   }
 
   // Delete all dependent analytics rows so no orphaned records remain.

@@ -31,6 +31,7 @@ import {
   getHubDashboardEntryUrl,
   getSingleLinkDashboardEntryUrl,
 } from '../../utils/dynamicQrPublicUrl';
+import { resolveClientAppBase } from '../../utils/clientAppBase';
 
 const resolveRedirectBase = () => {
   if (import.meta.env.VITE_REDIRECT_BASE) {
@@ -42,37 +43,11 @@ const resolveRedirectBase = () => {
   return typeof window !== 'undefined' ? window.location.origin : '';
 };
 
-/**
- * Prefer `VITE_APP_URL` so dashboard + QR match server `CLIENT_URL` on Render;
- * fall back to the live tab origin (local dev).
- */
-const clientBaseForPublicLinks = () => {
-  const fromEnv = import.meta.env.VITE_APP_URL && String(import.meta.env.VITE_APP_URL).replace(/\/$/, '');
-  if (fromEnv) return fromEnv;
-  return typeof window !== 'undefined' ? window.location.origin : '';
-};
-
-/**
- * Origin for `/open/…` and `/l/…` opened from this dashboard when `VITE_APP_URL`
- * is unset (local dev): use the document origin so links stay on localhost.
- */
-const dashboardClientAppOrigin = () => {
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    return window.location.origin;
-  }
-  const fromEnv = import.meta.env.VITE_APP_URL && String(import.meta.env.VITE_APP_URL).replace(/\/$/, '');
-  return fromEnv || '';
-};
-
 const hubPublicPageUrl = (campaign) =>
-  getHubDashboardEntryUrl(campaign, clientBaseForPublicLinks() || dashboardClientAppOrigin());
+  getHubDashboardEntryUrl(campaign, resolveClientAppBase());
 
 const singleLinkPublicOpenUrl = (campaign) =>
-  getSingleLinkDashboardEntryUrl(
-    campaign,
-    clientBaseForPublicLinks() || dashboardClientAppOrigin(),
-    resolveRedirectBase(),
-  );
+  getSingleLinkDashboardEntryUrl(campaign, resolveClientAppBase(), resolveRedirectBase());
 
 const StatusBadge = ({ status }) => {
   const map = {
@@ -502,7 +477,7 @@ const CampaignDetailPage = () => {
               ownerHandle: campaign.ownerHandle,
               hubSlug: campaign.hubSlug,
               preciseGeoAnalytics: !!campaign.preciseGeoAnalytics,
-              clientBase: clientBaseForPublicLinks() || dashboardClientAppOrigin(),
+              clientBase: resolveClientAppBase(),
               apiRedirectRoot: resolveRedirectBase(),
             })}
           />

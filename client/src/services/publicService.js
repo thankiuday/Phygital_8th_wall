@@ -1,14 +1,17 @@
-import api from './api';
 import publicApi from './publicApi';
 
 export const publicService = {
   getCampaign: async (campaignId) => {
-    const res = await api.get(`/public/campaigns/${campaignId}`);
+    const res = await publicApi.get(`/public/campaigns/${campaignId}`);
     return res.data.data.campaign;
   },
 
   recordScan: async (campaignId, payload) => {
-    await api.post(`/public/campaigns/${campaignId}/scan`, payload);
+    try {
+      await publicApi.post(`/public/campaigns/${campaignId}/scan`, payload);
+    } catch {
+      /* telemetry must not block AR landing */
+    }
   },
 
   /* ── Digital Business Card public endpoints ──────────────────── */

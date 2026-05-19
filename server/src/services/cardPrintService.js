@@ -15,14 +15,14 @@
  *
  * Result caching: every render is keyed by a hash of the card's content +
  * design + print settings + size. Identical re-renders are served from the
- * Cloudinary cache without launching Chromium again, which is the single
+ * S3 cache without launching Chromium again, which is the single
  * biggest scaling win for this feature.
  *
- * Output Cloudinary path: `phygital8thwall/{userId}/cards/{hash}.png`.
+ * Output S3 path: `phygital8thwall/{userId}/cards/{hash}.png`.
  */
 
 const crypto = require('crypto');
-const cloudinary = require('cloudinary').v2;
+const { uploadBuffer, headObject, publicUrlForKey } = require('./storageService');
 const logger = require('../config/logger');
 
 const RENDER_TOKEN_TTL_MS = 5 * 60 * 1000;
@@ -35,15 +35,6 @@ const RENDER_TOKEN_SECRET =
 const CARD_RENDER_QUEUE_NAME = 'card-render';
 const toErrorMeta = (err) => {
   if (!err) return { message: 'unknown error' };
-  const cloudinaryMsg = err?.error?.message;
-  const cloudinaryCode = err?.error?.http_code;
-  if (cloudinaryMsg) {
-    return {
-      name: err.name || 'CloudinaryError',
-      message: String(cloudinaryMsg),
-      code: cloudinaryCode || err.code || null,
-    };
-  }
   if (err instanceof Error) {
     return {
       name: err.name,
@@ -55,23 +46,22 @@ const toErrorMeta = (err) => {
   return { message: String(err) };
 };
 
-const uploadPngBuffer = ({ buffer, userId, renderHash }) =>
-  new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        folder: `phygital8thwall/${userId}/cards`,
-        public_id: renderHash,
-        overwrite: true,
-        resource_type: 'image',
-        format: 'png',
-      },
-      (err, result) => {
-        if (err) return reject(err);
-        resolve(result);
-      }
-    );
-    stream.end(buffer);
+const cardStorageKey = ({ userId, renderHash }) =>
+  `phygital8thwall/${userId}/cards/${renderHash}.png`;
+
+const uploadPngBuffer = async ({ buffer, userId, renderHash }) => {
+  const key = cardStorageKey({ userId, renderHash });
+  const result = await uploadBuffer({
+    buffer,
+    key,
+    contentType: 'image/png',
+    tags: 'status=permanent',
   });
+  return {
+    secure_url: result.url,
+    public_id: result.publicId,
+  };
+};
 
 /**
  * Mints a short-lived HMAC token so headless Chromium can fetch the print
@@ -105,28 +95,18 @@ const verifyPrintToken = (token, expectedCampaignId) => {
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Cloudinary cache helpers
+   S3 cache helpers
    ─────────────────────────────────────────────────────────────────────────── */
 
-const cardCloudinaryPublicId = ({ userId, renderHash }) =>
-  `phygital8thwall/${userId}/cards/${renderHash}`;
-
-/**
- * Probe Cloudinary for an existing rendered PNG. We use the resources endpoint
- * (cheap HEAD-equivalent on the API plane) and treat any error as "not found"
- * so a Cloudinary outage falls back to a fresh render.
- */
 const lookupCachedRender = async ({ userId, renderHash }) => {
-  try {
-    const public_id = cardCloudinaryPublicId({ userId, renderHash });
-    const result = await cloudinary.api.resource(public_id, { resource_type: 'image' });
-    if (result && result.secure_url) {
-      return { url: result.secure_url, public_id: result.public_id, cached: true };
-    }
-  } catch {
-    return null;
-  }
-  return null;
+  const public_id = cardStorageKey({ userId, renderHash });
+  const exists = await headObject(public_id);
+  if (!exists) return null;
+  return {
+    url: publicUrlForKey(public_id),
+    public_id,
+    cached: true,
+  };
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -338,7 +318,7 @@ if (!queueAdapter) {
  * Render (or fetch a cached version of) a card PNG.
  *
  * Resolution order:
- *   1. Cloudinary cache for `(userId, renderHash)` → return `status: 'ready'`.
+ *   1. S3 cache for `(userId, renderHash)` → return `status: 'ready'`.
  *   2. BullMQ enqueue (when Redis is on)         → return `status: 'pending'`.
  *   3. Synchronous Puppeteer render              → return `status: 'ready'`.
  *

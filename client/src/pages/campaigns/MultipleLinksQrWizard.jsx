@@ -7,6 +7,7 @@ import WizardStepBar from '../../components/ui/WizardStepBar';
 import { campaignService } from '../../services/campaignService';
 import { DEFAULT_DESIGN, hydrateWizardDesignFromDraft } from '../../components/qr/qrDesignModel';
 import Step1MultiLinks from './multiple-links/Step1MultiLinks';
+import { resolveClientAppBase } from '../../utils/clientAppBase';
 import Step2DesignQr from './single-link/Step2DesignQr';
 import { slugifyCampaignNamePreview } from '../../utils/hubVanityPreview';
 
@@ -22,12 +23,6 @@ const resolveRedirectBase = () => {
   if (import.meta.env.VITE_API_URL) {
     return String(import.meta.env.VITE_API_URL).replace(/\/api\/?$/, '').replace(/\/$/, '');
   }
-  return typeof window !== 'undefined' ? window.location.origin : '';
-};
-
-const resolveClientAppBase = () => {
-  const fromEnv = import.meta.env.VITE_APP_URL && String(import.meta.env.VITE_APP_URL).replace(/\/$/, '');
-  if (fromEnv) return fromEnv;
   return typeof window !== 'undefined' ? window.location.origin : '';
 };
 

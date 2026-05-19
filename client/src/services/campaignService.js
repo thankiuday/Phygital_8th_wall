@@ -2,10 +2,17 @@ import api from './api';
 import axios from 'axios';
 
 export const campaignService = {
-  /* ── Get Cloudinary signed-upload signature ──────────────── */
+  /* ── Get S3 presigned upload URL ─────────────────────────── */
   getUploadSignature: async (resourceType = 'image', options = {}) => {
-    const { draft = false } = options;
-    const query = `resourceType=${encodeURIComponent(resourceType)}${draft ? '&draft=1' : ''}`;
+    const { draft = false, contentType, filename } = options;
+    const params = new URLSearchParams({
+      resourceType,
+      contentType: contentType || 'application/octet-stream',
+      filename: filename || 'file',
+    });
+    if (draft) params.set('draft', '1');
+    const query = params.toString();
+
     if (!draft) {
       const res = await api.get(`/campaigns/upload-signature?${query}`);
       return res.data.data;
@@ -21,30 +28,23 @@ export const campaignService = {
   },
 
   /**
-   * uploadToCloudinary — uploads a file directly to Cloudinary CDN.
-   * Uses a server-generated signature — our API secret never touches the client.
-   *
-   * @param {File}                  file
-   * @param {'image'|'video'|'raw'} resourceType
-   * @param {Function}              onProgress  — called with 0-100 progress value
+   * uploadAsset — PUT file to S3 via presigned URL.
    * @returns {{ url, publicId, thumbnailUrl, bytes }}
    */
-  uploadToCloudinary: async (file, resourceType, onProgress, options = {}) => {
+  uploadAsset: async (file, resourceType, onProgress, options = {}) => {
     const { draft = false } = options;
-    const sig = await campaignService.getUploadSignature(resourceType, { draft });
+    const contentType = file?.type || 'application/octet-stream';
+    const sig = await campaignService.getUploadSignature(resourceType, {
+      draft,
+      contentType,
+      filename: file?.name || 'file',
+    });
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('api_key', sig.apiKey);
-    formData.append('timestamp', sig.timestamp);
-    formData.append('signature', sig.signature);
-    formData.append('folder', sig.folder);
-    if (sig.tags) formData.append('tags', sig.tags);
-    if (sig.context) formData.append('context', sig.context);
-
-    const uploadUrl = `https://api.cloudinary.com/v1_1/${sig.cloudName}/${resourceType}/upload`;
-
-    const res = await axios.post(uploadUrl, formData, {
+    await axios.put(sig.uploadUrl, file, {
+      headers: {
+        'Content-Type': contentType,
+        ...(sig.headers || {}),
+      },
       onUploadProgress: (e) => {
         if (onProgress && e.total) {
           onProgress(Math.round((e.loaded / e.total) * 100));
@@ -53,27 +53,20 @@ export const campaignService = {
     });
 
     return {
-      url: res.data.secure_url,
-      publicId: res.data.public_id,
-      // For videos Cloudinary auto-generates a thumbnail at the .jpg URL.
-      // For raw uploads the URL itself is the canonical asset reference.
-      thumbnailUrl:
-        resourceType === 'video'
-          ? res.data.secure_url.replace(/\.[^.]+$/, '.jpg')
-          : res.data.secure_url,
-      bytes: typeof res.data.bytes === 'number' ? res.data.bytes : 0,
+      url: sig.publicUrl,
+      publicId: sig.publicId || sig.key,
+      thumbnailUrl: sig.publicUrl,
+      bytes: typeof file?.size === 'number' ? file.size : 0,
     };
   },
 
-  /**
-   * uploadDocumentToCloudinary — convenience wrapper for `links-doc-video-qr`
-   * doc uploads. Always sends the appropriate resource type for the file
-   * (raw for PDFs/Office, image for JPG/PNG) so previews keep working.
-   */
+  uploadToCloudinary: (file, resourceType, onProgress, options) =>
+    campaignService.uploadAsset(file, resourceType, onProgress, options),
+
   uploadDocumentToCloudinary: async (file, onProgress, options = {}) => {
     const isImage = file?.type?.startsWith('image/');
     const resourceType = isImage ? 'image' : 'raw';
-    const result = await campaignService.uploadToCloudinary(file, resourceType, onProgress, options);
+    const result = await campaignService.uploadAsset(file, resourceType, onProgress, options);
     return {
       ...result,
       resourceType,
@@ -82,17 +75,11 @@ export const campaignService = {
     };
   },
 
-  /* ── CRUD ────────────────────────────────────────────────── */
   createCampaign: async (payload) => {
     const res = await api.post('/campaigns', payload);
     return res.data.data.campaign;
   },
 
-  /**
-   * createSingleLinkCampaign — single-step create for the dynamic-redirect QR
-   * flow.  Server returns the persisted campaign including the assigned
-   * `redirectSlug` which the client can use to encode the printed QR.
-   */
   createSingleLinkCampaign: async ({
     campaignName,
     destinationUrl,
@@ -100,7 +87,6 @@ export const campaignService = {
     preciseGeoAnalytics,
     redirectSlug,
   }) => {
-    // Dedicated route — never relies on `campaignType` surviving proxies / caching.
     const res = await api.post('/campaigns/single-link', {
       campaignName,
       destinationUrl,
@@ -162,11 +148,6 @@ export const campaignService = {
     return res.data.data.campaign;
   },
 
-  /**
-   * createLinksDocVideoCampaign — multi-asset hub variant. We strip empty
-   * fields per-row before sending so the server `.strict()` schema never
-   * rejects legit payloads on a stray "" the wizard didn't trim.
-   */
   createLinksDocVideoCampaign: async ({
     campaignName,
     videoSource,
@@ -224,12 +205,6 @@ export const campaignService = {
     return res.data.data.campaign;
   },
 
-  /**
-   * createDigitalBusinessCardCampaign — full payload create. The wizard's
-   * draft store is kept client-side; this method translates the draft into
-   * the server-strict shape (trimming nullable image fields the user never
-   * touched).
-   */
   createDigitalBusinessCardCampaign: async ({
     campaignName,
     cardSlug,
@@ -254,7 +229,6 @@ export const campaignService = {
     return res.data.data.campaign;
   },
 
-  /** GET /api/campaigns/check-card-slug?slug=…&excludeId=… */
   checkCardSlugAvailability: async (slug, excludeId) => {
     const params = { slug };
     if (excludeId) params.excludeId = excludeId;
@@ -262,20 +236,7 @@ export const campaignService = {
     return res.data.data;
   },
 
-  /**
-   * Render front + back PNGs in parallel. Server returns a single envelope:
-   *   {
-   *     status: 'ready' | 'pending',
-   *     front:  { status, url?, public_id?, jobId?, filename, face: 'front' },
-   *     back:   { status, url?, public_id?, jobId?, filename, face: 'back'  },
-   *   }
-   * The aggregate `status` is "ready" only when both faces resolved in the
-   * same round-trip; otherwise the client polls each face's `jobId` via
-   * `getCardRenderStatus` until both come back ready.
-   */
   renderCardImage: async (id, { size } = {}) => {
-    // Send an object body (not literal `null`) so strict JSON parsers on
-    // some deployments don't reject the request before it reaches controller logic.
     const res = await api.post(`/campaigns/${id}/card-image`, {}, {
       params: size ? { size } : {},
     });

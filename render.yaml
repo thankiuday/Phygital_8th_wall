@@ -15,6 +15,9 @@ services:
       # You may omit GOOGLE_REDIRECT_URI on Render; the API derives it from RENDER_EXTERNAL_URL.
       - key: CLIENT_URL
         value: https://phygital8thwall-client.onrender.com
+      # Used in hub/AR media proxy URLs when enriching S3 assets
+      - key: API_PUBLIC_URL
+        value: https://phygital8thwall-api.onrender.com
     healthCheckPath: /health
 
   # ── Frontend Static Site ───────────────────────────────────────

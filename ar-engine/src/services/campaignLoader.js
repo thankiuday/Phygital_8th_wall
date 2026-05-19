@@ -4,6 +4,8 @@
  * No auth token required — uses the public endpoint.
  */
 
+import { resolvePlaybackMediaUrl } from '../utils/resolvePlaybackMediaUrl.js';
+
 const API_BASE =
   import.meta.env.VITE_API_URL ||
   (window.location.hostname.includes('onrender.com')
@@ -33,7 +35,14 @@ export const loadCampaign = async (campaignId) => {
   if (!body?.data?.campaign) {
     throw new Error('Invalid response from server.');
   }
-  return body.data.campaign;
+  const campaign = body.data.campaign;
+  return {
+    ...campaign,
+    targetImageUrl: resolvePlaybackMediaUrl(campaign.targetImageUrl),
+    targetImageOriginalUrl: resolvePlaybackMediaUrl(campaign.targetImageOriginalUrl),
+    videoUrl: resolvePlaybackMediaUrl(campaign.videoUrl),
+    thumbnailUrl: resolvePlaybackMediaUrl(campaign.thumbnailUrl),
+  };
 };
 
 /**

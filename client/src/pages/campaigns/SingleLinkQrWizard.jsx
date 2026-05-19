@@ -8,6 +8,7 @@ import { campaignService } from '../../services/campaignService';
 import { DEFAULT_DESIGN, hydrateWizardDesignFromDraft } from '../../components/qr/qrDesignModel';
 import Step1LinkDetails from './single-link/Step1LinkDetails';
 import Step2DesignQr from './single-link/Step2DesignQr';
+import { resolveClientAppBase } from '../../utils/clientAppBase';
 import { slugifyCampaignNamePreview } from '../../utils/hubVanityPreview';
 
 const STEPS = [
@@ -31,12 +32,6 @@ const resolveRedirectBase = () => {
 };
 
 /** SPA origin for `/open/:slug` QR payloads when precise geo is enabled */
-const resolveClientAppBase = () => {
-  const fromEnv = import.meta.env.VITE_APP_URL && String(import.meta.env.VITE_APP_URL).replace(/\/$/, '');
-  if (fromEnv) return fromEnv;
-  return typeof window !== 'undefined' ? window.location.origin : '';
-};
-
 const REDIRECT_SLUG_ALPHABET = '23456789abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ';
 const generatePreviewSlug = () => {
   if (typeof window !== 'undefined' && window.crypto?.getRandomValues) {
