@@ -8,6 +8,9 @@ build/
 **/dist/
 **/build/
 
+# Deploy secrets (generated locally)
+deploy/env/server.env.production.local
+
 # Environment files — NEVER commit real secrets
 .env
 .env.local
