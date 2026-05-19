@@ -16,6 +16,7 @@ import { getVisitorHashForCampaign } from '../utils/visitorHash';
 import useThemeStore, { applyThemeClass } from '../store/useThemeStore';
 import BrandWord from '../components/ui/BrandWord';
 import BrandLockup from '../components/ui/BrandLockup';
+import CampaignThumbnail from '../components/ui/CampaignThumbnail';
 
 /* ── Detect device type for analytics ───────────────────────────── */
 const getDeviceType = () => {
@@ -158,17 +159,12 @@ const ARExperiencePage = () => {
         {/* Thumbnail / card preview */}
         <div className="relative">
           <div className="relative overflow-hidden rounded-2xl border border-white/10 shadow-glow">
-            {(campaign?.targetImageUrl || campaign?.thumbnailUrl) ? (
-              <img
-                src={campaign.targetImageUrl || campaign.thumbnailUrl}
-                alt={campaign.campaignName}
-                className="h-48 w-48 object-cover"
-              />
-            ) : (
-              <div className="flex h-48 w-48 items-center justify-center bg-brand-900/50">
-                <ScanLine size={48} className="text-brand-400/50" />
-              </div>
-            )}
+            <CampaignThumbnail
+              campaign={campaign}
+              alt={campaign?.campaignName}
+              className="h-48 w-48 object-cover"
+              placeholderClassName="flex h-48 w-48 items-center justify-center bg-brand-900/50"
+            />
           </div>
 
           {/* Floating hologram hint badge */}

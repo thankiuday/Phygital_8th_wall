@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PlayCircle } from 'lucide-react';
-import { resolvePlaybackMediaUrl } from '../../utils/assetUrl';
+import { isVideoMediaUrl, resolvePlaybackMediaUrl } from '../../utils/assetUrl';
 
 const emitProgressEveryMs = 5000;
 
@@ -260,10 +260,10 @@ const HubVideoPlayer = ({
     () => resolvePlaybackMediaUrl(videoUrl),
     [videoUrl]
   );
-  const playbackPosterUrl = useMemo(
-    () => resolvePlaybackMediaUrl(thumbnailUrl),
-    [thumbnailUrl]
-  );
+  const playbackPosterUrl = useMemo(() => {
+    if (!thumbnailUrl || isVideoMediaUrl(thumbnailUrl)) return undefined;
+    return resolvePlaybackMediaUrl(thumbnailUrl);
+  }, [thumbnailUrl]);
 
   // ── Render ─────────────────────────────────────────────────────────────
 

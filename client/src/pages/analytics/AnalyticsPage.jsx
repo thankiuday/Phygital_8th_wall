@@ -15,6 +15,7 @@ import useAnalyticsStore from '../../store/useAnalyticsStore';
 import useIsMobile from '../../hooks/useIsMobile';
 import { useAnalyticsOverview } from '../../hooks/useAnalyticsQueries';
 import Icon3D, { ICON3D_PRESETS } from '../../components/ui/Icon3D';
+import CampaignThumbnail from '../../components/ui/CampaignThumbnail';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -421,17 +422,13 @@ const AnalyticsPage = () => {
                 >
                   <div className="flex items-start gap-3">
                     <span className="mt-0.5 w-5 shrink-0 text-xs text-[var(--text-muted)]">{i + 1}</span>
-                    {c.thumbnailUrl ? (
-                      <img
-                        src={c.thumbnailUrl}
-                        alt=""
-                        className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-white/10"
+                    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg ring-1 ring-white/10">
+                      <CampaignThumbnail
+                        campaign={c}
+                        className="h-full w-full object-cover"
+                        placeholderClassName="flex h-full w-full items-center justify-center rounded-lg bg-brand-500/20 text-xs font-bold text-brand-400"
                       />
-                    ) : (
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-500/20 text-xs font-bold text-brand-400">
-                        AR
-                      </div>
-                    )}
+                    </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-[var(--text-primary)]">{c.campaignName}</p>
                       <p className="text-xs text-[var(--text-muted)]">
@@ -478,17 +475,13 @@ const AnalyticsPage = () => {
                     <td className="py-3 text-[var(--text-muted)]">{i + 1}</td>
                     <td className="py-3">
                       <div className="flex items-center gap-3">
-                        {c.thumbnailUrl ? (
-                          <img
-                            src={c.thumbnailUrl}
-                            alt=""
-                            className="h-8 w-8 rounded-lg object-cover ring-1 ring-white/10"
+                        <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg ring-1 ring-white/10">
+                          <CampaignThumbnail
+                            campaign={c}
+                            className="h-full w-full object-cover"
+                            placeholderClassName="flex h-full w-full items-center justify-center bg-brand-500/20 text-xs font-bold text-brand-400"
                           />
-                        ) : (
-                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500/20 text-xs font-bold text-brand-400">
-                            AR
-                          </div>
-                        )}
+                        </div>
                         <span className="font-medium text-[var(--text-primary)]">
                           {c.campaignName}
                         </span>

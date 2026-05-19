@@ -16,6 +16,7 @@ import {
   MousePointerClick,
   X,
 } from 'lucide-react';
+import CampaignThumbnail from '../../components/ui/CampaignThumbnail';
 import {
   AreaChart,
   Area,
@@ -400,15 +401,14 @@ const DashboardPage = () => {
                   className="flex items-center gap-3 rounded-xl p-2 transition-colors hover:bg-[var(--surface-3)] sm:p-2.5"
                 >
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-brand-500/10">
-                    {campaign.thumbnailUrl ? (
-                      <img
-                        src={campaign.thumbnailUrl}
+                    <div className="h-full w-full overflow-hidden">
+                      <CampaignThumbnail
+                        campaign={campaign}
                         alt={campaign.campaignName}
                         className="h-full w-full object-cover"
+                        placeholderClassName="flex h-full w-full items-center justify-center"
                       />
-                    ) : (
-                      <QrCode size={16} className="text-brand-400" />
-                    )}
+                    </div>
                   </div>
 
                   <div className="flex min-w-0 flex-1 flex-col">

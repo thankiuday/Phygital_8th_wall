@@ -7,6 +7,7 @@ import {
   BarChart3, ExternalLink,
 } from 'lucide-react';
 import Icon3D, { ICON3D_PRESETS } from '../ui/Icon3D';
+import CampaignThumbnail from '../ui/CampaignThumbnail';
 
 export const resolveRedirectBase = () => {
   if (import.meta.env.VITE_REDIRECT_BASE) {
@@ -232,17 +233,11 @@ export const CampaignListCard = ({
       } ${cardClassName}`.trim()}
     >
       <div className="relative aspect-video overflow-hidden bg-[var(--surface-3)]">
-        {campaign.thumbnailUrl ? (
-          <img
-            src={campaign.thumbnailUrl}
-            alt={campaign.campaignName}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <Icon3D icon={QrCode} size={18} className="h-10 w-10 opacity-70" accent={ICON3D_PRESETS.violet} />
-          </div>
-        )}
+        <CampaignThumbnail
+          campaign={campaign}
+          alt={campaign.campaignName}
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+        />
         <div className="absolute left-2.5 top-2.5">
           <StatusBadge status={campaign.status} />
         </div>

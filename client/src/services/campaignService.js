@@ -1,5 +1,6 @@
 import api from './api';
 import axios from 'axios';
+import { captureVideoThumbnail } from '../utils/videoThumbnail';
 
 export const campaignService = {
   /* ── Get S3 presigned upload URL ─────────────────────────── */
@@ -28,10 +29,9 @@ export const campaignService = {
   },
 
   /**
-   * uploadAsset — PUT file to S3 via presigned URL.
-   * @returns {{ url, publicId, thumbnailUrl, bytes }}
+   * PUT one file to S3 via presigned URL (internal).
    */
-  uploadAsset: async (file, resourceType, onProgress, options = {}) => {
+  putAssetToStorage: async (file, resourceType, onProgress, options = {}) => {
     const { draft = false } = options;
     const contentType = file?.type || 'application/octet-stream';
     const sig = await campaignService.getUploadSignature(resourceType, {
@@ -55,8 +55,43 @@ export const campaignService = {
     return {
       url: sig.publicUrl,
       publicId: sig.publicId || sig.key,
-      thumbnailUrl: sig.publicUrl,
       bytes: typeof file?.size === 'number' ? file.size : 0,
+    };
+  },
+
+  /**
+   * uploadAsset — PUT file to S3 via presigned URL.
+   * @returns {{ url, publicId, thumbnailUrl, bytes }}
+   */
+  uploadAsset: async (file, resourceType, onProgress, options = {}) => {
+    const uploaded = await campaignService.putAssetToStorage(
+      file,
+      resourceType,
+      onProgress,
+      options
+    );
+
+    let thumbnailUrl = resourceType === 'image' ? uploaded.url : null;
+
+    if (resourceType === 'video') {
+      try {
+        const thumbBlob = await captureVideoThumbnail(file);
+        const thumbFile = new File([thumbBlob], 'video-thumb.jpg', { type: 'image/jpeg' });
+        const thumb = await campaignService.putAssetToStorage(
+          thumbFile,
+          'image',
+          undefined,
+          options
+        );
+        thumbnailUrl = thumb.url;
+      } catch {
+        thumbnailUrl = null;
+      }
+    }
+
+    return {
+      ...uploaded,
+      thumbnailUrl,
     };
   },
 

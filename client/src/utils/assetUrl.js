@@ -59,5 +59,41 @@ export const isManagedAssetUrl = (url) => {
   }
 };
 
+const VIDEO_MEDIA_RE = /\.(mp4|webm|mov|m4v)(\?|$)/i;
+
+/** True when URL points at a video object (not usable in &lt;img&gt;). */
+export const isVideoMediaUrl = (url) => {
+  if (typeof url !== 'string' || !url) return false;
+  return VIDEO_MEDIA_RE.test(url.split('#')[0]);
+};
+
+/**
+ * Best image URL for cards / previews: real image thumb, else AR target image.
+ */
+export const pickCampaignImageThumbUrl = (campaign) => {
+  const candidates = [
+    campaign?.thumbnailUrl,
+    campaign?.targetImageUrl,
+  ];
+  for (const raw of candidates) {
+    if (!raw || isVideoMediaUrl(raw)) continue;
+    return resolvePlaybackMediaUrl(raw);
+  }
+  return null;
+};
+
+/**
+ * Fallback video URL for poster-style previews when no image thumb exists.
+ */
+export const pickCampaignVideoPreviewUrl = (campaign) => {
+  if (pickCampaignImageThumbUrl(campaign)) return null;
+  const candidates = [campaign?.videoUrl, campaign?.thumbnailUrl];
+  for (const raw of candidates) {
+    if (!raw || !isVideoMediaUrl(raw)) continue;
+    return resolvePlaybackMediaUrl(raw);
+  }
+  return null;
+};
+
 /** @deprecated Use assetUrl */
 export const cloudinaryTransform = assetUrl;

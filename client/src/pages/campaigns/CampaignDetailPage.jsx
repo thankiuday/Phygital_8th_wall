@@ -32,6 +32,8 @@ import {
   getSingleLinkDashboardEntryUrl,
 } from '../../utils/dynamicQrPublicUrl';
 import { resolveClientAppBase } from '../../utils/clientAppBase';
+import CampaignThumbnail from '../../components/ui/CampaignThumbnail';
+import { pickCampaignImageThumbUrl, resolvePlaybackMediaUrl } from '../../utils/assetUrl';
 
 const resolveRedirectBase = () => {
   if (import.meta.env.VITE_REDIRECT_BASE) {
@@ -520,7 +522,7 @@ const CampaignDetailPage = () => {
                 <span className="ml-auto text-xs text-[var(--text-muted)]">AR Marker</span>
               </div>
               <img
-                src={campaign.targetImageUrl}
+                src={resolvePlaybackMediaUrl(campaign.targetImageUrl)}
                 alt="Business card"
                 className="max-h-48 w-full rounded-xl border border-[var(--border-color)] object-contain"
               />
@@ -541,7 +543,7 @@ const CampaignDetailPage = () => {
                 <span className="ml-auto text-xs text-[var(--text-muted)]">AR Hologram</span>
               </div>
               <video
-                src={campaign.videoUrl}
+                src={resolvePlaybackMediaUrl(campaign.videoUrl)}
                 controls
                 playsInline
                 className="max-h-64 w-full rounded-xl border border-[var(--border-color)] object-contain"
@@ -657,8 +659,8 @@ const CampaignDetailPage = () => {
               </div>
               {campaign.videoSource === 'upload' && campaign.videoUrl ? (
                 <video
-                  src={campaign.videoUrl}
-                  poster={campaign.thumbnailUrl || undefined}
+                  src={resolvePlaybackMediaUrl(campaign.videoUrl)}
+                  poster={pickCampaignImageThumbUrl(campaign) || undefined}
                   controls
                   playsInline
                   className="max-h-64 w-full rounded-xl border border-[var(--border-color)] object-contain"
@@ -729,20 +731,15 @@ const CampaignDetailPage = () => {
                     key={vi.videoId}
                     className="overflow-hidden rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)]"
                   >
-                    {vi.thumbnailUrl ? (
-                      <img
-                        src={vi.thumbnailUrl}
-                        alt=""
-                        aria-hidden="true"
-                        className="aspect-video w-full object-cover"
-                        loading="lazy"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <div className="flex aspect-video w-full items-center justify-center bg-[var(--surface-3)] text-[var(--text-muted)]">
-                        <VideoIcon size={28} />
-                      </div>
-                    )}
+                    <CampaignThumbnail
+                      campaign={{
+                        thumbnailUrl: vi.thumbnailUrl,
+                        videoUrl: vi.source === 'upload' ? vi.url : null,
+                      }}
+                      alt={vi.label}
+                      className="aspect-video w-full object-cover"
+                      placeholderClassName="flex aspect-video w-full items-center justify-center bg-[var(--surface-3)] text-[var(--text-muted)]"
+                    />
                     <div className="space-y-1 p-3">
                       <p className="truncate text-sm font-medium text-[var(--text-primary)]">
                         {vi.label}
