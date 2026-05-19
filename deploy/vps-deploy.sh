@@ -80,9 +80,17 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get upgrade -y -qq
 
-if ! command -v node >/dev/null || [[ "$(node -v | cut -d. -f1 | tr -d v)" -lt 18 ]]; then
+# Vite 8 / client require Node 20+ (Node 18 on the VPS is not enough)
+NODE_MAJOR=0
+if command -v node >/dev/null; then
+  NODE_MAJOR=$(node -v | sed 's/^v//' | cut -d. -f1)
+fi
+if ! command -v node >/dev/null || [[ "$NODE_MAJOR" -lt 20 ]]; then
+  log "Installing Node.js 20 (current: $(node -v 2>/dev/null || echo none))"
   curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
   apt-get install -y nodejs
+  hash -r
+  log "Node after upgrade: $(node -v)"
 fi
 
 apt-get install -y git nginx curl
