@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import Sidebar from '../components/ui/Sidebar';
+import SEOHead from '../components/ui/SEOHead';
 import DashboardTopBar from '../components/ui/DashboardTopBar';
 import Footer from '../components/ui/Footer';
 
@@ -77,6 +78,11 @@ const DashboardLayout = () => {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--bg-secondary)] text-[var(--text-primary)]">
+      <SEOHead
+        title={pageTitle}
+        description="Manage QR campaigns, link hubs, AR experiences, and analytics in your Phygital dashboard."
+        noIndex
+      />
       {/* ── Desktop sidebar ─────────────────────────────────────── */}
       <div className="hidden lg:flex">
         <Sidebar

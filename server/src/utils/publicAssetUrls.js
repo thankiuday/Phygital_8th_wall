@@ -67,4 +67,34 @@ const enrichPublicAssetUrls = async (payload) => {
   return out;
 };
 
-module.exports = { enrichPublicAssetUrls };
+/**
+ * Enrich a full Campaign document (dashboard detail, list, PATCH responses).
+ */
+const enrichCampaignRecord = async (campaign) => {
+  if (!campaign || typeof campaign !== 'object') return campaign;
+
+  const out = await enrichPublicAssetUrls(campaign);
+
+  if (Array.isArray(out.videoItems)) {
+    out.videoItems = await Promise.all(
+      out.videoItems.map(async (item) => {
+        const vi = { ...item };
+        if (vi.url) vi.url = await toBrowserMediaUrl(vi.url);
+        return vi;
+      })
+    );
+  }
+
+  return out;
+};
+
+const enrichCampaignList = async (campaigns) => {
+  if (!Array.isArray(campaigns)) return campaigns;
+  return Promise.all(campaigns.map((c) => enrichCampaignRecord(c)));
+};
+
+module.exports = {
+  enrichPublicAssetUrls,
+  enrichCampaignRecord,
+  enrichCampaignList,
+};

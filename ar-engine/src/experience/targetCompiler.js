@@ -46,9 +46,11 @@ export const compileMindTarget = async (imageUrl, onProgress) => {
 
   // Compile using MindAR browser compiler
   const compiler = new Compiler();
-  await compiler.compileImageTargets([imageElement], (progress) => {
-    // MindAR reports 0–1 internally
-    onProgress?.(Math.round(progress * 100));
+  await compiler.compileImageTargets([imageElement], (progressRaw) => {
+    const p = typeof progressRaw === 'number' ? progressRaw : 0;
+    // MindAR historically used 0–1; some builds report 0–100 already — normalize.
+    const pct = p > 1 ? Math.min(100, Math.round(p)) : Math.min(100, Math.round(p * 100));
+    onProgress?.(pct);
   });
 
   // Export to ArrayBuffer

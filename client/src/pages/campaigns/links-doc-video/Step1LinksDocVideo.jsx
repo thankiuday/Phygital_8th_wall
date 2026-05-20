@@ -277,7 +277,7 @@ const VideoSlotRow = ({ index, slot, source, isAuthenticated, onChange, onRemove
       {source === 'upload' ? (
         <div className="space-y-3">
           {uploading ? (
-            <UploadProgress progress={progress} label={`Uploading video ${index + 1}…`} />
+            <UploadProgress progress={progress} label={`Uploading your video (${index + 1})…`} />
           ) : slot.uploadUrl ? (
             <div className="relative overflow-hidden rounded-xl border border-brand-500/30 bg-[var(--surface-2)]">
               <video
@@ -466,7 +466,7 @@ const DocSlotRow = ({ index, slot, isAuthenticated, onChange, onRemove, canRemov
       </div>
 
       {uploading ? (
-        <UploadProgress progress={progress} label={`Uploading document ${index + 1}…`} />
+        <UploadProgress progress={progress} label={`Uploading your document (${index + 1})…`} />
       ) : slot.url ? (
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] p-3">

@@ -83,7 +83,10 @@ const FileDropZone = ({
             {/* Clear button */}
             <button
               type="button"
-              onClick={onClear}
+              onClick={(e) => {
+                e.stopPropagation();
+                onClear?.();
+              }}
               className="absolute right-2 top-2 inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm transition-opacity hover:bg-black/80"
               aria-label="Remove file"
             >

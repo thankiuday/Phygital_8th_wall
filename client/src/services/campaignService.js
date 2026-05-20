@@ -1,6 +1,7 @@
 import api from './api';
 import axios from 'axios';
 import { captureVideoThumbnail } from '../utils/videoThumbnail';
+import { enrichCampaignMedia } from '../utils/assetUrl';
 
 export const campaignService = {
   /* ── Get S3 presigned upload URL ─────────────────────────── */
@@ -285,17 +286,24 @@ export const campaignService = {
 
   getCampaigns: async (params = {}) => {
     const res = await api.get('/campaigns', { params });
-    return res.data.data;
+    const data = res.data.data;
+    if (Array.isArray(data?.campaigns)) {
+      return {
+        ...data,
+        campaigns: data.campaigns.map((c) => enrichCampaignMedia(c)),
+      };
+    }
+    return data;
   },
 
   getCampaign: async (id) => {
     const res = await api.get(`/campaigns/${id}`);
-    return res.data.data.campaign;
+    return enrichCampaignMedia(res.data.data.campaign);
   },
 
   updateCampaign: async (id, updates) => {
     const res = await api.patch(`/campaigns/${id}`, updates);
-    return res.data.data.campaign;
+    return enrichCampaignMedia(res.data.data.campaign);
   },
 
   deleteCampaign: async (id) => {

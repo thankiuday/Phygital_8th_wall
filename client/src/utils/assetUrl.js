@@ -7,11 +7,14 @@ export const assetUrl = (url, _params = {}) => url;
 const MANAGED_KEY_PREFIX = 'phygital8thwall/';
 
 const getApiOrigin = () => {
+  const forceRemote = import.meta.env.VITE_USE_REMOTE_API === 'true';
+  if (import.meta.env.DEV && !forceRemote && typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
   const configured = import.meta.env.VITE_API_URL;
   if (configured) {
     return String(configured).replace(/\/api\/?$/i, '').replace(/\/$/, '');
   }
-  if (import.meta.env.DEV) return '';
   if (typeof window !== 'undefined') return window.location.origin;
   return '';
 };
@@ -93,6 +96,39 @@ export const pickCampaignVideoPreviewUrl = (campaign) => {
     return resolvePlaybackMediaUrl(raw);
   }
   return null;
+};
+
+/** Normalize campaign media fields after GET (dashboard detail / list). */
+export const enrichCampaignMedia = (campaign) => {
+  if (!campaign || typeof campaign !== 'object') return campaign;
+
+  const mapUrl = (url) => (url ? resolvePlaybackMediaUrl(url) : url);
+
+  const out = {
+    ...campaign,
+    videoUrl: mapUrl(campaign.videoUrl),
+    thumbnailUrl: mapUrl(campaign.thumbnailUrl),
+    targetImageUrl: mapUrl(campaign.targetImageUrl),
+    qrCodeUrl: mapUrl(campaign.qrCodeUrl),
+  };
+
+  if (Array.isArray(campaign.videoItems)) {
+    out.videoItems = campaign.videoItems.map((vi) => ({
+      ...vi,
+      url: mapUrl(vi.url),
+      videoUrl: mapUrl(vi.videoUrl),
+      thumbnailUrl: mapUrl(vi.thumbnailUrl),
+    }));
+  }
+
+  if (Array.isArray(campaign.docItems)) {
+    out.docItems = campaign.docItems.map((di) => ({
+      ...di,
+      url: mapUrl(di.url),
+    }));
+  }
+
+  return out;
 };
 
 /** @deprecated Use assetUrl */

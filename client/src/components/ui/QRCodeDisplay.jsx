@@ -9,6 +9,7 @@ import {
   frameAccentFromDesign,
 } from '../qr/qrDesignModel';
 import { downloadFramedDynamicQrPng } from '../../utils/framedQrDownload';
+import { resolvePlaybackMediaUrl } from '../../utils/assetUrl';
 
 // Same inner pixel size as Step2DesignQr so on-screen QR + PNG download match the wizard.
 const DYNAMIC_QR_PIXEL_SIZE = 224;
@@ -34,7 +35,9 @@ const QRCodeDisplay = ({
     || campaignType === 'links-doc-video-qr'
     || campaignType === 'digital-business-card';
 
-  const [qrUrl, setQrUrl] = useState(initialQrUrl);
+  const [qrUrl, setQrUrl] = useState(
+    () => (initialQrUrl ? resolvePlaybackMediaUrl(initialQrUrl) : null)
+  );
   const [polling, setPolling] = useState(!initialQrUrl);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
@@ -89,7 +92,7 @@ const QRCodeDisplay = ({
 
       if (qrCodeUrl) {
         setShareUrl(arPageUrl);
-        setQrUrl(qrCodeUrl);
+        setQrUrl(resolvePlaybackMediaUrl(qrCodeUrl));
         setPolling(false);
       }
     } catch {

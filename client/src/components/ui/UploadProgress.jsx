@@ -2,7 +2,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { Cloud, CheckCircle2 } from 'lucide-react';
 
 /**
- * UploadProgress — animated progress bar shown during Cloudinary upload.
+ * UploadProgress — animated progress bar shown during uploads to cloud storage.
  *
  * Honours prefers-reduced-motion: the bar still moves to the new width
  * (otherwise users wouldn't see progress) but the easing animation is

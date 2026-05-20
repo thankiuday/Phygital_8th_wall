@@ -529,8 +529,8 @@ const CampaignDetailPage = () => {
             </motion.div>
           )}
 
-          {/* Video preview */}
-          {campaign.videoUrl && (
+          {/* AR intro video — ar-card only */}
+          {campaign.campaignType === 'ar-card' && campaign.videoUrl && (
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
@@ -539,13 +539,16 @@ const CampaignDetailPage = () => {
             >
               <div className="mb-3 flex items-center gap-2">
                 <VideoIcon size={16} className="text-brand-400" />
-                <h4 className="text-sm font-semibold text-[var(--text-primary)]">Intro Video</h4>
+                <h4 className="text-sm font-semibold text-[var(--text-primary)]">Video</h4>
                 <span className="ml-auto text-xs text-[var(--text-muted)]">AR Hologram</span>
               </div>
               <video
                 src={resolvePlaybackMediaUrl(campaign.videoUrl)}
+                poster={pickCampaignImageThumbUrl(campaign) || undefined}
                 controls
                 playsInline
+                preload="metadata"
+                crossOrigin="anonymous"
                 className="max-h-64 w-full rounded-xl border border-[var(--border-color)] object-contain"
               />
             </motion.div>
@@ -663,6 +666,8 @@ const CampaignDetailPage = () => {
                   poster={pickCampaignImageThumbUrl(campaign) || undefined}
                   controls
                   playsInline
+                  preload="metadata"
+                  crossOrigin="anonymous"
                   className="max-h-64 w-full rounded-xl border border-[var(--border-color)] object-contain"
                 />
               ) : campaign.externalVideoUrl ? (

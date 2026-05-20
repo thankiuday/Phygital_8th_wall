@@ -1,14 +1,23 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Loader2, Check, Video as VideoIcon } from 'lucide-react';
+import { X, Loader2, Check, Video as VideoIcon, Link2, UploadCloud } from 'lucide-react';
 import MultiLinksEditor from '../../pages/campaigns/multiple-links/MultiLinksEditor';
 import {
   campaignLinkItemsToRows,
   validateLinkRows,
   rowsToApiLinkItems,
 } from '../../pages/campaigns/multiple-links/multiLinkFormUtils';
+import {
+  campaignVideoItemsToEditSlots,
+  slotsToPatchVideoItems,
+  createVideoSlot,
+  isVideoSlotReady,
+} from '../../pages/campaigns/links-doc-video/linksDocVideoFormUtils';
+import { isAllowedVideoHost, toEmbedSrc } from '../../utils/videoEmbed';
 import FileDropZone from './FileDropZone';
+import FormInput from './FormInput';
 import UploadProgress from './UploadProgress';
+import VideoItemsEditor from './VideoItemsEditor';
 import { campaignService } from '../../services/campaignService';
 
 const ACCEPTED_VIDEO_TYPES = 'video/*,.mp4,.webm,.mov,.m4v';
@@ -42,6 +51,49 @@ const validateVideoFile = (file) =>
     video.src = URL.createObjectURL(file);
   });
 
+const HeroSourceTab = ({ active, onClick, Icon, label }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+      active
+        ? 'border-brand-500/60 bg-brand-500/15 text-brand-300'
+        : 'border-[var(--border-color)] bg-[var(--surface-2)] text-[var(--text-secondary)] hover:border-brand-500/40'
+    }`}
+  >
+    <Icon size={15} />
+    {label}
+  </button>
+);
+
+/** Validate multi-video editor for links-doc-video-qr (documents are not edited here). */
+const validateDocVideoModal = (slots, videoSource, campaign) => {
+  for (const slot of slots) {
+    const hasAnything =
+      slot.uploadUrl
+      || slot.externalUrl?.trim()
+      || (slot.label || '').trim();
+    if (!hasAnything) continue;
+    if (!isVideoSlotReady(slot, videoSource)) {
+      if (videoSource === 'upload') {
+        return 'Finish uploading every video, or remove unfinished rows.';
+      }
+      const url = (slot.externalUrl || '').trim();
+      if (!url) return 'Add a video URL or remove the empty slot.';
+      if (!isAllowedVideoHost(url) || !toEmbedSrc(url)) {
+        return 'Only YouTube, Vimeo, or Facebook video URLs are supported.';
+      }
+      return 'Each video needs a label.';
+    }
+  }
+  const readyCount = slots.filter((s) => isVideoSlotReady(s, videoSource)).length;
+  const hasDocs = Array.isArray(campaign.docItems) && campaign.docItems.length > 0;
+  if (readyCount === 0 && !hasDocs) {
+    return 'Add at least one video, or keep documents on this campaign from the creation flow.';
+  }
+  return '';
+};
+
 /**
  * EditCampaignModal — inline modal to rename a campaign, toggle status, and
  * for hub / ar-card types: edit links; for ar-card: replace intro video.
@@ -56,6 +108,8 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
 
   const isSingleLink = campaign.campaignType === 'single-link-qr';
   const isArCard = campaign.campaignType === 'ar-card';
+  const isLinksVideo = campaign.campaignType === 'links-video-qr';
+  const isLinksDocVideo = campaign.campaignType === 'links-doc-video-qr';
   const hasLinkItems =
     campaign.campaignType === 'multiple-links-qr'
     || campaign.campaignType === 'links-video-qr'
@@ -75,6 +129,26 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [videoError, setVideoError] = useState('');
 
+  /** When true, hero FileDropZone hides saved campaign video so the drop zone is empty after ✕. */
+  const [suppressExistingHeroPreview, setSuppressExistingHeroPreview] = useState(false);
+
+  const [arVideoChangeMode, setArVideoChangeMode] = useState(false);
+  const [heroLinksVideoSource, setHeroLinksVideoSource] = useState(
+    () => campaign.videoSource || 'upload',
+  );
+  const [heroLinksExternalUrl, setHeroLinksExternalUrl] = useState(
+    () => campaign.externalVideoUrl || '',
+  );
+
+  const [docVideoSource, setDocVideoSource] = useState(() => campaign.videoSource || 'upload');
+  const [docVideoSlots, setDocVideoSlots] = useState(() => {
+    if (campaign.campaignType !== 'links-doc-video-qr') return [];
+    const slots = campaignVideoItemsToEditSlots(campaign.videoItems);
+    return slots.length ? slots : [createVideoSlot()];
+  });
+  const [docVideoError, setDocVideoError] = useState('');
+  const [docVideoUploading, setDocVideoUploading] = useState(false);
+
   useEffect(() => {
     setName(campaign.campaignName);
     setStatus(campaign.status);
@@ -87,9 +161,11 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
     setUploadProgress(0);
     if (videoPreview) URL.revokeObjectURL(videoPreview);
     setVideoPreview('');
+    setArVideoChangeMode(false);
+    setSuppressExistingHeroPreview(false);
+    setDocVideoError('');
 
-    if (
-      campaign.campaignType === 'multiple-links-qr'
+    if (campaign.campaignType === 'multiple-links-qr'
       || campaign.campaignType === 'links-video-qr'
       || campaign.campaignType === 'links-doc-video-qr'
       || campaign.campaignType === 'ar-card'
@@ -98,6 +174,19 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
       setPreciseGeo(!!campaign.preciseGeoAnalytics);
     } else {
       setLinkRows([]);
+    }
+
+    if (campaign.campaignType === 'links-video-qr') {
+      setHeroLinksVideoSource(campaign.videoSource || 'upload');
+      setHeroLinksExternalUrl(campaign.externalVideoUrl || '');
+    }
+
+    if (campaign.campaignType === 'links-doc-video-qr') {
+      setDocVideoSource(campaign.videoSource || 'upload');
+      const slots = campaignVideoItemsToEditSlots(campaign.videoItems);
+      setDocVideoSlots(slots.length ? slots : [createVideoSlot()]);
+    } else {
+      setDocVideoSlots([]);
     }
   }, [
     campaign._id,
@@ -108,6 +197,9 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
     campaign.linkItems,
     campaign.preciseGeoAnalytics,
     campaign.videoPublicId,
+    campaign.videoSource,
+    campaign.externalVideoUrl,
+    campaign.videoItems,
   ]);
 
   useEffect(() => {
@@ -160,7 +252,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
     }
   };
 
-  const handleClearVideo = () => {
+  const clearLocalHeroVideoSelection = () => {
     if (videoPreview) URL.revokeObjectURL(videoPreview);
     setVideoPreview('');
     setPendingVideo(null);
@@ -168,11 +260,34 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
     setUploadProgress(0);
   };
 
+  /** Clear preview in hero replace UI (drops local draft and hides saved video until user picks another file). */
+  const handleHeroReplaceClear = () => {
+    clearLocalHeroVideoSelection();
+    setSuppressExistingHeroPreview(true);
+  };
+
+  /** Close AR replace mode without persisting drafts; show saved hero again next time. */
+  const discardArReplaceDraft = () => {
+    clearLocalHeroVideoSelection();
+    setSuppressExistingHeroPreview(false);
+  };
+
   const currentVideoPreviewUrl =
     videoPreview
     || pendingVideo?.thumbnailUrl
     || campaign.thumbnailUrl
     || campaign.videoUrl
+    || null;
+
+  /** Preview inside FileDropZone for AR “change video” / links-video upload (respects suppress after ✕). */
+  const heroFileDropPreviewUrl =
+    videoPreview
+    || pendingVideo?.url
+    || pendingVideo?.thumbnailUrl
+    || (
+      !suppressExistingHeroPreview
+      && (campaign.videoUrl || campaign.thumbnailUrl)
+    )
     || null;
 
   const handleSubmit = async (e) => {
@@ -183,6 +298,33 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
 
     if (videoUploading) {
       setVideoError('Please wait for the video upload to finish.');
+      return;
+    }
+
+    if (isLinksVideo) {
+      if (heroLinksVideoSource === 'link') {
+        const t = heroLinksExternalUrl.trim();
+        if (!t || !isAllowedVideoHost(t) || !toEmbedSrc(t)) {
+          setVideoError('Enter a supported YouTube, Vimeo, or Facebook video URL.');
+          return;
+        }
+      } else if (campaign.videoSource === 'link' && !pendingVideo?.publicId) {
+        setVideoError('Upload a video to replace the embedded link.');
+        return;
+      }
+    }
+
+    if (isLinksDocVideo) {
+      const derr = validateDocVideoModal(docVideoSlots, docVideoSource, campaign);
+      if (derr) {
+        setDocVideoError(derr);
+        return;
+      }
+      setDocVideoError('');
+    }
+
+    if (docVideoUploading) {
+      setDocVideoError('Please wait for video uploads to finish.');
       return;
     }
 
@@ -253,6 +395,25 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
       }
     }
 
+    if (isLinksVideo) {
+      if (heroLinksVideoSource === 'link') {
+        updates.videoSource = 'link';
+        updates.externalVideoUrl = heroLinksExternalUrl.trim();
+      } else {
+        updates.videoSource = 'upload';
+        if (pendingVideo?.publicId && pendingVideo.publicId !== campaign.videoPublicId) {
+          updates.videoUrl = pendingVideo.url;
+          updates.videoPublicId = pendingVideo.publicId;
+          updates.thumbnailUrl = pendingVideo.thumbnailUrl ?? null;
+        }
+      }
+    }
+
+    if (isLinksDocVideo) {
+      updates.videoSource = docVideoSource;
+      updates.videoItems = slotsToPatchVideoItems(docVideoSlots, docVideoSource);
+    }
+
     if (Object.keys(updates).length === 0) {
       setSaving(false);
       onClose();
@@ -274,12 +435,16 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
     { value: 'paused', label: 'Paused', color: 'text-yellow-400', bg: 'bg-yellow-500/10 border-yellow-500/30' },
   ];
 
-  const panelMaxW = hasHubLinks ? 'max-w-lg' : 'max-w-md';
+  const panelMaxW = hasHubLinks ? 'max-w-xl' : 'max-w-md';
   const modalTitle = isArCard
     ? 'Edit campaign, video & links'
-    : hasLinkItems
-      ? 'Edit campaign & links'
-      : 'Edit Campaign';
+    : isLinksDocVideo
+      ? 'Edit campaign, videos & links'
+      : isLinksVideo
+        ? 'Edit campaign, video & links'
+        : hasLinkItems
+          ? 'Edit campaign & links'
+          : 'Edit Campaign';
 
   return (
     <AnimatePresence>
@@ -380,38 +545,176 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
               {isArCard && (
                 <div className="space-y-3 border-t border-[var(--border-color)] pt-5">
                   <div>
-                    <p className="text-xs font-medium text-[var(--text-secondary)]">Intro video</p>
+                    <p className="text-xs font-medium text-[var(--text-secondary)]">Video</p>
                     <p className="mt-0.5 text-xs text-[var(--text-muted)]">
                       Replaces the hologram on your card and the hero video on your profile hub.
                     </p>
                   </div>
 
-                  {!videoUploading ? (
-                    <FileDropZone
-                      accept={ACCEPTED_VIDEO_TYPES}
-                      acceptLabel="MP4, WebM, MOV"
-                      maxSizeMB={MAX_VIDEO_SIZE_MB}
-                      onFile={handleVideoFile}
-                      previewUrl={currentVideoPreviewUrl}
-                      previewType="video"
-                      onClear={pendingVideo || videoPreview ? handleClearVideo : undefined}
-                      error={videoError}
-                      icon={VideoIcon}
-                      hint="9:16 vertical · max 60 seconds · max 100 MB"
-                    />
+                  {!arVideoChangeMode ? (
+                    <div className="space-y-3">
+                      {currentVideoPreviewUrl ? (
+                        <div className="overflow-hidden rounded-xl border border-[var(--border-color)] bg-black/40">
+                          <video
+                            className="aspect-[9/16] max-h-[14rem] w-full object-contain"
+                            controls
+                            muted
+                            playsInline
+                            poster={campaign.thumbnailUrl || undefined}
+                            src={currentVideoPreviewUrl}
+                          />
+                        </div>
+                      ) : (
+                        <p className="text-xs text-[var(--text-muted)]">No video on file yet.</p>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const ok = window.confirm(
+                            'Replacing the video removes the previous upload from storage (best effort). Continue?',
+                          );
+                          if (!ok) return;
+                          setArVideoChangeMode(true);
+                          setSuppressExistingHeroPreview(false);
+                          setVideoError('');
+                        }}
+                        className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-[var(--border-color)] px-4 text-sm font-semibold text-brand-400 transition-colors hover:border-brand-500/50"
+                      >
+                        Change video
+                      </button>
+                    </div>
                   ) : (
-                    <UploadProgress
-                      progress={uploadProgress}
-                      label="Uploading video…"
-                    />
+                    <>
+                      {!videoUploading ? (
+                        <FileDropZone
+                          accept={ACCEPTED_VIDEO_TYPES}
+                          acceptLabel="MP4, WebM, MOV"
+                          maxSizeMB={MAX_VIDEO_SIZE_MB}
+                          onFile={handleVideoFile}
+                          previewUrl={heroFileDropPreviewUrl}
+                          previewType="video"
+                          onClear={handleHeroReplaceClear}
+                          error={videoError}
+                          icon={VideoIcon}
+                          hint="9:16 vertical · max 60 seconds · max 100 MB"
+                        />
+                      ) : (
+                        <UploadProgress
+                          progress={uploadProgress}
+                          label="Uploading your video…"
+                        />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setArVideoChangeMode(false);
+                          discardArReplaceDraft();
+                        }}
+                        className="text-xs font-medium text-[var(--text-muted)] underline underline-offset-2 hover:text-[var(--text-secondary)]"
+                      >
+                        Cancel
+                      </button>
+                    </>
                   )}
 
-                  {pendingVideo && !videoUploading && (
+                  {arVideoChangeMode && pendingVideo && !videoUploading && (
                     <p className="text-xs font-medium text-green-400">
                       New video ready — save to apply on hub and AR experience.
                     </p>
                   )}
                 </div>
+              )}
+
+              {isLinksVideo && (
+                <div className="space-y-3 border-t border-[var(--border-color)] pt-5">
+                  <div>
+                    <p className="text-xs font-medium text-[var(--text-secondary)]">Hero video</p>
+                    <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                      Shown at the top of your link hub. Upload a short clip or paste an embeddable URL.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <HeroSourceTab
+                      active={heroLinksVideoSource === 'upload'}
+                      onClick={() => {
+                        setHeroLinksVideoSource('upload');
+                        setSuppressExistingHeroPreview(false);
+                        setVideoError('');
+                      }}
+                      Icon={UploadCloud}
+                      label="Upload video"
+                    />
+                    <HeroSourceTab
+                      active={heroLinksVideoSource === 'link'}
+                      onClick={() => {
+                        setHeroLinksVideoSource('link');
+                        setVideoError('');
+                      }}
+                      Icon={Link2}
+                      label="Paste link"
+                    />
+                  </div>
+
+                  {heroLinksVideoSource === 'upload' ? (
+                    !videoUploading ? (
+                      <FileDropZone
+                        accept={ACCEPTED_VIDEO_TYPES}
+                        acceptLabel="MP4, WebM, MOV"
+                        maxSizeMB={MAX_VIDEO_SIZE_MB}
+                        onFile={handleVideoFile}
+                        previewUrl={heroFileDropPreviewUrl}
+                        previewType="video"
+                        onClear={handleHeroReplaceClear}
+                        error={videoError}
+                        icon={VideoIcon}
+                        hint="Max 60 seconds · max 100 MB"
+                      />
+                    ) : (
+                      <UploadProgress
+                        progress={uploadProgress}
+                        label="Uploading your video…"
+                      />
+                    )
+                  ) : (
+                    <FormInput
+                      label="Video URL (YouTube, Vimeo, Facebook)"
+                      value={heroLinksExternalUrl}
+                      onChange={(e) => {
+                        setHeroLinksExternalUrl(e.target.value);
+                        setVideoError('');
+                      }}
+                      placeholder="https://youtube.com/watch?v=…"
+                      error={
+                        heroLinksExternalUrl.trim()
+                        && (!isAllowedVideoHost(heroLinksExternalUrl.trim())
+                          || !toEmbedSrc(heroLinksExternalUrl.trim()))
+                          ? 'Use a supported YouTube, Vimeo, or Facebook URL'
+                          : ''
+                      }
+                    />
+                  )}
+
+                  {pendingVideo && !videoUploading && heroLinksVideoSource === 'upload' && (
+                    <p className="text-xs font-medium text-green-400">
+                      New video ready — save to apply on your hub.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {isLinksDocVideo && (
+                <VideoItemsEditor
+                  videoSource={docVideoSource}
+                  onVideoSourceChange={(s) => {
+                    setDocVideoSource(s);
+                    setDocVideoError('');
+                  }}
+                  slots={docVideoSlots}
+                  setSlots={setDocVideoSlots}
+                  error={docVideoError}
+                  onUploadingChange={setDocVideoUploading}
+                />
               )}
 
               {hasHubLinks && (
@@ -467,7 +770,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
               </button>
               <button
                 type="submit"
-                disabled={saving || videoUploading}
+                disabled={saving || videoUploading || docVideoUploading}
                 className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white shadow-glow transition-all hover:bg-brand-500 disabled:opacity-60"
               >
                 {saving ? <><Loader2 size={14} className="animate-spin" /> Saving…</> : 'Save Changes'}

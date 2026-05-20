@@ -24,6 +24,7 @@ const logger = require('../config/logger');
 const { resolveLinkHref } = require('../utils/linkItemResolver');
 const { allocateUniqueHandleFromEmail } = require('../utils/userHandle');
 const { allocateUniqueHubSlugForUser } = require('../utils/campaignHubSlug');
+const { enrichCampaignRecord, enrichCampaignList } = require('../utils/publicAssetUrls');
 
 /* ── Defense-in-depth: cap on stringified qrDesign size.  Zod already bounds
    the logo `image` field to 180 KB; this is a belt-and-braces guard against a
@@ -842,8 +843,10 @@ const getCampaigns = async (req, res) => {
     Campaign.countDocuments(filter),
   ]);
 
+  const enrichedCampaigns = await enrichCampaignList(campaigns);
+
   return success(res, {
-    campaigns,
+    campaigns: enrichedCampaigns,
     pagination: {
       page: Number(page),
       limit: Number(limit),
@@ -865,7 +868,7 @@ const getCampaign = async (req, res) => {
 
   if (!campaign) throw new AppError('Campaign not found', 404);
 
-  return success(res, { campaign });
+  return success(res, { campaign: await enrichCampaignRecord(campaign) });
 };
 
 /* ─────────────────────────────────────────
@@ -1111,6 +1114,17 @@ const updateCampaign = async (req, res) => {
     }
   }
 
+  if (existing.campaignType === 'links-video-qr') {
+    const oldVideoId = existing.videoPublicId;
+    const newVideoId = campaign.videoPublicId;
+    if (oldVideoId && newVideoId && oldVideoId !== newVideoId) {
+      deleteCloudinaryAsset(oldVideoId, 'video').catch(() => {});
+    }
+    if (updates.videoPublicId) {
+      claimUploadedDraftAssets({ video: [updates.videoPublicId] }).catch(() => {});
+    }
+  }
+
   // Evict cache after a successful write so the next scan picks up the new
   // destination / hub data / status.
   if (
@@ -1131,7 +1145,8 @@ const updateCampaign = async (req, res) => {
     if (previousCardSlug) cardMetaCache.evict(previousCardSlug).catch(() => {});
   }
 
-  return success(res, { campaign }, 'Campaign updated');
+  const payload = campaign?.toObject ? campaign.toObject() : campaign;
+  return success(res, { campaign: await enrichCampaignRecord(payload) }, 'Campaign updated');
 };
 
 /* ─────────────────────────────────────────

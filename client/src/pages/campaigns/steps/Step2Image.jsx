@@ -122,7 +122,7 @@ const Step2Image = () => {
       ) : (
         <UploadProgress
           progress={uploadProgress.image}
-          label="Uploading card image to Cloudinary…"
+          label="Uploading your card image…"
         />
       )}
 

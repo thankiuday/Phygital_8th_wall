@@ -26,6 +26,15 @@ export const DOC_ACCEPT_LABEL = 'PDF, DOCX, PPTX, XLSX, JPG, PNG';
 export const MAX_DOC_BYTES = 25 * 1024 * 1024;
 export const MAX_DOC_MB = 25;
 
+/** Human-ish label from an uploaded file name (extension stripped). */
+export const labelFromFileName = (name = '') => {
+  const base = String(name || '').trim().replace(/^.*[/\\]/, '');
+  if (!base) return '';
+  const dot = base.lastIndexOf('.');
+  const stem = dot > 0 ? base.slice(0, dot) : base;
+  return stem.replace(/[-_]+/g, ' ').trim().slice(0, 80);
+};
+
 /**
  * Each video slot tracks both upload and link state so toggling the campaign
  * source mode never silently discards the asset metadata the user already
@@ -181,6 +190,36 @@ export const buildLinksDocVideoPayload = ({
   };
 };
 
-/** Best-effort, label-from-file-name helper. */
-export const labelFromFileName = (fileName = '') =>
-  fileName.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim().slice(0, 80);
+/**
+ * Map persisted campaign.videoItems to editor slot shape (used by edit modal).
+ */
+export const campaignVideoItemsToEditSlots = (videoItems = []) =>
+  (videoItems || []).map((vi) =>
+    createVideoSlot({
+      videoId: vi.videoId,
+      label: vi.label || '',
+      uploadUrl: vi.source === 'upload' ? vi.url || '' : '',
+      uploadPublicId: vi.source === 'upload' ? vi.publicId || '' : '',
+      uploadThumbnailUrl: vi.thumbnailUrl || '',
+      externalUrl: vi.source === 'link' ? vi.externalVideoUrl || '' : '',
+    })
+  );
+
+/** Build PATCH payload for `videoItems` (mergeVideoItemsForUpdate on server). */
+export const slotsToPatchVideoItems = (videoSlots, videoSource) =>
+  (videoSlots || [])
+    .filter((s) => isVideoSlotReady(s, videoSource))
+    .map((s) => ({
+      videoId: s.videoId || undefined,
+      label: (s.label || '').trim(),
+      source: videoSource,
+      ...(videoSource === 'upload'
+        ? {
+            url: s.uploadUrl,
+            publicId: s.uploadPublicId || undefined,
+            thumbnailUrl: s.uploadThumbnailUrl || undefined,
+          }
+        : {
+            externalVideoUrl: (s.externalUrl || '').trim(),
+          }),
+    }));

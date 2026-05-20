@@ -157,7 +157,7 @@ const Step3Video = () => {
       ) : (
         <UploadProgress
           progress={uploadProgress.video}
-          label="Uploading video to Cloudinary…"
+          label="Uploading your video…"
         />
       )}
 

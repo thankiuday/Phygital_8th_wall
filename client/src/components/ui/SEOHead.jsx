@@ -18,7 +18,7 @@ const OG_IMAGE = `${APP_URL}/phygital-logo.png`;
  */
 const SEOHead = ({
   title,
-  description = 'Create AR business card experiences in minutes. Upload your card, add a video, and share your augmented reality hologram.',
+  description = 'Phygital connects physical prints to digital hubs — QR link pages, video, documents, AR experiences, and real-time analytics without an app.',
   image   = OG_IMAGE,
   url,
   type    = 'website',
@@ -28,7 +28,9 @@ const SEOHead = ({
   // Canonical URL follows the active route by default so analytics / search
   // engines see the actual page path; callers can still override via `url`.
   const canonical = url ?? `${APP_URL}${location.pathname}`;
-  const fullTitle = title ? `${title} | ${APP_NAME}` : `${APP_NAME} — AR Business Card Platform`;
+  const fullTitle = title
+    ? `${title} | ${APP_NAME}`
+    : `${APP_NAME} — physical meets digital storytelling`;
 
   return (
     <Helmet>

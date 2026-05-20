@@ -318,7 +318,7 @@ const Step1LinksVideo = ({
         {videoSource === 'upload' ? (
           <div className="space-y-3">
             {uploading ? (
-              <UploadProgress progress={uploadProgress} label="Uploading video..." />
+              <UploadProgress progress={uploadProgress} label="Uploading your video or documents…" />
             ) : (
               <FileDropZone
                 accept={ACCEPTED_VIDEO_TYPES}

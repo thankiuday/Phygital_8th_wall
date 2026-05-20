@@ -161,7 +161,11 @@ export class ARExperience {
     try {
       mindBlobUrl = await compileMindTarget(
         this._campaign.targetImageUrl,
-        (pct) => updateLoadingProgress(5 + Math.round(pct * 0.8), `Calibrating target… ${pct}%`)
+        (pct) => {
+          const clamped = Math.min(100, Math.max(0, pct));
+          const barPct = 5 + Math.round((clamped / 100) * 80);
+          updateLoadingProgress(barPct, `Calibrating target… ${clamped}%`);
+        }
       );
     } catch (err) {
       showError('Could not calibrate image target.', err.message);
