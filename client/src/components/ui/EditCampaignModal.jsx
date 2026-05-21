@@ -589,14 +589,14 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
                         <FileDropZone
                           accept={ACCEPTED_VIDEO_TYPES}
                           acceptLabel="MP4, WebM, MOV"
-                          maxSizeMB={MAX_VIDEO_SIZE_MB}
+                          maxSizeMB={null}
                           onFile={handleVideoFile}
                           previewUrl={heroFileDropPreviewUrl}
                           previewType="video"
                           onClear={handleHeroReplaceClear}
                           error={videoError}
                           icon={VideoIcon}
-                          hint="9:16 vertical · max 60 seconds · max 100 MB"
+                          hint="9:16 vertical · max 60 seconds"
                         />
                       ) : (
                         <UploadProgress

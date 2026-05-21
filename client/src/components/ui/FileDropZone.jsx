@@ -10,7 +10,7 @@ import { cn } from '../../utils/cn';
 const FileDropZone = ({
   accept,           // MIME types string, e.g. "image/jpeg,image/png,image/webp"
   acceptLabel,      // Human label, e.g. "JPG, PNG, WebP"
-  maxSizeMB = 50,
+  maxSizeMB = 50, // omit or pass null to disable client-side size limit
   onFile,           // callback(File)
   previewUrl,       // string | null — shows preview when set
   previewType = 'image', // 'image' | 'video'
@@ -23,11 +23,15 @@ const FileDropZone = ({
   const [isDragging, setIsDragging] = useState(false);
   const [sizeError, setSizeError] = useState('');
 
+  const hasSizeLimit = Number.isFinite(maxSizeMB) && maxSizeMB > 0;
+
   const validate = (file) => {
-    const maxBytes = maxSizeMB * 1024 * 1024;
-    if (file.size > maxBytes) {
-      setSizeError(`File too large. Maximum size is ${maxSizeMB} MB.`);
-      return false;
+    if (hasSizeLimit) {
+      const maxBytes = maxSizeMB * 1024 * 1024;
+      if (file.size > maxBytes) {
+        setSizeError(`File too large. Maximum size is ${maxSizeMB} MB.`);
+        return false;
+      }
     }
     setSizeError('');
     return true;
@@ -128,7 +132,8 @@ const FileDropZone = ({
               </p>
               {hint && <p className="mt-1 text-xs text-[var(--text-muted)]">{hint}</p>}
               <p className="mt-1 text-xs text-[var(--text-muted)]">
-                {acceptLabel} · Max {maxSizeMB} MB
+                {acceptLabel}
+                {hasSizeLimit ? ` · Max ${maxSizeMB} MB` : ''}
               </p>
             </div>
           </motion.div>

@@ -5,7 +5,6 @@ import UploadProgress from '../../../components/ui/UploadProgress';
 import useCampaignStore from '../../../store/useCampaignStore';
 
 const ACCEPTED_TYPES = 'video/*,.mp4,.webm,.mov,.m4v';
-const MAX_SIZE_MB = 100;
 const MAX_DURATION_SEC = 60;
 
 const VIDEO_TYPES = new Set(['video/mp4', 'video/webm', 'video/quicktime', 'video/x-m4v', 'video/m4v']);
@@ -117,7 +116,6 @@ const Step3Video = () => {
           <AspectBadge label="9:16 Vertical" recommended />
           <AspectBadge label="Max 60 seconds" />
           <AspectBadge label="MP4 / WebM / MOV" />
-          <AspectBadge label="Max 100 MB" />
         </div>
 
         {/* Visual ratio reference — boxes stack above the explanation on
@@ -145,7 +143,7 @@ const Step3Video = () => {
         <FileDropZone
           accept={ACCEPTED_TYPES}
           acceptLabel="MP4, WebM, MOV"
-          maxSizeMB={MAX_SIZE_MB}
+          maxSizeMB={null}
           onFile={handleFile}
           previewUrl={wizardData.videoPreview}
           previewType="video"
