@@ -184,8 +184,17 @@ const Step4Review = ({ onSuccess }) => {
         />
         <ReviewRow
           icon={VideoIcon}
-          label="Intro Video"
+          label="Hologram · Android (.webm)"
           value={wizardData.videoUrl ? 'Uploaded ✓' : 'Not uploaded'}
+        />
+        <ReviewRow
+          icon={VideoIcon}
+          label="Hologram · iPhone (side-by-side .mov)"
+          value={
+            wizardData.videoUrlIos
+              ? 'Uploaded ✓'
+              : 'Not uploaded — iPhone visitors will see a black background'
+          }
         />
         <ReviewRow
           icon={Link2}

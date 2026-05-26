@@ -51,6 +51,7 @@ import { compileMindTarget } from './targetCompiler.js';
 import { animateTargetFound, animateTargetLost } from './animations.js';
 import { updateLoadingProgress, showError, hideLoading } from '../utils/loadingScreen.js';
 import { updateSession } from '../services/campaignLoader.js';
+import { isApplePlaybackEngine } from '../utils/platform.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Scene constants
@@ -286,14 +287,36 @@ export class ARExperience {
       FWD:                 new THREE.Vector3(0, 0, 1),
     };
 
+    // ── Pick the right source per platform ──────────────────────────────────
+    //
+    // iOS Safari black-bg workaround:
+    //   Apple WebKit ignores the alpha channel on transparent .webm / .mov
+    //   when <video> is composited over the AR camera feed. The campaign
+    //   ships a second upload (`videoUrlIos`) — a regular H.264 .mov with
+    //   RGB on the LEFT half of every frame and the alpha mask (as a
+    //   grayscale image) on the RIGHT half. We feed that side-by-side
+    //   texture into a ShaderMaterial that recombines the two halves into
+    //   a real RGBA fragment. Everywhere else (Android Chrome, desktop)
+    //   the native WebM alpha path is already working, so we keep it.
+    //
+    // If a campaign was created before this feature shipped (no iOS upload
+    // available), iOS falls back to the WebM and accepts the platform's
+    // black-bg limitation rather than failing the experience entirely.
+    const wantsIosShader =
+      isApplePlaybackEngine() && !!this._campaign.videoUrlIos;
+    this._iosShaderActive = wantsIosShader;
+    const sourceUrl = wantsIosShader
+      ? this._campaign.videoUrlIos
+      : this._campaign.videoUrl;
+
     // ── Off-screen video element ─────────────────────────────────────────────
     this._videoEl = document.createElement('video');
     Object.assign(this._videoEl, {
-      src:         this._campaign.videoUrl,
+      src:         sourceUrl,
       loop:        true,
       muted:       true,      // unmuted later in _onTargetFound
       playsInline: true,
-      crossOrigin: 'anonymous',
+      crossOrigin: 'anonymous',   // required so the texture upload isn't tainted on iOS
       preload:     'auto',
     });
     this._videoEl.setAttribute('width',  '1080');
@@ -307,24 +330,112 @@ export class ARExperience {
     this._videoTexture.minFilter = THREE.LinearFilter;
     this._videoTexture.magFilter = THREE.LinearFilter;
     this._videoTexture.generateMipmaps = false;
-    this._videoTexture.encoding = THREE.sRGBEncoding;
+    // MeshBasicMaterial relies on Three's built-in sRGB → linear shader
+    // chunk; the iOS ShaderMaterial does the same conversion manually in
+    // its fragment shader. Either way we want the texture flagged as
+    // LinearEncoding in the iOS path so the engine doesn't try to apply
+    // its own encoding step on top of ours.
+    this._videoTexture.encoding = wantsIosShader
+      ? THREE.LinearEncoding
+      : THREE.sRGBEncoding;
     const maxAniso = renderer.capabilities?.getMaxAnisotropy?.() ?? 1;
     this._videoTexture.anisotropy = maxAniso;
 
     // ── Video plane (billboard — render loop sets quaternion each frame) ─────
     const planeGeo = new THREE.PlaneGeometry(PLANE_WIDTH, PLANE_HEIGHT);
-    const planeMat = new THREE.MeshBasicMaterial({
-      map:         this._videoTexture,
-      transparent: true,
-      opacity:     0,
-      side:        THREE.DoubleSide,
-      depthWrite:  false,
-    });
+    const planeMat = wantsIosShader
+      ? this._buildSideBySideAlphaMaterial(THREE, this._videoTexture)
+      : new THREE.MeshBasicMaterial({
+          map:         this._videoTexture,
+          transparent: true,
+          opacity:     0,
+          side:        THREE.DoubleSide,
+          depthWrite:  false,
+        });
     this._plane = new THREE.Mesh(planeGeo, planeMat);
     this._plane.scale.set(1, 0, 1);
     this._plane.position.set(0, 0, 0);
     this._plane.renderOrder = 1;
     this._plane.visible = false;
+  }
+
+  /**
+   * _buildSideBySideAlphaMaterial — iOS-only ShaderMaterial.
+   *
+   * The source texture is laid out as `[ RGB | ALPHA_MASK ]` horizontally:
+   *   • The LEFT half (uv.x ∈ [0, 0.5]) holds the colour image.
+   *   • The RIGHT half (uv.x ∈ [0.5, 1]) holds a grayscale alpha mask;
+   *     darker pixels = more transparent, white pixels = fully opaque.
+   *
+   * We sample the texture twice per fragment, remap the UV.x range so the
+   * plane shows only the left (visible) half, then write the mask's red
+   * channel as the alpha output.  `opacity` is exposed as a uniform so
+   * the GSAP entrance/exit tweens (which mutate `material.opacity`) keep
+   * working unchanged.
+   *
+   * @param {object} THREE
+   * @param {THREE.Texture} videoTexture
+   * @returns {THREE.ShaderMaterial}
+   */
+  _buildSideBySideAlphaMaterial(THREE, videoTexture) {
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        map:     { value: videoTexture },
+        opacity: { value: 0 },
+      },
+      vertexShader: /* glsl */ `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        precision highp float;
+        uniform sampler2D map;
+        uniform float opacity;
+        varying vec2 vUv;
+
+        // sRGB → linear. Matches the conversion MeshBasicMaterial gets for
+        // free via Three.js' built-in encoding shader chunks; without it
+        // the colour half of the texture looks washed out once the
+        // renderer's outputEncoding re-encodes the fragment to sRGB.
+        vec3 srgbToLinear(vec3 c) {
+          return pow(c, vec3(2.2));
+        }
+
+        void main() {
+          // Plane UV.x ∈ [0,1] maps to the visible left half of the source;
+          // the same y is sampled from the right half for the alpha mask.
+          vec2 colorUv = vec2(vUv.x * 0.5, vUv.y);
+          vec2 alphaUv = vec2(vUv.x * 0.5 + 0.5, vUv.y);
+
+          vec3 color = srgbToLinear(texture2D(map, colorUv).rgb);
+          float alpha = texture2D(map, alphaUv).r;
+
+          // Straight alpha (not premultiplied) — Three.js' default blending
+          // expects straight alpha for transparent: true. Multiply by the
+          // GSAP-driven opacity uniform so the entrance / exit tweens that
+          // mutate material.opacity keep fading the hologram in and out.
+          gl_FragColor = vec4(color, alpha * opacity);
+        }
+      `,
+      transparent: true,
+      depthWrite:  false,
+      side:        THREE.DoubleSide,
+    });
+
+    // Mirror MeshBasicMaterial's `material.opacity` API so the existing
+    // GSAP tweens in animations.js (which write `material.opacity`) keep
+    // working without any per-platform branching there.
+    Object.defineProperty(material, 'opacity', {
+      configurable: true,
+      get() { return this.uniforms.opacity.value; },
+      set(v)       { this.uniforms.opacity.value = v; },
+    });
+    material.opacity = 0;
+
+    return material;
   }
 
   // ───────────────────────────────────────────────────────────────────────────

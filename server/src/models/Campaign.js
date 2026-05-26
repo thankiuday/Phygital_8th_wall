@@ -79,6 +79,22 @@ const campaignSchema = new mongoose.Schema(
     },
     videoPublicId: { type: String, default: null },
 
+    /**
+     * iOS-specific hologram source.
+     *
+     * iOS Safari decodes ProRes / HEVC-alpha MOVs but does NOT honour the
+     * alpha channel when painting <video> over the AR camera feed — the
+     * transparent pixels render solid black. To work around this we accept a
+     * second upload: an H.264 .mov where the alpha is encoded as a
+     * grayscale mask in the right half of each frame (side-by-side layout).
+     * The AR engine detects iOS at runtime and plays this URL through a
+     * WebGL ShaderMaterial that recombines RGB (left half) + alpha (right
+     * half). Optional — older AR campaigns without an iOS upload fall back
+     * to videoUrl and accept the iOS-black-bg limitation.
+     */
+    videoUrlIos: { type: String, default: null },
+    videoIosPublicId: { type: String, default: null },
+
     // Auto-generated QR code (AR campaigns only — single-link uses qrDesign instead)
     qrCodeUrl: { type: String, default: null },
     qrPublicId: { type: String, default: null },

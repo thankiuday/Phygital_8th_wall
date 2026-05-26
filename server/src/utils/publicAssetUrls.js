@@ -40,6 +40,7 @@ const enrichPublicAssetUrls = async (payload) => {
 
   const out = { ...payload };
   await signField(out, 'videoUrl');
+  await signField(out, 'videoUrlIos');
   await signField(out, 'thumbnailUrl');
   await signField(out, 'targetImageUrl');
 

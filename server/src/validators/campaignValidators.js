@@ -256,6 +256,15 @@ const arCardCreateSchema = z
     targetImageOriginalPublicId: z.string().min(1).optional(),
     videoUrl: z.string().url('videoUrl must be a valid URL'),
     videoPublicId: z.string().min(1).optional(),
+    // iOS-only side-by-side .mov source (alpha encoded as grayscale on the
+    // right half of each frame). Optional on the create payload so existing
+    // single-video clients keep working; the wizard UI gates both uploads.
+    videoUrlIos: z
+      .string()
+      .url('videoUrlIos must be a valid URL')
+      .nullable()
+      .optional(),
+    videoIosPublicId: z.string().min(1).max(512).nullable().optional(),
     linkItems: linkItemsOptionalField.optional(),
     qrDesign: qrDesignSchema.nullable().optional(),
     qrPlacement: qrPlacementSchema.nullable().optional(),
@@ -739,6 +748,8 @@ const stripArMediaFields = (obj) => {
     targetImagePublicId,
     videoUrl,
     videoPublicId,
+    videoUrlIos,
+    videoIosPublicId,
     thumbnailUrl,
     ...rest
   } = obj;
@@ -820,6 +831,9 @@ const updateCampaignSchema = z
     videoSource: z.enum(['upload', 'link']).optional(),
     videoUrl: cloudinaryUrlField.nullable().optional(),
     videoPublicId: z.string().min(1).max(512).nullable().optional(),
+    // ar-card: optional iOS side-by-side .mov replacement (paired with videoUrl).
+    videoUrlIos: z.string().url('videoUrlIos must be a valid URL').nullable().optional(),
+    videoIosPublicId: z.string().min(1).max(512).nullable().optional(),
     externalVideoUrl: externalVideoUrlField.nullable().optional(),
     thumbnailUrl: z.string().url().nullable().optional(),
     /* ── links-doc-video-qr (controller gates by campaignType) ── */

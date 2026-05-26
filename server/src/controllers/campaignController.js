@@ -777,6 +777,7 @@ const CAMPAIGN_LIST_VIEW_FIELDS = [
   'thumbnailUrl',
   'targetImageUrl',
   'videoUrl',
+  'videoUrlIos',
   'qrCodeUrl',
   'redirectSlug',
   'cardSlug',
@@ -890,6 +891,8 @@ const updateCampaign = async (req, res) => {
       'videoSource',
       'videoItems',
       'docItems',
+      'videoPublicId',
+      'videoIosPublicId',
       'analytics.linkClickTotals',
       'analytics.docOpenTotals',
       'analytics.videoPlayTotals',
@@ -1042,6 +1045,10 @@ const updateCampaign = async (req, res) => {
     await applyLinkItemsMerge();
     if (videoUrl !== undefined) updates.videoUrl = videoUrl;
     if (videoPublicId !== undefined) updates.videoPublicId = videoPublicId;
+    if (req.body.videoUrlIos !== undefined) updates.videoUrlIos = req.body.videoUrlIos;
+    if (req.body.videoIosPublicId !== undefined) {
+      updates.videoIosPublicId = req.body.videoIosPublicId;
+    }
     if (thumbnailUrl !== undefined) updates.thumbnailUrl = thumbnailUrl;
   }
 
@@ -1111,6 +1118,16 @@ const updateCampaign = async (req, res) => {
     }
     if (updates.videoPublicId) {
       claimUploadedDraftAssets({ video: [updates.videoPublicId] }).catch(() => {});
+    }
+
+    // Mirror the same cleanup + claim flow for the iOS .mov upload.
+    const oldIosVideoId = existing.videoIosPublicId;
+    const newIosVideoId = campaign.videoIosPublicId;
+    if (oldIosVideoId && newIosVideoId && oldIosVideoId !== newIosVideoId) {
+      deleteCloudinaryAsset(oldIosVideoId, 'video').catch(() => {});
+    }
+    if (updates.videoIosPublicId) {
+      claimUploadedDraftAssets({ video: [updates.videoIosPublicId] }).catch(() => {});
     }
   }
 
@@ -1185,6 +1202,7 @@ const deleteCampaign = async (req, res) => {
   if (campaign.targetImagePublicId) storageKeys.push(campaign.targetImagePublicId);
   if (campaign.targetImageOriginalPublicId) storageKeys.push(campaign.targetImageOriginalPublicId);
   if (campaign.videoPublicId) storageKeys.push(campaign.videoPublicId);
+  if (campaign.videoIosPublicId) storageKeys.push(campaign.videoIosPublicId);
   if (campaign.qrPublicId) storageKeys.push(campaign.qrPublicId);
   for (const vi of campaign.videoItems || []) {
     if (vi.source === 'upload' && vi.publicId) storageKeys.push(vi.publicId);
@@ -1403,6 +1421,8 @@ const duplicateCampaign = async (req, res) => {
     targetImagePublicId:  original.targetImagePublicId,
     videoUrl:             original.videoUrl,
     videoPublicId:        original.videoPublicId,
+    videoUrlIos:          original.videoUrlIos || null,
+    videoIosPublicId:     original.videoIosPublicId || null,
     thumbnailUrl:         original.thumbnailUrl,
     status: 'active',
   });

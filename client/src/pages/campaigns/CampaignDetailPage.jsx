@@ -529,7 +529,9 @@ const CampaignDetailPage = () => {
             </motion.div>
           )}
 
-          {/* AR intro video — ar-card only */}
+          {/* AR intro video — ar-card only. Two paired sources: a transparent
+              .webm used on Android / desktop, and a side-by-side .mov used on
+              iOS Safari (RGB on the left half, alpha mask on the right half). */}
           {campaign.campaignType === 'ar-card' && campaign.videoUrl && (
             <motion.div
               initial={{ opacity: 0, y: 16 }}
@@ -539,7 +541,7 @@ const CampaignDetailPage = () => {
             >
               <div className="mb-3 flex items-center gap-2">
                 <VideoIcon size={16} className="text-brand-400" />
-                <h4 className="text-sm font-semibold text-[var(--text-primary)]">Video</h4>
+                <h4 className="text-sm font-semibold text-[var(--text-primary)]">Video · Android (.webm)</h4>
                 <span className="ml-auto text-xs text-[var(--text-muted)]">AR Hologram</span>
               </div>
               <video
@@ -551,6 +553,37 @@ const CampaignDetailPage = () => {
                 crossOrigin="anonymous"
                 className="max-h-64 w-full rounded-xl border border-[var(--border-color)] object-contain"
               />
+            </motion.div>
+          )}
+
+          {campaign.campaignType === 'ar-card' && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.18 }}
+              className="glass-card p-4 sm:p-5"
+            >
+              <div className="mb-3 flex items-center gap-2">
+                <VideoIcon size={16} className="text-brand-400" />
+                <h4 className="text-sm font-semibold text-[var(--text-primary)]">Video · iPhone (side-by-side .mov)</h4>
+                <span className="ml-auto text-xs text-[var(--text-muted)]">iOS-only source</span>
+              </div>
+              {campaign.videoUrlIos ? (
+                <video
+                  src={resolvePlaybackMediaUrl(campaign.videoUrlIos)}
+                  controls
+                  muted
+                  playsInline
+                  preload="metadata"
+                  crossOrigin="anonymous"
+                  className="aspect-[18/16] max-h-64 w-full rounded-xl border border-[var(--border-color)] object-contain"
+                />
+              ) : (
+                <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+                  Not uploaded yet — iPhone visitors will see a solid black background over the AR camera feed.
+                  Use <strong>Edit</strong> to add the side-by-side .mov export.
+                </p>
+              )}
             </motion.div>
           )}
 

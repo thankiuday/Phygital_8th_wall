@@ -36,13 +36,20 @@ const useCampaignStore = create((set, get) => ({
     videoUrl: null,
     videoPublicId: null,
     videoPreview: null,
+    // iOS-only side-by-side .mov (alpha on the right half). Optional but
+    // recommended — without it, iPhone visitors see the WebM-fallback path
+    // which renders a solid black background over the AR camera feed.
+    videoFileIos: null,
+    videoUrlIos: null,
+    videoIosPublicId: null,
+    videoPreviewIos: null,
     thumbnailUrl: null,
     qrDesign: defaultQrDesign(),
     qrPlacement: defaultQrPlacement(),
     linkRows: [],
     compositedPreviewUrl: null,
   },
-  uploadProgress: { image: 0, video: 0, composited: 0 },
+  uploadProgress: { image: 0, video: 0, videoIos: 0, composited: 0 },
   isUploading: false,
   isSubmitting: false,
   wizardError: null,
@@ -60,8 +67,16 @@ const useCampaignStore = create((set, get) => ({
     set((s) => ({ wizardData: { ...s.wizardData, ...patch } })),
 
   resetWizard: () => {
-    const prevPreview = get().wizardData.compositedPreviewUrl;
-    if (prevPreview?.startsWith?.('blob:')) URL.revokeObjectURL(prevPreview);
+    const prev = get().wizardData;
+    if (prev.compositedPreviewUrl?.startsWith?.('blob:')) {
+      URL.revokeObjectURL(prev.compositedPreviewUrl);
+    }
+    if (prev.videoPreview?.startsWith?.('blob:')) {
+      URL.revokeObjectURL(prev.videoPreview);
+    }
+    if (prev.videoPreviewIos?.startsWith?.('blob:')) {
+      URL.revokeObjectURL(prev.videoPreviewIos);
+    }
     set({
       wizardStep: 1,
       wizardData: {
@@ -74,13 +89,17 @@ const useCampaignStore = create((set, get) => ({
         videoUrl: null,
         videoPublicId: null,
         videoPreview: null,
+        videoFileIos: null,
+        videoUrlIos: null,
+        videoIosPublicId: null,
+        videoPreviewIos: null,
         thumbnailUrl: null,
         qrDesign: defaultQrDesign(),
         qrPlacement: defaultQrPlacement(),
         linkRows: [],
         compositedPreviewUrl: null,
       },
-      uploadProgress: { image: 0, video: 0, composited: 0 },
+      uploadProgress: { image: 0, video: 0, videoIos: 0, composited: 0 },
       isUploading: false,
       isSubmitting: false,
       wizardError: null,
@@ -135,6 +154,40 @@ const useCampaignStore = create((set, get) => ({
   },
 
   /**
+   * uploadVideoIos — upload the iOS side-by-side .mov source.
+   *
+   * Kept separate from `uploadVideo` so progress / error states don't bleed
+   * across the two drop zones and so a failed iOS upload never throws away
+   * the already-uploaded WebM. Does not overwrite `thumbnailUrl` — the WebM
+   * upload is the canonical thumbnail source.
+   */
+  uploadVideoIos: async (file) => {
+    set({ isUploading: true, wizardError: null });
+    try {
+      const result = await campaignService.uploadToCloudinary(
+        file,
+        'video',
+        (pct) => set((s) => ({ uploadProgress: { ...s.uploadProgress, videoIos: pct } }))
+      );
+      set((s) => ({
+        wizardData: {
+          ...s.wizardData,
+          videoUrlIos: result.url,
+          videoIosPublicId: result.publicId,
+        },
+        isUploading: false,
+      }));
+      return { success: true };
+    } catch {
+      set({
+        isUploading: false,
+        wizardError: 'iOS video upload failed. Please try again.',
+      });
+      return { success: false };
+    }
+  },
+
+  /**
    * submitCampaign — create ar-card, composite QR with real AR URL, upload, PATCH marker.
    */
   submitCampaign: async () => {
@@ -154,6 +207,8 @@ const useCampaignStore = create((set, get) => ({
         targetImageOriginalPublicId: wizardData.targetImagePublicId,
         videoUrl: wizardData.videoUrl,
         videoPublicId: wizardData.videoPublicId,
+        videoUrlIos: wizardData.videoUrlIos || undefined,
+        videoIosPublicId: wizardData.videoIosPublicId || undefined,
         thumbnailUrl: wizardData.thumbnailUrl,
         linkItems: linkItems.length ? linkItems : undefined,
         qrDesign: wizardData.qrDesign,

@@ -21,11 +21,15 @@ import VideoItemsEditor from './VideoItemsEditor';
 import { campaignService } from '../../services/campaignService';
 
 const ACCEPTED_VIDEO_TYPES = 'video/*,.mp4,.webm,.mov,.m4v';
+const ACCEPTED_WEBM_TYPES = 'video/webm,.webm';
+const ACCEPTED_MOV_TYPES = 'video/quicktime,.mov';
 const MAX_VIDEO_SIZE_MB = 100;
 const MAX_VIDEO_DURATION_SEC = 60;
 
 const VIDEO_TYPES = new Set(['video/mp4', 'video/webm', 'video/quicktime', 'video/x-m4v', 'video/m4v']);
 const VIDEO_EXT = /\.(mp4|webm|mov|m4v)$/i;
+const WEBM_EXT = /\.webm(\?|$)/i;
+const MOV_EXT = /\.mov(\?|$)/i;
 
 const validateVideoFile = (file) =>
   new Promise((resolve) => {
@@ -43,6 +47,62 @@ const validateVideoFile = (file) =>
         resolve(`Video is too long (${Math.round(video.duration)}s). Maximum is ${MAX_VIDEO_DURATION_SEC} seconds.`);
       } else if (video.duration < 1) {
         resolve('Video appears to be empty. Please upload a valid video.');
+      } else {
+        resolve(null);
+      }
+    };
+    video.onerror = () => { URL.revokeObjectURL(video.src); resolve(null); };
+    video.src = URL.createObjectURL(file);
+  });
+
+/** AR-card iOS replacement: enforce .mov extension and a landscape (side-by-side) aspect. */
+const validateMovSideBySideFile = (file) =>
+  new Promise((resolve) => {
+    const typeOk = file.type === 'video/quicktime' || file.type === 'video/mp4';
+    const extOk = MOV_EXT.test(file.name || '');
+    if (!typeOk && !extOk) {
+      return resolve('The iOS upload must be the side-by-side .mov file.');
+    }
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.onloadedmetadata = () => {
+      URL.revokeObjectURL(video.src);
+      if (video.duration > MAX_VIDEO_DURATION_SEC) {
+        resolve(`Video is too long (${Math.round(video.duration)}s). Max ${MAX_VIDEO_DURATION_SEC}s.`);
+      } else if (video.duration < 1) {
+        resolve('Video appears to be empty.');
+      } else if (
+        Number.isFinite(video.videoWidth)
+        && Number.isFinite(video.videoHeight)
+        && video.videoWidth > 0
+        && video.videoHeight > 0
+        && video.videoWidth < video.videoHeight
+      ) {
+        resolve('Use the side-by-side .mov export (RGB on the left, alpha mask on the right).');
+      } else {
+        resolve(null);
+      }
+    };
+    video.onerror = () => { URL.revokeObjectURL(video.src); resolve(null); };
+    video.src = URL.createObjectURL(file);
+  });
+
+/** AR-card Android replacement: enforce .webm extension only. */
+const validateWebmFile = (file) =>
+  new Promise((resolve) => {
+    const typeOk = file.type === 'video/webm';
+    const extOk = WEBM_EXT.test(file.name || '');
+    if (!typeOk && !extOk) {
+      return resolve('The Android upload must be a transparent .webm file.');
+    }
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.onloadedmetadata = () => {
+      URL.revokeObjectURL(video.src);
+      if (video.duration > MAX_VIDEO_DURATION_SEC) {
+        resolve(`Video is too long (${Math.round(video.duration)}s). Max ${MAX_VIDEO_DURATION_SEC}s.`);
+      } else if (video.duration < 1) {
+        resolve('Video appears to be empty.');
       } else {
         resolve(null);
       }
@@ -129,6 +189,15 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [videoError, setVideoError] = useState('');
 
+  // AR-card iOS .mov replacement — independent state so swapping the
+  // iOS asset doesn't disturb the Android .webm upload or vice versa.
+  const [pendingVideoIos, setPendingVideoIos] = useState(null);
+  const [videoIosPreview, setVideoIosPreview] = useState('');
+  const [videoIosUploading, setVideoIosUploading] = useState(false);
+  const [videoIosProgress, setVideoIosProgress] = useState(0);
+  const [videoIosError, setVideoIosError] = useState('');
+  const [arIosChangeMode, setArIosChangeMode] = useState(false);
+
   /** When true, hero FileDropZone hides saved campaign video so the drop zone is empty after ✕. */
   const [suppressExistingHeroPreview, setSuppressExistingHeroPreview] = useState(false);
 
@@ -165,6 +234,15 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
     setSuppressExistingHeroPreview(false);
     setDocVideoError('');
 
+    // Reset iOS-video replacement state too
+    if (videoIosPreview) URL.revokeObjectURL(videoIosPreview);
+    setVideoIosPreview('');
+    setPendingVideoIos(null);
+    setVideoIosUploading(false);
+    setVideoIosProgress(0);
+    setVideoIosError('');
+    setArIosChangeMode(false);
+
     if (campaign.campaignType === 'multiple-links-qr'
       || campaign.campaignType === 'links-video-qr'
       || campaign.campaignType === 'links-doc-video-qr'
@@ -197,6 +275,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
     campaign.linkItems,
     campaign.preciseGeoAnalytics,
     campaign.videoPublicId,
+    campaign.videoIosPublicId,
     campaign.videoSource,
     campaign.externalVideoUrl,
     campaign.videoItems,
@@ -216,9 +295,17 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
     if (videoPreview) URL.revokeObjectURL(videoPreview);
   }, [videoPreview]);
 
+  useEffect(() => () => {
+    if (videoIosPreview) URL.revokeObjectURL(videoIosPreview);
+  }, [videoIosPreview]);
+
   const handleVideoFile = async (file) => {
     setVideoError('');
-    const err = await validateVideoFile(file);
+    // The AR-card hero slot is the Android (.webm) source; only the iOS slot
+    // accepts side-by-side .mov files. We keep the looser MP4/WebM/MOV check
+    // for non-AR types (links-video-qr) where the previous behaviour holds.
+    const validator = isArCard ? validateWebmFile : validateVideoFile;
+    const err = await validator(file);
     if (err) {
       setVideoError(err);
       return;
@@ -251,6 +338,52 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
       setVideoUploading(false);
     }
   };
+
+  const handleVideoIosFile = async (file) => {
+    setVideoIosError('');
+    const err = await validateMovSideBySideFile(file);
+    if (err) {
+      setVideoIosError(err);
+      return;
+    }
+
+    if (videoIosPreview) URL.revokeObjectURL(videoIosPreview);
+    const localPreview = URL.createObjectURL(file);
+    setVideoIosPreview(localPreview);
+    setPendingVideoIos(null);
+    setVideoIosUploading(true);
+    setVideoIosProgress(0);
+
+    try {
+      const uploaded = await campaignService.uploadToCloudinary(
+        file,
+        'video',
+        (p) => setVideoIosProgress(p),
+      );
+      setPendingVideoIos({
+        url: uploaded.url,
+        publicId: uploaded.publicId,
+      });
+      setVideoIosProgress(100);
+    } catch {
+      setVideoIosError('iOS video upload failed. Please try again.');
+      URL.revokeObjectURL(localPreview);
+      setVideoIosPreview('');
+    } finally {
+      setVideoIosUploading(false);
+    }
+  };
+
+  const discardIosReplaceDraft = () => {
+    if (videoIosPreview) URL.revokeObjectURL(videoIosPreview);
+    setVideoIosPreview('');
+    setPendingVideoIos(null);
+    setVideoIosError('');
+    setVideoIosProgress(0);
+  };
+
+  const currentIosPreviewUrl =
+    videoIosPreview || pendingVideoIos?.url || campaign.videoUrlIos || null;
 
   const clearLocalHeroVideoSelection = () => {
     if (videoPreview) URL.revokeObjectURL(videoPreview);
@@ -298,6 +431,11 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
 
     if (videoUploading) {
       setVideoError('Please wait for the video upload to finish.');
+      return;
+    }
+
+    if (videoIosUploading) {
+      setVideoIosError('Please wait for the iOS video upload to finish.');
       return;
     }
 
@@ -392,6 +530,14 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
         updates.videoUrl = pendingVideo.url;
         updates.videoPublicId = pendingVideo.publicId;
         updates.thumbnailUrl = pendingVideo.thumbnailUrl;
+      }
+      if (
+        pendingVideoIos
+        && pendingVideoIos.publicId
+        && pendingVideoIos.publicId !== campaign.videoIosPublicId
+      ) {
+        updates.videoUrlIos = pendingVideoIos.url;
+        updates.videoIosPublicId = pendingVideoIos.publicId;
       }
     }
 
@@ -545,9 +691,9 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
               {isArCard && (
                 <div className="space-y-3 border-t border-[var(--border-color)] pt-5">
                   <div>
-                    <p className="text-xs font-medium text-[var(--text-secondary)]">Video</p>
+                    <p className="text-xs font-medium text-[var(--text-secondary)]">Hologram · Android (.webm)</p>
                     <p className="mt-0.5 text-xs text-[var(--text-muted)]">
-                      Replaces the hologram on your card and the hero video on your profile hub.
+                      Plays on Android Chrome and most desktop browsers. Use the transparent VP9 .webm export.
                     </p>
                   </div>
 
@@ -587,8 +733,8 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
                     <>
                       {!videoUploading ? (
                         <FileDropZone
-                          accept={ACCEPTED_VIDEO_TYPES}
-                          acceptLabel="MP4, WebM, MOV"
+                          accept={ACCEPTED_WEBM_TYPES}
+                          acceptLabel="WebM only (VP9 + alpha)"
                           maxSizeMB={null}
                           onFile={handleVideoFile}
                           previewUrl={heroFileDropPreviewUrl}
@@ -596,12 +742,12 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
                           onClear={handleHeroReplaceClear}
                           error={videoError}
                           icon={VideoIcon}
-                          hint="9:16 vertical · max 60 seconds"
+                          hint="Drop the transparent .webm export here"
                         />
                       ) : (
                         <UploadProgress
                           progress={uploadProgress}
-                          label="Uploading your video…"
+                          label="Uploading the WebM file…"
                         />
                       )}
                       <button
@@ -619,9 +765,96 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
 
                   {arVideoChangeMode && pendingVideo && !videoUploading && (
                     <p className="text-xs font-medium text-green-400">
-                      New video ready — save to apply on hub and AR experience.
+                      New WebM ready — save to apply on hub and AR experience.
                     </p>
                   )}
+
+                  {/* iOS side-by-side .mov ─ paired upload for iPhone visitors. */}
+                  <div className="mt-2 space-y-3 border-t border-dashed border-[var(--border-color)] pt-4">
+                    <div>
+                      <p className="text-xs font-medium text-[var(--text-secondary)]">
+                        Hologram · iPhone / iPad (side-by-side .mov)
+                      </p>
+                      <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                        H.264 .mov with RGB on the left half and the alpha mask on the right half.
+                        Without this, iPhone visitors see a black background over the AR camera feed.
+                      </p>
+                    </div>
+
+                    {!arIosChangeMode ? (
+                      <div className="space-y-3">
+                        {currentIosPreviewUrl ? (
+                          <div className="overflow-hidden rounded-xl border border-[var(--border-color)] bg-black/40">
+                            <video
+                              className="aspect-[18/16] max-h-[14rem] w-full object-contain"
+                              controls
+                              muted
+                              playsInline
+                              src={currentIosPreviewUrl}
+                            />
+                          </div>
+                        ) : (
+                          <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+                            No iOS .mov on file yet. Add one so iPhone visitors get a transparent hologram.
+                          </p>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const ok = currentIosPreviewUrl
+                              ? window.confirm(
+                                'Replacing the iOS video removes the previous upload from storage (best effort). Continue?',
+                              )
+                              : true;
+                            if (!ok) return;
+                            setArIosChangeMode(true);
+                            setVideoIosError('');
+                          }}
+                          className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-[var(--border-color)] px-4 text-sm font-semibold text-brand-400 transition-colors hover:border-brand-500/50"
+                        >
+                          {currentIosPreviewUrl ? 'Change iOS video' : 'Add iOS video'}
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        {!videoIosUploading ? (
+                          <FileDropZone
+                            accept={ACCEPTED_MOV_TYPES}
+                            acceptLabel="MOV only (side-by-side alpha)"
+                            maxSizeMB={null}
+                            onFile={handleVideoIosFile}
+                            previewUrl={videoIosPreview || pendingVideoIos?.url || null}
+                            previewType="video"
+                            onClear={discardIosReplaceDraft}
+                            error={videoIosError}
+                            icon={VideoIcon}
+                            hint="Drop the side-by-side .mov export here"
+                          />
+                        ) : (
+                          <UploadProgress
+                            progress={videoIosProgress}
+                            label="Uploading the iOS .mov file…"
+                          />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setArIosChangeMode(false);
+                            discardIosReplaceDraft();
+                          }}
+                          className="text-xs font-medium text-[var(--text-muted)] underline underline-offset-2 hover:text-[var(--text-secondary)]"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    )}
+
+                    {arIosChangeMode && pendingVideoIos && !videoIosUploading && (
+                      <p className="text-xs font-medium text-sky-400">
+                        New iOS .mov ready — save to apply on the AR experience.
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -770,7 +1003,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
               </button>
               <button
                 type="submit"
-                disabled={saving || videoUploading || docVideoUploading}
+                disabled={saving || videoUploading || videoIosUploading || docVideoUploading}
                 className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white shadow-glow transition-all hover:bg-brand-500 disabled:opacity-60"
               >
                 {saving ? <><Loader2 size={14} className="animate-spin" /> Saving…</> : 'Save Changes'}

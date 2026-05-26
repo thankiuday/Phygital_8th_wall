@@ -41,6 +41,11 @@ export const loadCampaign = async (campaignId) => {
     targetImageUrl: resolvePlaybackMediaUrl(campaign.targetImageUrl),
     targetImageOriginalUrl: resolvePlaybackMediaUrl(campaign.targetImageOriginalUrl),
     videoUrl: resolvePlaybackMediaUrl(campaign.videoUrl),
+    // iOS-only side-by-side .mov source. May be null on older campaigns —
+    // ARExperience falls back to videoUrl when missing.
+    videoUrlIos: campaign.videoUrlIos
+      ? resolvePlaybackMediaUrl(campaign.videoUrlIos)
+      : null,
     thumbnailUrl: resolvePlaybackMediaUrl(campaign.thumbnailUrl),
   };
 };

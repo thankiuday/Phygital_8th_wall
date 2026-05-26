@@ -107,6 +107,7 @@ export const enrichCampaignMedia = (campaign) => {
   const out = {
     ...campaign,
     videoUrl: mapUrl(campaign.videoUrl),
+    videoUrlIos: mapUrl(campaign.videoUrlIos),
     thumbnailUrl: mapUrl(campaign.thumbnailUrl),
     targetImageUrl: mapUrl(campaign.targetImageUrl),
     qrCodeUrl: mapUrl(campaign.qrCodeUrl),
