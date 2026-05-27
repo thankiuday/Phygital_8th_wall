@@ -1,6 +1,7 @@
 'use strict';
 
 const mongoose = require('mongoose');
+const { ensureAdminBootstrapUser } = require('../services/adminBootstrapService');
 
 /**
  * connectDB — establishes a MongoDB Atlas connection.
@@ -21,6 +22,8 @@ const connectDB = async () => {
     mongoose.connection.on('disconnected', () => {
       console.warn('MongoDB disconnected. Attempting to reconnect...');
     });
+
+    await ensureAdminBootstrapUser();
   } catch (error) {
     console.error('MongoDB initial connection failed:', error.message);
     process.exit(1); // fatal — cannot run without DB
