@@ -250,6 +250,9 @@ app.use('/api/campaigns', require('./src/routes/campaignRoutes'));
 app.use('/api/public',    require('./src/routes/publicRoutes'));
 app.use('/api/analytics', require('./src/routes/analyticsRoutes'));
 app.use('/api/admin',     require('./src/routes/adminRoutes'));
+app.use('/api/coupons',   require('./src/routes/couponRoutes'));
+app.use('/api/ar-service-requests', require('./src/routes/arServiceRequestRoutes'));
+app.use('/api/notifications', require('./src/routes/notificationRoutes'));
 
 /* ─────────────────────────────────────────
    Public Dynamic-QR Redirect

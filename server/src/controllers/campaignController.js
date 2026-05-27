@@ -25,6 +25,7 @@ const { resolveLinkHref } = require('../utils/linkItemResolver');
 const { allocateUniqueHandleFromEmail } = require('../utils/userHandle');
 const { allocateUniqueHubSlugForUser } = require('../utils/campaignHubSlug');
 const { enrichCampaignRecord, enrichCampaignList } = require('../utils/publicAssetUrls');
+const { isArMediaType } = require('../constants/arMediaTypes');
 
 /* ── Defense-in-depth: cap on stringified qrDesign size.  Zod already bounds
    the logo `image` field to 180 KB; this is a belt-and-braces guard against a
@@ -814,6 +815,7 @@ const getCampaigns = async (req, res) => {
     campaignType
     && [
       'ar-card',
+      'ar-poster',
       'single-link-qr',
       'multiple-links-qr',
       'links-video-qr',
@@ -1035,7 +1037,7 @@ const updateCampaign = async (req, res) => {
     }
   }
 
-  if (existing.campaignType === 'ar-card') {
+  if (isArMediaType(existing.campaignType)) {
     if (patchTargetImageUrl !== undefined) updates.targetImageUrl = patchTargetImageUrl;
     if (patchTargetImagePublicId !== undefined) {
       updates.targetImagePublicId = patchTargetImagePublicId;
@@ -1110,7 +1112,7 @@ const updateCampaign = async (req, res) => {
     { new: true, runValidators: true }
   );
 
-  if (existing.campaignType === 'ar-card') {
+  if (isArMediaType(existing.campaignType)) {
     const oldVideoId = existing.videoPublicId;
     const newVideoId = campaign.videoPublicId;
     if (oldVideoId && newVideoId && oldVideoId !== newVideoId) {
@@ -1149,7 +1151,7 @@ const updateCampaign = async (req, res) => {
       || existing.campaignType === 'multiple-links-qr'
       || existing.campaignType === 'links-video-qr'
       || existing.campaignType === 'links-doc-video-qr'
-      || existing.campaignType === 'ar-card')
+      || isArMediaType(existing.campaignType))
     && existing.redirectSlug
   ) {
     redirectCache.evict(existing.redirectSlug).catch(() => {});
@@ -1415,7 +1417,7 @@ const duplicateCampaign = async (req, res) => {
 
   const copy = await Campaign.create({
     userId: original.userId,
-    campaignType: 'ar-card',
+    campaignType: original.campaignType,
     campaignName: `Copy of ${original.campaignName}`,
     targetImageUrl:       original.targetImageUrl,
     targetImagePublicId:  original.targetImagePublicId,
@@ -1523,7 +1525,7 @@ const getCampaignQR = async (req, res) => {
   }
 
   return success(res, {
-    campaignType: 'ar-card',
+    campaignType: campaign.campaignType,
     qrCodeUrl: campaign.qrCodeUrl,
     qrPublicId: campaign.qrPublicId,
     ready: !!campaign.qrCodeUrl,

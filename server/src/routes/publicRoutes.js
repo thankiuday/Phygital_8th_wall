@@ -41,15 +41,17 @@ const { getS3Client, getBucket } = require('../config/s3');
 const CARD_SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{1,58}[a-z0-9])?$/;
 
 /** Campaign types that funnel through the multi-link hub + analytics path. */
+const { AR_MEDIA_TYPES, isArMediaType } = require('../constants/arMediaTypes');
+
 const HUB_CAMPAIGN_TYPES = [
   'multiple-links-qr',
   'links-video-qr',
   'links-doc-video-qr',
-  'ar-card',
+  ...AR_MEDIA_TYPES,
 ];
 
 /** Hub types that can ship hero/video assets and therefore accept video beacons. */
-const VIDEO_CAPABLE_HUB_TYPES = ['links-video-qr', 'links-doc-video-qr', 'ar-card'];
+const VIDEO_CAPABLE_HUB_TYPES = ['links-video-qr', 'links-doc-video-qr', ...AR_MEDIA_TYPES];
 
 const classifyBrowserFromUa = (ua = '') => {
   const u = String(ua || '').toLowerCase();
@@ -273,7 +275,7 @@ router.get('/dynamic-qr/:slug/meta', singleLinkSlugLimiter, async (req, res) => 
           'multiple-links-qr',
           'links-video-qr',
           'links-doc-video-qr',
-          'ar-card',
+          ...AR_MEDIA_TYPES,
         ],
       },
     },
@@ -319,7 +321,7 @@ router.get('/hub/:handle/:hubSlug/meta', hubVanityLimiter, async (req, res) => {
           'multiple-links-qr',
           'links-video-qr',
           'links-doc-video-qr',
-          'ar-card',
+          ...AR_MEDIA_TYPES,
         ],
       },
       isDeleted: { $ne: true },
@@ -376,7 +378,7 @@ router.post(
     } = req.body;
 
     const allowBrowserGeo =
-      campaign.preciseGeoAnalytics === true || campaign.campaignType === 'ar-card';
+      campaign.preciseGeoAnalytics === true || isArMediaType(campaign.campaignType);
 
     scanQueue.enqueue({
       campaignId: campaign._id,

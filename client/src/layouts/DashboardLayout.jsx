@@ -5,6 +5,7 @@ import Sidebar from '../components/ui/Sidebar';
 import SEOHead from '../components/ui/SEOHead';
 import DashboardTopBar from '../components/ui/DashboardTopBar';
 import Footer from '../components/ui/Footer';
+import NotificationProvider from '../components/notifications/NotificationProvider';
 
 /* ── Map route paths/prefixes to readable page titles ────────────── */
 const PAGE_TITLES = {
@@ -77,6 +78,7 @@ const DashboardLayout = () => {
   }, [location.pathname]);
 
   return (
+    <NotificationProvider>
     <div className="flex h-screen overflow-hidden bg-[var(--bg-secondary)] text-[var(--text-primary)]">
       <SEOHead
         title={pageTitle}
@@ -147,6 +149,7 @@ const DashboardLayout = () => {
         </main>
       </div>
     </div>
+    </NotificationProvider>
   );
 };
 

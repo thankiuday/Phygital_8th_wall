@@ -1,5 +1,7 @@
 'use strict';
 
+const { isArMediaType } = require('../constants/arMediaTypes');
+
 /**
  * scanQueue.js — pluggable fire-and-forget queue for scan-event persistence.
  *
@@ -93,7 +95,7 @@ const normalizeAndPersist = async (event) => {
 
   const allowGeo =
     event.allowBrowserGeo === true
-    && (camp.preciseGeoAnalytics === true || camp.campaignType === 'ar-card');
+    && (camp.preciseGeoAnalytics === true || isArMediaType(camp.campaignType));
 
   const blat = event.browserLatitude;
   const blng = event.browserLongitude;

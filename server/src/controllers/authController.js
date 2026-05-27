@@ -35,7 +35,11 @@ const userPayload = (user) => ({
   handle: user.handle || null,
   role: user.role,
   avatar: user.avatar,
+  authProvider: user.authProvider || 'local',
   isEmailVerified: user.isEmailVerified,
+  hasFullAccess: !!user.hasFullAccess,
+  couponRedeemed: user.couponRedeemed || null,
+  fullAccessGrantedAt: user.fullAccessGrantedAt || null,
   createdAt: user.createdAt,
   lastLoginAt: user.lastLoginAt,
 });

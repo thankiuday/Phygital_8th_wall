@@ -38,9 +38,9 @@ export function validateLinkRows(linkRows) {
 }
 
 /** PATCH/create body items — include linkId only when editing an existing row. */
-export function rowsToApiLinkItems(linkRows) {
+export function rowsToApiLinkItems(linkRows, { omitLinkIds = false } = {}) {
   return linkRows.map((r) => ({
-    ...(r.linkId ? { linkId: r.linkId } : {}),
+    ...(!omitLinkIds && r.linkId ? { linkId: r.linkId } : {}),
     kind: r.kind,
     label: (r.kind === 'custom' ? r.label.trim() : r.label).slice(0, 80),
     value: r.value.trim().slice(0, 500),

@@ -54,6 +54,19 @@ const TYPE_CONFIG = {
     scanEmptyHint: 'Scans appear after someone launches the hologram from your card.',
     hubScanEmptyHint: 'Visits appear after someone opens your profile hub page.',
   },
+  'ar-poster': {
+    headerSub: 'AR hologram performance, with profile hub activity below',
+    scanLabel: 'AR scans',
+    showAvgSession: true,
+    avgSessionSub: 'Time in AR',
+    showVideoCompletion: true,
+    showLinkClicksTile: true,
+    showHubSection: true,
+    showHubVideoSection: true,
+    locationsTitle: 'Top visitor locations',
+    scanEmptyHint: 'Scans appear after someone launches the hologram from your poster.',
+    hubScanEmptyHint: 'Visits appear after someone opens your profile hub page.',
+  },
   'single-link-qr': {
     headerSub: 'Redirects from this dynamic QR',
     scanLabel: 'Total scans',
@@ -197,7 +210,7 @@ const CampaignAnalyticsPage = () => {
   const arCardAnalytics = campaignData?.arCardAnalytics;
   const campaignType = campaign?.campaignType;
   const typeConfig = TYPE_CONFIG[campaignType] || DEFAULT_TYPE_CONFIG;
-  const isArCard = campaignType === 'ar-card';
+  const isArCard = campaignType === 'ar-card' || campaignType === 'ar-poster';
   const isVideoHub =
     campaignType === 'links-video-qr' || campaignType === 'links-doc-video-qr';
   const isLinksDocVideo = campaignType === 'links-doc-video-qr';

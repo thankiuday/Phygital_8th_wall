@@ -33,10 +33,10 @@ const MULTI_LINK_TYPES = new Set([
   'links-doc-video-qr',
 ]);
 
-const AR_CARD_TYPE = 'ar-card';
+const { AR_MEDIA_TYPES, isArMediaType } = require('../constants/arMediaTypes');
 
 /** Hub types including AR profile pages — link-click aggregates apply. */
-const AR_HUB_LINK_TYPES = new Set([...MULTI_LINK_TYPES, AR_CARD_TYPE]);
+const AR_HUB_LINK_TYPES = new Set([...MULTI_LINK_TYPES, ...AR_MEDIA_TYPES]);
 
 /** Hub types that surface a hero-style watch funnel rolled up across all videos. */
 const VIDEO_HUB_TYPES = new Set(['links-video-qr', 'links-doc-video-qr']);
@@ -1039,7 +1039,7 @@ exports.getCampaignAnalytics = async (req, res) => {
   }
 
   let arCardAnalytics = null;
-  if (campaign.campaignType === AR_CARD_TYPE) {
+  if (isArMediaType(campaign.campaignType)) {
     const [arTotals, hubTotals, arScanTrend, hubVisitTrend] = await Promise.all([
       aggregateTouchpointTotals(match, since, 'ar'),
       aggregateTouchpointTotals(match, since, 'hub'),

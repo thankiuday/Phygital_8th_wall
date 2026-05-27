@@ -4,10 +4,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   QrCode, ScanLine, Calendar,
   MoreVertical, Pencil, Copy, Trash2, Play, Pause,
-  BarChart3, ExternalLink,
+  BarChart3, ExternalLink, Download, Loader2,
 } from 'lucide-react';
+import { downloadCompositedCardImage } from '../../utils/downloadCampaignCardImage';
 import Icon3D, { ICON3D_PRESETS } from '../ui/Icon3D';
 import CampaignThumbnail from '../ui/CampaignThumbnail';
+import { isArMediaType } from '../../constants/arMediaProducts';
 
 export const resolveRedirectBase = () => {
   if (import.meta.env.VITE_REDIRECT_BASE) {
@@ -34,9 +36,24 @@ const StatusBadge = ({ status }) => {
 
 const CardMenu = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete, onOpenChange }) => {
   const [open, setOpen] = useState(false);
+  const [downloadBusy, setDownloadBusy] = useState(false);
   const setMenuOpen = (next) => {
     setOpen(next);
     if (typeof onOpenChange === 'function') onOpenChange(next);
+  };
+  const canDownloadPrint =
+    isArMediaType(campaign.campaignType) && !!campaign.targetImageUrl;
+
+  const handleDownloadPrint = async () => {
+    setDownloadBusy(true);
+    try {
+      await downloadCompositedCardImage(campaign);
+      setMenuOpen(false);
+    } catch {
+      /* user can retry from campaign detail */
+    } finally {
+      setDownloadBusy(false);
+    }
   };
 
   return (
@@ -83,6 +100,21 @@ const CardMenu = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete, onO
                   {label}
                 </button>
               ))}
+              {canDownloadPrint && (
+                <button
+                  type="button"
+                  onClick={handleDownloadPrint}
+                  disabled={downloadBusy}
+                  className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)] disabled:opacity-50"
+                >
+                  {downloadBusy ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Icon3D icon={Download} size={10} className="h-5 w-5" accent={ICON3D_PRESETS.emerald} rounded="rounded-md" />
+                  )}
+                  Download print card (QR)
+                </button>
+              )}
               <div className="mx-2 my-1 border-t border-[var(--border-color)]" />
               <button
                 type="button"

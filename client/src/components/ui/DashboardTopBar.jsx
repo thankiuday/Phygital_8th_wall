@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, Settings, LogOut, User, ChevronDown, Menu } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 import useAuthStore from '../../store/useAuthStore';
+import useNotificationStore from '../../store/useNotificationStore';
 
 /**
  * DashboardTopBar — fixed header for all dashboard pages.
@@ -11,6 +12,7 @@ import useAuthStore from '../../store/useAuthStore';
  */
 const DashboardTopBar = ({ title = 'Dashboard', onMobileMenuOpen }) => {
   const { user, logout, pendingWelcomeNotification } = useAuthStore();
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
   const navigate = useNavigate();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menuRef = useRef(null);
@@ -62,8 +64,10 @@ const DashboardTopBar = ({ title = 'Dashboard', onMobileMenuOpen }) => {
           aria-label="Notifications"
         >
           <Bell size={16} />
-          {pendingWelcomeNotification && (
-            <span className="absolute right-2.5 top-2.5 h-1.5 w-1.5 rounded-full bg-brand-500" />
+          {(pendingWelcomeNotification || unreadCount > 0) && (
+            <span className="absolute right-2 top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-500 px-1 text-[10px] font-bold text-white">
+              {unreadCount > 0 ? Math.min(unreadCount, 9) : ''}
+            </span>
           )}
         </button>
 

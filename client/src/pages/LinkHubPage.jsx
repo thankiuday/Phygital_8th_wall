@@ -24,6 +24,7 @@ import publicApi from '../services/publicApi';
 import SEOHead from '../components/ui/SEOHead';
 import HubVideoPlayer from '../components/hub/HubVideoPlayer';
 import { resolvePlaybackMediaUrl } from '../utils/assetUrl';
+import { isArMediaType } from '../constants/arMediaProducts';
 
 const KIND_ICONS = {
   contact: Phone,
@@ -43,6 +44,7 @@ const HUB_TYPES = new Set([
   'links-video-qr',
   'links-doc-video-qr',
   'ar-card',
+  'ar-poster',
 ]);
 
 const docIconForMime = (mime = '') => {
@@ -347,8 +349,8 @@ const LinkHubPage = () => {
   }
 
   const { campaignName, links } = meta;
-  const hasHeroVideo = meta.campaignType === 'links-video-qr' || meta.campaignType === 'ar-card';
-  const arPageUrl = meta.campaignType === 'ar-card' ? meta.arPageUrl : null;
+  const hasHeroVideo = meta.campaignType === 'links-video-qr' || isArMediaType(meta.campaignType);
+  const arPageUrl = isArMediaType(meta.campaignType) ? meta.arPageUrl : null;
   const isMultiAssetHub = meta.campaignType === 'links-doc-video-qr';
   const videoItems = Array.isArray(meta.videoItems) ? meta.videoItems : [];
   const docItems = Array.isArray(meta.docItems) ? meta.docItems : [];

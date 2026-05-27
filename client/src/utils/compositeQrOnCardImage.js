@@ -23,14 +23,47 @@ const roundedRect = (ctx, x, y, width, height, radius) => {
   ctx.closePath();
 };
 
-const loadImage = (src) =>
-  new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('Could not load card image'));
-    img.src = src;
+/**
+ * Load image with EXIF orientation applied (phone photos often store landscape pixels
+ * but display as portrait — without this, QR placement coords drift from what the user saw).
+ */
+const loadOrientedImageSource = async (src) => {
+  try {
+    const res = await fetch(src, { mode: 'cors', credentials: 'same-origin' });
+    if (!res.ok) throw new Error('fetch failed');
+    const blob = await res.blob();
+    if (typeof createImageBitmap === 'function') {
+      const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+      return {
+        draw: (ctx, dx, dy, dw, dh) => ctx.drawImage(bitmap, dx, dy, dw, dh),
+        width: bitmap.width,
+        height: bitmap.height,
+        release: () => {
+          if (typeof bitmap.close === 'function') bitmap.close();
+        },
+      };
+    }
+  } catch {
+    /* fall through to <img> */
+  }
+
+  const img = await new Promise((resolve, reject) => {
+    const el = new Image();
+    el.crossOrigin = 'anonymous';
+    el.onload = () => resolve(el);
+    el.onerror = () => reject(new Error('Could not load card image'));
+    el.src = src;
   });
+
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  return {
+    draw: (ctx, dx, dy, dw, dh) => ctx.drawImage(img, dx, dy, dw, dh),
+    width: w,
+    height: h,
+    release: () => {},
+  };
+};
 
 const canvasToBlob = (canvas) =>
   new Promise((resolve, reject) => {
@@ -217,9 +250,9 @@ export async function compositeQrOnCardImage({
   placement,
   qrDesign = {},
 }) {
-  const img = await loadImage(imageSrc);
-  const w = img.naturalWidth || img.width;
-  const h = img.naturalHeight || img.height;
+  const source = await loadOrientedImageSource(imageSrc);
+  const w = source.width;
+  const h = source.height;
 
   const canvas = document.createElement('canvas');
   canvas.width = w;
@@ -227,38 +260,45 @@ export async function compositeQrOnCardImage({
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas not supported');
 
-  ctx.drawImage(img, 0, 0, w, h);
+  try {
+    source.draw(ctx, 0, 0, w, h);
 
-  const qrOuter = resolveQrOuterPx(w, h, placement?.scale ?? 0.22);
-  const qrCanvas = await renderQrCanvas(qrDataString, qrOuter);
+    const qrOuter = resolveQrOuterPx(w, h, placement?.scale ?? 0.22);
+    const qrCanvas = await renderQrCanvas(qrDataString, qrOuter);
 
-  const frame = qrDesign.frame || 'bottom-bar';
-  const caption = (qrDesign.frameCaption || 'Scan me!').slice(0, 40);
-  const frameColor = '#0f172a';
+    const frame = qrDesign.frame || 'bottom-bar';
+    const caption = (qrDesign.frameCaption || 'Scan me!').slice(0, 40);
+    const frameColor = '#0f172a';
 
-  const cx = (placement?.x ?? 0.82) * w;
-  const cy = (placement?.y ?? 0.82) * h;
+    const cx = (placement?.x ?? 0.82) * w;
+    const cy = (placement?.y ?? 0.82) * h;
 
-  const bounds = getFramedQrBounds(frame === 'none' ? 'none' : frame, qrOuter);
-  const boxW = frame === 'none' ? qrOuter : bounds.width;
-  const boxH = frame === 'none' ? qrOuter : bounds.height;
-  const boxOx = cx - boxW / 2;
-  const boxOy = cy - boxH / 2;
+    const bounds = getFramedQrBounds(frame === 'none' ? 'none' : frame, qrOuter);
+    const boxW = frame === 'none' ? qrOuter : bounds.width;
+    const boxH = frame === 'none' ? qrOuter : bounds.height;
+    const boxOx = cx - boxW / 2;
+    const boxOy = cy - boxH / 2;
 
-  drawQuietZonePlate(ctx, boxOx, boxOy, boxW, boxH, 14);
+    drawQuietZonePlate(ctx, boxOx, boxOy, boxW, boxH, 14);
 
-  if (frame === 'none') {
-    const half = qrOuter / 2;
-    drawImageCrisp(ctx, qrCanvas, cx - half, cy - half, qrOuter, qrOuter);
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = '#ffffff';
-    roundedRect(ctx, cx - half + 2, cy - half + 2, qrOuter - 4, qrOuter - 4, 12);
-    ctx.stroke();
-  } else {
-    drawFramedQr(ctx, qrCanvas, frame, caption, frameColor, cx, cy, qrOuter);
+    if (frame === 'none') {
+      const half = qrOuter / 2;
+      drawImageCrisp(ctx, qrCanvas, cx - half, cy - half, qrOuter, qrOuter);
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = '#ffffff';
+      roundedRect(ctx, cx - half + 2, cy - half + 2, qrOuter - 4, qrOuter - 4, 12);
+      ctx.stroke();
+    } else {
+      drawFramedQr(ctx, qrCanvas, frame, caption, frameColor, cx, cy, qrOuter);
+    }
+
+    const blob = await canvasToBlob(canvas);
+    source.release();
+    return blob;
+  } catch (err) {
+    source.release();
+    throw err;
   }
-
-  return canvasToBlob(canvas);
 }
 
 /**

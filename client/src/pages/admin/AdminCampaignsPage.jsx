@@ -1,10 +1,14 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Play, Pause, ExternalLink,
-  ChevronLeft, ChevronRight, QrCode, Loader2,
+  ChevronLeft, ChevronRight, QrCode, Loader2, BarChart2, X,
 } from 'lucide-react';
 import { adminService } from '../../services/adminService';
+import { AdminTableSkeleton } from '../../components/ui/AdminSkeleton';
+
+const ADMIN_QUERY = { staleTime: 60_000, refetchOnWindowFocus: false };
 
 // ---------------------------------------------------------------------------
 // Badges
@@ -61,47 +65,113 @@ const STATUS_TABS = [
   { value: 'draft',   label: 'Draft' },
 ];
 
+const InsightsDrawer = ({ campaignId, onClose }) => {
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin', 'campaign', campaignId],
+    queryFn: () => adminService.getCampaignDetail(campaignId),
+    enabled: !!campaignId,
+    ...ADMIN_QUERY,
+  });
+
+  if (!campaignId) return null;
+
+  const camp = data?.campaign;
+  const owner = data?.owner;
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <button type="button" className="absolute inset-0 bg-black/50" onClick={onClose} aria-label="Close" />
+      <motion.aside
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        className="relative z-10 flex h-full w-full max-w-md flex-col border-l border-[var(--border-color)] bg-[var(--surface-1)] shadow-xl"
+      >
+        <div className="flex items-center justify-between border-b border-[var(--border-color)] px-5 py-4">
+          <h2 className="text-lg font-semibold">Campaign insights</h2>
+          <button type="button" onClick={onClose} className="rounded-lg p-2 hover:bg-[var(--surface-2)]"><X size={18} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5">
+          {isLoading && <Loader2 className="mx-auto animate-spin text-brand-400" />}
+          {camp && (
+            <div className="space-y-5">
+              <div>
+                <p className="font-semibold">{camp.campaignName}</p>
+                <p className="text-xs capitalize text-[var(--text-muted)]">{camp.status} · {camp.campaignType}</p>
+              </div>
+              {owner && (
+                <div className="rounded-xl border border-[var(--border-color)] p-3 text-sm">
+                  <p className="text-xs text-[var(--text-muted)]">Owner</p>
+                  <p>{owner.name || owner.email}</p>
+                  <p className="text-xs text-[var(--text-muted)]">{owner.email}</p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-[var(--surface-2)] p-3">
+                  <p className="font-mono text-xl font-bold">{data.scans?.allTime?.scans ?? 0}</p>
+                  <p className="text-xs text-[var(--text-muted)]">All-time scans</p>
+                </div>
+                <div className="rounded-xl bg-[var(--surface-2)] p-3">
+                  <p className="font-mono text-xl font-bold">{data.scans?.last30d?.scans ?? 0}</p>
+                  <p className="text-xs text-[var(--text-muted)]">Scans (30d)</p>
+                </div>
+              </div>
+              {(data.geoTop || []).length > 0 && (
+                <div>
+                  <p className="mb-2 text-xs font-semibold text-[var(--text-muted)]">Top countries</p>
+                  <ul className="space-y-1 text-sm">
+                    {data.geoTop.map((g) => (
+                      <li key={g.country} className="flex justify-between">
+                        <span>{g.country}</span>
+                        <span className="font-mono">{g.count}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </motion.aside>
+    </div>
+  );
+};
+
 const AdminCampaignsPage = () => {
-  const [campaigns, setCampaigns]   = useState([]);
-  const [pagination, setPagination] = useState(null);
-  const [loading, setLoading]       = useState(true);
-  const [search, setSearch]         = useState('');
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [page, setPage]             = useState(1);
-  const [toastMsg, setToastMsg]     = useState('');
+  const [page, setPage] = useState(1);
+  const [insightsId, setInsightsId] = useState(null);
+  const [toastMsg, setToastMsg] = useState('');
 
-  const load = useCallback(async (p = 1) => {
-    setLoading(true);
-    try {
-      const data = await adminService.getCampaigns({
-        search, page: p, limit: 20,
-        ...(statusFilter && { status: statusFilter }),
-      });
-      setCampaigns(data.campaigns);
-      setPagination(data.pagination);
-    } finally {
-      setLoading(false);
-    }
-  }, [search, statusFilter]);
+  const campaignsQ = useQuery({
+    queryKey: ['admin', 'campaigns', page, search, statusFilter],
+    queryFn: () => adminService.getCampaigns({
+      search, page, limit: 20,
+      ...(statusFilter && { status: statusFilter }),
+    }),
+    ...ADMIN_QUERY,
+  });
 
-  useEffect(() => { setPage(1); load(1); }, [search, statusFilter, load]);
-
-  const handlePage = (p) => { setPage(p); load(p); };
+  const campaigns = campaignsQ.data?.campaigns || [];
+  const pagination = campaignsQ.data?.pagination;
+  const loading = campaignsQ.isLoading;
 
   const showToast = (msg) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(''), 3000);
   };
 
-  const handleUpdate = async (id, updates) => {
-    try {
-      const updated = await adminService.updateCampaign(id, updates);
-      setCampaigns((prev) => prev.map((c) => (c._id === id ? { ...c, ...updated } : c)));
+  const updateMut = useMutation({
+    mutationFn: ({ id, updates }) => adminService.updateCampaign(id, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'campaigns'] });
       showToast('Campaign updated.');
-    } catch (err) {
-      showToast(err.response?.data?.message || 'Update failed.');
-    }
-  };
+    },
+    onError: (err) => showToast(err.response?.data?.message || 'Update failed.'),
+  });
+
+  const handleUpdate = (id, updates) => updateMut.mutate({ id, updates });
 
   return (
     <div className="space-y-6">
@@ -184,6 +254,9 @@ const AdminCampaignsPage = () => {
                   {new Date(c.createdAt).toLocaleDateString()}
                 </span>
                 <div className="flex items-center gap-1">
+                  <button type="button" onClick={() => setInsightsId(c._id)} className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-muted)] hover:text-brand-400" title="Insights">
+                    <BarChart2 size={16} />
+                  </button>
                   <ModerationBtn campaign={c} onUpdate={handleUpdate} />
                   {c.status === 'active' ? (
                     <a
@@ -283,6 +356,9 @@ const AdminCampaignsPage = () => {
                     {/* Actions */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
+                        <button type="button" onClick={() => setInsightsId(c._id)} className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-muted)] hover:text-brand-400" title="Insights">
+                          <BarChart2 size={16} />
+                        </button>
                         <ModerationBtn campaign={c} onUpdate={handleUpdate} />
                         {c.status === 'active' ? (
                           <a
@@ -313,6 +389,10 @@ const AdminCampaignsPage = () => {
         </div>
       </div>
 
+      <AnimatePresence>
+        {insightsId && <InsightsDrawer campaignId={insightsId} onClose={() => setInsightsId(null)} />}
+      </AnimatePresence>
+
       {/* Pagination — works for both card and table layouts */}
       {pagination && pagination.pages > 1 && (
         <div className="flex flex-col items-stretch gap-2 rounded-2xl border border-[var(--border-color)] bg-[var(--surface-1)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -321,7 +401,7 @@ const AdminCampaignsPage = () => {
           </p>
           <div className="flex items-center justify-end gap-2">
             <button
-              onClick={() => handlePage(page - 1)}
+              onClick={() => setPage((p) => p - 1)}
               disabled={page === 1}
               aria-label="Previous page"
               className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-[var(--border-color)] text-[var(--text-muted)] disabled:opacity-40 hover:text-[var(--text-primary)]"
@@ -329,7 +409,7 @@ const AdminCampaignsPage = () => {
               <ChevronLeft size={18} />
             </button>
             <button
-              onClick={() => handlePage(page + 1)}
+              onClick={() => setPage((p) => p + 1)}
               disabled={page === pagination.pages}
               aria-label="Next page"
               className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-[var(--border-color)] text-[var(--text-muted)] disabled:opacity-40 hover:text-[var(--text-primary)]"

@@ -29,6 +29,7 @@ export function getDynamicQrEncodedUrl({
     'links-video-qr',
     'links-doc-video-qr',
     'ar-card',
+    'ar-poster',
   ]);
   if (!types.has(campaignType)) return null;
 
@@ -55,6 +56,7 @@ const HUB_TYPES = new Set([
   'links-video-qr',
   'links-doc-video-qr',
   'ar-card',
+  'ar-poster',
 ]);
 
 /**

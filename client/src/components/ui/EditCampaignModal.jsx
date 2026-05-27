@@ -19,6 +19,7 @@ import FormInput from './FormInput';
 import UploadProgress from './UploadProgress';
 import VideoItemsEditor from './VideoItemsEditor';
 import { campaignService } from '../../services/campaignService';
+import { isArMediaType } from '../../constants/arMediaProducts';
 
 const ACCEPTED_VIDEO_TYPES = 'video/*,.mp4,.webm,.mov,.m4v';
 const ACCEPTED_WEBM_TYPES = 'video/webm,.webm';
@@ -167,15 +168,15 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
   const inputRef              = useRef(null);
 
   const isSingleLink = campaign.campaignType === 'single-link-qr';
-  const isArCard = campaign.campaignType === 'ar-card';
+  const isArMedia = isArMediaType(campaign.campaignType);
   const isLinksVideo = campaign.campaignType === 'links-video-qr';
   const isLinksDocVideo = campaign.campaignType === 'links-doc-video-qr';
   const hasLinkItems =
     campaign.campaignType === 'multiple-links-qr'
     || campaign.campaignType === 'links-video-qr'
     || campaign.campaignType === 'links-doc-video-qr';
-  const hasHubLinks = hasLinkItems || isArCard;
-  const showPreciseGeo = hasLinkItems && !isArCard;
+  const hasHubLinks = hasLinkItems || isArMedia;
+  const showPreciseGeo = hasLinkItems && !isArMedia;
 
   const [linkRows, setLinkRows] = useState(() =>
     hasHubLinks ? campaignLinkItemsToRows(campaign.linkItems) : []
@@ -246,7 +247,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
     if (campaign.campaignType === 'multiple-links-qr'
       || campaign.campaignType === 'links-video-qr'
       || campaign.campaignType === 'links-doc-video-qr'
-      || campaign.campaignType === 'ar-card'
+      || isArMediaType(campaign.campaignType)
     ) {
       setLinkRows(campaignLinkItemsToRows(campaign.linkItems));
       setPreciseGeo(!!campaign.preciseGeoAnalytics);
@@ -304,7 +305,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
     // The AR-card hero slot is the Android (.webm) source; only the iOS slot
     // accepts side-by-side .mov files. We keep the looser MP4/WebM/MOV check
     // for non-AR types (links-video-qr) where the previous behaviour holds.
-    const validator = isArCard ? validateWebmFile : validateVideoFile;
+    const validator = isArMedia ? validateWebmFile : validateVideoFile;
     const err = await validator(file);
     if (err) {
       setVideoError(err);
@@ -490,7 +491,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
         setLinkError(lerr);
         return;
       }
-    } else if (isArCard) {
+    } else if (isArMedia) {
       const lerr = linkRows?.length ? validateLinkRows(linkRows) : null;
       if (lerr) {
         setLinkError(lerr);
@@ -520,7 +521,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
       }
     }
 
-    if (isArCard) {
+    if (isArMedia) {
       updates.linkItems = rowsToApiLinkItems(linkRows);
       if (
         pendingVideo
@@ -582,7 +583,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
   ];
 
   const panelMaxW = hasHubLinks ? 'max-w-xl' : 'max-w-md';
-  const modalTitle = isArCard
+  const modalTitle = isArMedia
     ? 'Edit campaign, video & links'
     : isLinksDocVideo
       ? 'Edit campaign, videos & links'
@@ -688,7 +689,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
                 </div>
               )}
 
-              {isArCard && (
+              {isArMedia && (
                 <div className="space-y-3 border-t border-[var(--border-color)] pt-5">
                   <div>
                     <p className="text-xs font-medium text-[var(--text-secondary)]">Hologram · Android (.webm)</p>
@@ -954,7 +955,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
                 <>
                   <div className="border-t border-[var(--border-color)] pt-5">
                     <p className="mb-3 text-xs font-medium text-[var(--text-secondary)]">
-                      {isArCard
+                      {isArMedia
                         ? 'Social links on your profile hub (optional).'
                         : 'Hub links — edit, remove, or add destinations. Saved links keep their analytics IDs when possible.'}
                     </p>

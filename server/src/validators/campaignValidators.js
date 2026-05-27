@@ -246,9 +246,7 @@ const linkItemsOptionalPatchField = z
 /** AR card hubs — links are optional; when provided, each row is validated. */
 const linkItemsOptionalField = z.array(linkItemInputSchema).max(20, 'Too many links (max 20)');
 
-const arCardCreateSchema = z
-  .object({
-    campaignType: z.literal('ar-card'),
+const arMediaCreateFields = {
     campaignName: campaignNameField,
     targetImageUrl: z.string().url('targetImageUrl must be a valid URL'),
     targetImagePublicId: z.string().min(1).optional(),
@@ -273,8 +271,27 @@ const arCardCreateSchema = z
       (v) => (v === '' || v === undefined ? null : v),
       z.union([z.null(), z.string().url('thumbnailUrl must be a valid URL')]).optional()
     ),
+};
+
+const arCardCreateSchema = z
+  .object({
+    campaignType: z.literal('ar-card'),
+    ...arMediaCreateFields,
   })
   .strict();
+
+const arPosterCreateSchema = z
+  .object({
+    campaignType: z.literal('ar-poster'),
+    ...arMediaCreateFields,
+  })
+  .strict();
+
+/** Admin fulfill + shared AR media create payloads */
+const arMediaCreateSchema = z.discriminatedUnion('campaignType', [
+  arCardCreateSchema,
+  arPosterCreateSchema,
+]);
 
 /**
  * POST /api/campaigns/multiple-links — dedicated route (mirrors single-link).
@@ -790,7 +807,7 @@ const createCampaignSchema = z.preprocess((raw) => {
   let ct =
     typeof raw.campaignType === 'string' ? raw.campaignType.trim() : '';
 
-  if (!ct || (ct !== 'ar-card' && ct !== 'single-link-qr')) {
+  if (!ct || (ct !== 'ar-card' && ct !== 'ar-poster' && ct !== 'single-link-qr')) {
     ct = hasDest && !hasFullArMedia ? 'single-link-qr' : 'ar-card';
   }
 
@@ -800,7 +817,11 @@ const createCampaignSchema = z.preprocess((raw) => {
       : stripSingleLinkFields(raw);
 
   return { ...base, campaignType: ct };
-}, z.discriminatedUnion('campaignType', [arCardCreateSchema, singleLinkCreateSchema]));
+}, z.discriminatedUnion('campaignType', [
+  arCardCreateSchema,
+  arPosterCreateSchema,
+  singleLinkCreateSchema,
+]));
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Update schema — campaignType is immutable; redirectSlug is immutable.
@@ -854,6 +875,10 @@ const updateCampaignSchema = z
   .refine((d) => Object.keys(d).length > 0, { message: 'No valid fields to update' });
 
 module.exports = {
+  qrPlacementSchema,
+  arCardCreateSchema,
+  arPosterCreateSchema,
+  arMediaCreateSchema,
   qrDesignSchema,
   linkItemInputSchema,
   linkItemPatchSchema,

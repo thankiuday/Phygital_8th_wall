@@ -2,6 +2,7 @@
 
 const { toPublicLinkList } = require('./linkItemResolver');
 const { toEmbedSrc, detectVideoHost } = require('./videoEmbed');
+const { isArMediaType } = require('../constants/arMediaTypes');
 
 /**
  * Build the JSON payload returned by GET /api/public/dynamic-qr/:slug/meta
@@ -24,7 +25,13 @@ const buildDynamicQrMetaPayload = (campaign) => {
     };
   }
 
-  const hubTypes = ['multiple-links-qr', 'links-video-qr', 'links-doc-video-qr', 'ar-card'];
+  const hubTypes = [
+    'multiple-links-qr',
+    'links-video-qr',
+    'links-doc-video-qr',
+    'ar-card',
+    'ar-poster',
+  ];
   if (!hubTypes.includes(campaign.campaignType)) return null;
 
   if (campaign.status === 'paused') {
@@ -43,10 +50,10 @@ const buildDynamicQrMetaPayload = (campaign) => {
 
   if (campaign.status !== 'active') return null;
 
-  if (campaign.campaignType === 'ar-card') {
+  if (isArMediaType(campaign.campaignType)) {
     const clientBase = (process.env.CLIENT_URL || '').replace(/\/$/, '');
     return {
-      campaignType: 'ar-card',
+      campaignType: campaign.campaignType,
       campaignName: campaign.campaignName,
       videoSource: 'upload',
       videoUrl: campaign.videoUrl,

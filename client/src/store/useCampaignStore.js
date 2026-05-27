@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { campaignService } from '../services/campaignService';
+import { adminService } from '../services/adminService';
 import {
   buildArExperienceUrl,
   compositeQrOnCardImage,
@@ -53,6 +54,8 @@ const useCampaignStore = create((set, get) => ({
   isUploading: false,
   isSubmitting: false,
   wizardError: null,
+  fulfillRequestId: null,
+  fulfillRequestKind: 'ar-card',
 
   /* ── Campaign list state ──────────────────────────────────── */
   campaigns: [],
@@ -103,8 +106,13 @@ const useCampaignStore = create((set, get) => ({
       isUploading: false,
       isSubmitting: false,
       wizardError: null,
+      fulfillRequestId: null,
+      fulfillRequestKind: 'ar-card',
     });
   },
+
+  setFulfillRequestId: (id, requestKind = 'ar-card') =>
+    set({ fulfillRequestId: id, fulfillRequestKind: requestKind }),
 
   uploadImage: async (file) => {
     set({ isUploading: true, wizardError: null });
@@ -261,6 +269,95 @@ const useCampaignStore = create((set, get) => ({
         message =
           'The app could not reach the API (received HTML instead of JSON). If you are on mobile, set VITE_API_URL to your backend URL in production.';
       }
+      set({ isSubmitting: false, wizardError: message });
+      return { success: false, message };
+    }
+  },
+
+  /**
+   * submitFulfillRequest — admin fulfills an AR service request for the owning user.
+   */
+  submitFulfillRequest: async (requestId) => {
+    const { wizardData } = get();
+    set({ isSubmitting: true, wizardError: null });
+    try {
+      const { fulfillRequestKind } = get();
+      const campaignType = fulfillRequestKind || 'ar-card';
+      const assetNoun = campaignType === 'ar-poster' ? 'poster' : 'card';
+
+      if (!wizardData.targetImageUrl) {
+        throw new Error(`User ${assetNoun} image is missing on this request.`);
+      }
+      if (
+        !wizardData.qrPlacement
+        || typeof wizardData.qrPlacement.x !== 'number'
+        || typeof wizardData.qrPlacement.y !== 'number'
+      ) {
+        throw new Error('User QR placement is missing on this request.');
+      }
+      if (!wizardData.videoUrl || !wizardData.videoUrlIos) {
+        throw new Error('Upload both WebM and iOS .mov videos before publishing.');
+      }
+
+      const linkItems = wizardData.linkRows?.length
+        ? rowsToApiLinkItems(wizardData.linkRows, { omitLinkIds: true })
+        : [];
+
+      const payload = {
+        campaignType,
+        campaignName: wizardData.campaignName,
+        targetImageUrl: wizardData.targetImageUrl,
+        targetImagePublicId: wizardData.targetImagePublicId,
+        targetImageOriginalUrl: wizardData.targetImageUrl,
+        targetImageOriginalPublicId: wizardData.targetImagePublicId,
+        videoUrl: wizardData.videoUrl,
+        videoPublicId: wizardData.videoPublicId || undefined,
+        videoUrlIos: wizardData.videoUrlIos || undefined,
+        videoIosPublicId: wizardData.videoIosPublicId || undefined,
+        thumbnailUrl: wizardData.thumbnailUrl || undefined,
+        linkItems: linkItems.length ? linkItems : undefined,
+        qrDesign: wizardData.qrDesign,
+        qrPlacement: wizardData.qrPlacement,
+      };
+
+      const result = await adminService.fulfillArServiceRequest(requestId, payload);
+      const campaign = result.campaign;
+      const campaignId = campaign?._id;
+
+      const arUrl = buildArExperienceUrl(campaignId);
+      const imageSrc = wizardData.targetImagePreview || wizardData.targetImageUrl;
+      const blob = await compositeQrOnCardImage({
+        imageSrc,
+        qrDataString: arUrl,
+        placement: wizardData.qrPlacement,
+        qrDesign: wizardData.qrDesign,
+      });
+
+      const file = new File([blob], 'card-with-qr.png', { type: 'image/png' });
+      const upload = await campaignService.uploadToCloudinary(
+        file,
+        'image',
+        (pct) => set((s) => ({ uploadProgress: { ...s.uploadProgress, composited: pct } }))
+      );
+
+      await adminService.patchArCampaignAssets(campaignId, {
+        targetImageUrl: upload.url,
+        targetImagePublicId: upload.publicId,
+      });
+
+      set({ isSubmitting: false });
+      return { success: true, campaign };
+    } catch (err) {
+      const d = err?.response?.data;
+      const validationErrors = d?.errors;
+      const validationMessage = Array.isArray(validationErrors) && validationErrors.length
+        ? validationErrors.map((e) => e?.message).filter(Boolean).join(' ')
+        : '';
+      const message =
+        validationMessage
+        || d?.message
+        || err?.message
+        || 'Failed to fulfill request';
       set({ isSubmitting: false, wizardError: message });
       return { success: false, message };
     }

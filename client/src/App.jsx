@@ -34,6 +34,9 @@ import UserCertificationAgreementPage from './pages/UserCertificationAgreementPa
 const DashboardPage          = lazy(() => import('./pages/dashboard/DashboardPage'));
 const CampaignsListPage      = lazy(() => import('./pages/campaigns/CampaignsListPage'));
 const NewCampaignPage        = lazy(() => import('./pages/campaigns/NewCampaignPage'));
+const ArCardServiceRequestPage = lazy(() => import('./pages/campaigns/ar-service/ArCardServiceRequestPage'));
+const AdminArServiceRequestsPage = lazy(() => import('./pages/admin/AdminArServiceRequestsPage'));
+const AdminArFulfillPage     = lazy(() => import('./pages/admin/AdminArFulfillPage'));
 const PhygitalizePickerPage  = lazy(() => import('./pages/campaigns/PhygitalizePickerPage'));
 const ComingSoonPage         = lazy(() => import('./pages/campaigns/ComingSoonPage'));
 const SingleLinkQrWizard     = lazy(() => import('./pages/campaigns/SingleLinkQrWizard'));
@@ -52,9 +55,11 @@ const AccountSettingsPage    = lazy(() => import('./pages/settings/AccountSettin
 const ProfilePage            = lazy(() => import('./pages/settings/ProfilePage'));
 const NotificationsPage      = lazy(() => import('./pages/notifications/NotificationsPage'));
 const AdminLayout            = lazy(() => import('./pages/admin/AdminLayout'));
-const AdminDashboardPage     = lazy(() => import('./pages/admin/AdminDashboardPage'));
+const SuperAdminDashboardPage = lazy(() => import('./pages/admin/SuperAdminDashboardPage'));
+const SuperAdminAnalyticsPage = lazy(() => import('./pages/admin/SuperAdminAnalyticsPage'));
 const AdminUsersPage         = lazy(() => import('./pages/admin/AdminUsersPage'));
 const AdminCampaignsPage     = lazy(() => import('./pages/admin/AdminCampaignsPage'));
+const AdminCouponsPage       = lazy(() => import('./pages/admin/AdminCouponsPage'));
 
 // ── Route-level Suspense wrapper ──────────────────────────────────────────────
 // Inner routes use a lightweight, layout-shaped skeleton so the dashboard /
@@ -141,7 +146,8 @@ function App() {
               <Route path="campaigns/new/dynamic-qr/single-link"       element={<RouteLoader><SingleLinkQrWizard /></RouteLoader>} />
               <Route path="campaigns/new/dynamic-qr/multiple-links"    element={<RouteLoader><MultipleLinksQrWizard /></RouteLoader>} />
               <Route path="campaigns/new/digital-business-card/personalized-identity" element={<RouteLoader><DigitalBusinessCardWizard /></RouteLoader>} />
-              <Route path="campaigns/new/digital-business-card/ar"     element={<RouteLoader><NewCampaignPage /></RouteLoader>} />
+              <Route path="campaigns/new/digital-business-card/ar"     element={<RouteLoader><ArCardServiceRequestPage productKey="ar-card" /></RouteLoader>} />
+              <Route path="campaigns/new/ar-poster"                    element={<RouteLoader><ArCardServiceRequestPage productKey="ar-poster" /></RouteLoader>} />
               <Route path="campaigns/:id"        element={<RouteLoader><CampaignDetailPage /></RouteLoader>} />
               <Route path="campaigns/:id/analytics" element={<RouteLoader><CampaignAnalyticsPage /></RouteLoader>} />
               <Route path="analytics"            element={<RouteLoader><AnalyticsPage /></RouteLoader>} />
@@ -159,9 +165,13 @@ function App() {
                 </AdminRoute>
               }
             >
-              <Route index        element={<RouteLoader><AdminDashboardPage /></RouteLoader>} />
+              <Route index        element={<RouteLoader><SuperAdminDashboardPage /></RouteLoader>} />
+              <Route path="analytics" element={<RouteLoader><SuperAdminAnalyticsPage /></RouteLoader>} />
               <Route path="users"     element={<RouteLoader><AdminUsersPage /></RouteLoader>} />
               <Route path="campaigns" element={<RouteLoader><AdminCampaignsPage /></RouteLoader>} />
+              <Route path="coupons"   element={<RouteLoader><AdminCouponsPage /></RouteLoader>} />
+              <Route path="ar-requests" element={<RouteLoader><AdminArServiceRequestsPage /></RouteLoader>} />
+              <Route path="ar-requests/:requestId/fulfill" element={<RouteLoader><AdminArFulfillPage /></RouteLoader>} />
             </Route>
 
             {/* ── Public multi-link hub (first-party link page) ─────── */}

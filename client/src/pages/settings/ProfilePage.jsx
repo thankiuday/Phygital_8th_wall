@@ -1,8 +1,10 @@
 import { useEffect, useState, useMemo } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Shield, Calendar, Clock, BarChart3, Loader2 } from 'lucide-react';
+import { User, Shield, Calendar, Clock, BarChart3, Loader2, Ticket, CheckCircle2 } from 'lucide-react';
 import useAuthStore from '../../store/useAuthStore';
 import { authService } from '../../services/authService';
+import { adminService } from '../../services/adminService';
 
 const fmtDate = (d) => {
   if (!d) return '—';
@@ -17,6 +19,7 @@ const fmtDate = (d) => {
 };
 
 const ProfilePage = () => {
+  const queryClient = useQueryClient();
   const { user: storeUser, updateUser } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [remoteUser, setRemoteUser] = useState(null);
@@ -27,6 +30,8 @@ const ProfilePage = () => {
   const [profileMsg, setProfileMsg] = useState('');
   const [profileErr, setProfileErr] = useState('');
   const [toast, setToast] = useState('');
+  const [couponCode, setCouponCode] = useState('');
+  const [couponErr, setCouponErr] = useState('');
 
   const initials = useMemo(() => {
     const n = (name.trim() || remoteUser?.name || storeUser?.name || 'U').trim();
@@ -58,6 +63,31 @@ const ProfilePage = () => {
     setToast(msg);
     setTimeout(() => setToast(''), 3200);
   };
+
+  const redeemMut = useMutation({
+    mutationFn: (code) => adminService.redeemCoupon(code),
+    onSuccess: async (data) => {
+      setCouponErr('');
+      setCouponCode('');
+      if (data.user) {
+        setRemoteUser((prev) => ({ ...prev, ...data.user }));
+        updateUser(data.user);
+      }
+      await queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+      try {
+        const me = await authService.getMe({ stats: true });
+        setRemoteUser(me.user);
+        updateUser(me.user);
+        setStats(me.stats ?? null);
+      } catch {
+        /* keep partial update */
+      }
+      showToast(data.message || 'Coupon redeemed!');
+    },
+    onError: (err) => {
+      setCouponErr(err.response?.data?.message || 'Redemption failed.');
+    },
+  });
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
@@ -209,6 +239,66 @@ const ProfilePage = () => {
             Save profile
           </button>
         </form>
+      </motion.section>
+
+      <motion.section
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="glass-card space-y-4 p-5 sm:p-6"
+      >
+        <div className="flex items-center gap-2 border-b border-[var(--border-color)] pb-3">
+          <Ticket size={18} className="text-brand-400" />
+          <h3 className="font-semibold text-[var(--text-primary)]">Coupon &amp; access</h3>
+        </div>
+
+        {(displayUser.hasFullAccess || storeUser?.hasFullAccess) ? (
+          <div className="flex items-start gap-3 rounded-xl border border-green-500/30 bg-green-500/10 p-4">
+            <CheckCircle2 size={20} className="mt-0.5 shrink-0 text-green-400" />
+            <div>
+              <p className="font-semibold text-green-400">Full access unlocked</p>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                Code: <span className="font-mono">{displayUser.couponRedeemed || storeUser?.couponRedeemed}</span>
+              </p>
+              {(displayUser.fullAccessGrantedAt || storeUser?.fullAccessGrantedAt) && (
+                <p className="mt-1 text-xs text-[var(--text-muted)]">
+                  Granted {fmtDate(displayUser.fullAccessGrantedAt || storeUser?.fullAccessGrantedAt)}
+                </p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setCouponErr('');
+              redeemMut.mutate(couponCode.trim());
+            }}
+            className="space-y-3"
+          >
+            <p className="text-sm text-[var(--text-muted)]">
+              Have a promo code? Enter it below to unlock full platform access.
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                type="text"
+                value={couponCode}
+                onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); setCouponErr(''); }}
+                placeholder="ENTER-CODE"
+                className="input-base flex-1 font-mono uppercase tracking-wide"
+                maxLength={32}
+              />
+              <button
+                type="submit"
+                disabled={redeemMut.isPending || !couponCode.trim()}
+                className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {redeemMut.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
+                Redeem
+              </button>
+            </div>
+            {couponErr && <p className="text-sm text-red-400" role="alert">{couponErr}</p>}
+          </form>
+        )}
       </motion.section>
 
       <AnimatePresence>

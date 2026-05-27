@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   PlusCircle, Search, QrCode, ScanLine, Calendar,
@@ -9,6 +9,7 @@ import useCampaignStore from '../../store/useCampaignStore';
 import EditCampaignModal from '../../components/ui/EditCampaignModal';
 import Icon3D, { ICON3D_PRESETS } from '../../components/ui/Icon3D';
 import { CampaignListCard, CampaignListSkeletonCard } from '../../components/campaigns/CampaignListCard';
+import ArServiceRequestsPanel from '../../components/campaigns/ArServiceRequestsPanel';
 
 // ---------------------------------------------------------------------------
 // Empty state
@@ -56,6 +57,7 @@ const FILTER_TABS = [
 const TYPE_FILTER_OPTIONS = [
   { value: '', label: 'All types' },
   { value: 'ar-card', label: 'AR Card' },
+  { value: 'ar-poster', label: 'AR Poster' },
   { value: 'single-link-qr', label: 'Single Link QR' },
   { value: 'multiple-links-qr', label: 'Multiple Links QR' },
   { value: 'links-video-qr', label: 'Links + Video QR' },
@@ -63,12 +65,21 @@ const TYPE_FILTER_OPTIONS = [
   { value: 'digital-business-card', label: 'Digital Business Card' },
 ];
 
+const LIST_TABS = [
+  { id: 'campaigns', label: 'Campaigns' },
+  { id: 'ar-requests', label: 'AR requests' },
+];
+
 const CampaignsListPage = () => {
+  const location = useLocation();
+  const initialTab = location.state?.tab === 'ar-requests' ? 'ar-requests' : 'campaigns';
+
   const {
     campaigns, pagination, listLoading, listError,
     fetchCampaigns, updateCampaignInList, removeCampaignFromList, duplicateCampaignInList,
   } = useCampaignStore();
 
+  const [listTab, setListTab] = useState(initialTab);
   const [search, setSearch]             = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter]     = useState('');
@@ -137,6 +148,25 @@ const CampaignsListPage = () => {
         </Link>
       </div>
 
+      <div className="flex gap-1 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] p-1 w-fit">
+        {LIST_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setListTab(tab.id)}
+            className={`rounded-lg px-4 py-2 text-xs font-semibold ${
+              listTab === tab.id ? 'bg-brand-600 text-white' : 'text-[var(--text-muted)]'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {listTab === 'ar-requests' ? (
+        <ArServiceRequestsPanel />
+      ) : (
+        <>
       {/* ── Search + filter bar ─────────────────────────────────────────── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         {/* Search — full-width on mobile */}
@@ -245,6 +275,9 @@ const CampaignsListPage = () => {
             Load more
           </button>
         </div>
+      )}
+
+        </>
       )}
 
       {/* ── Edit modal ─────────────────────────────────────────────────── */}

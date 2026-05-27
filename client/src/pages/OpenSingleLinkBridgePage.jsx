@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2, MapPin, ExternalLink } from 'lucide-react';
 import publicApi from '../services/publicApi';
+import { isArMediaType } from '../constants/arMediaProducts';
 
 const GEO_CONSENT_VERSION = 'browser-geolocation-v1';
 const COUNTDOWN_SEC = 5;
@@ -19,6 +20,7 @@ const HUB_CAMPAIGN_TYPES = new Set([
   'links-video-qr',
   'links-doc-video-qr',
   'ar-card',
+  'ar-poster',
 ]);
 
 const isHubCampaignType = (ct) => HUB_CAMPAIGN_TYPES.has(ct);
@@ -77,7 +79,7 @@ const OpenSingleLinkBridgePage = () => {
           if (!Array.isArray(data.links)) throw new Error('Invalid response');
         } else if (data.campaignType === 'links-video-qr') {
           if (!Array.isArray(data.links)) throw new Error('Invalid response');
-        } else if (data.campaignType === 'ar-card') {
+        } else if (data.campaignType === 'ar-card' || data.campaignType === 'ar-poster') {
           if (!Array.isArray(data.links)) throw new Error('Invalid response');
         } else if (data.campaignType === 'links-doc-video-qr') {
           if (
@@ -195,7 +197,7 @@ const OpenSingleLinkBridgePage = () => {
   /** Hub + AR profile entry: optional browser location (AR cards always use this bridge). */
   const wantsPreciseGeo = useCallback(() => {
     if (!meta) return false;
-    return !!meta.preciseGeoAnalytics || meta.campaignType === 'ar-card';
+    return !!meta.preciseGeoAnalytics || isArMediaType(meta.campaignType);
   }, [meta]);
 
   const tryGeolocationThenContinue = useCallback(() => {

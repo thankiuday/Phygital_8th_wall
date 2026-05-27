@@ -97,6 +97,22 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+
+    // Coupon / subscription unlock (v1: stored and displayed; no feature gates yet)
+    couponRedeemed: {
+      type: String,
+      default: null,
+      sparse: true,
+    },
+    hasFullAccess: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    fullAccessGrantedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

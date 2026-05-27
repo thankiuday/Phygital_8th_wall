@@ -24,6 +24,8 @@ import {
   FileType,
 } from 'lucide-react';
 import QRCodeDisplay from '../../components/ui/QRCodeDisplay';
+import DownloadPrintCardButton from '../../components/campaigns/DownloadPrintCardButton';
+import { isArMediaType, getArMediaProduct } from '../../constants/arMediaProducts';
 import { campaignService } from '../../services/campaignService';
 import EditCampaignModal from '../../components/ui/EditCampaignModal';
 import {
@@ -77,7 +79,7 @@ const ActionMenu = ({ campaign, actionLoading, onEdit, onDuplicate, onToggleStat
     campaign.campaignType === 'multiple-links-qr'
     || campaign.campaignType === 'links-video-qr'
     || campaign.campaignType === 'links-doc-video-qr'
-    || campaign.campaignType === 'ar-card';
+    || isArMediaType(campaign.campaignType);
   const isDigitalCard = campaign.campaignType === 'digital-business-card';
   const trackedRedirectUrl = singleLinkPublicOpenUrl(campaign);
   const hubPreviewUrl = hubPublicPageUrl(campaign);
@@ -132,6 +134,13 @@ const ActionMenu = ({ campaign, actionLoading, onEdit, onDuplicate, onToggleStat
                 {campaign.status === 'active' ? <Pause size={14} /> : <Play size={14} />}
                 {campaign.status === 'active' ? 'Pause' : 'Activate'}
               </button>
+              {isArMediaType(campaign.campaignType) && campaign.targetImageUrl && (
+                <DownloadPrintCardButton
+                  campaign={campaign}
+                  variant="menu"
+                  onAfterClick={() => setOpen(false)}
+                />
+              )}
               {isDynamicQr ? (
                 openDynamicUrl ? (
                   <a
@@ -330,7 +339,7 @@ const CampaignDetailPage = () => {
     campaign.campaignType === 'multiple-links-qr'
     || campaign.campaignType === 'links-video-qr'
     || campaign.campaignType === 'links-doc-video-qr'
-    || campaign.campaignType === 'ar-card';
+    || isArMediaType(campaign.campaignType);
   const isLinksDocVideo = campaign.campaignType === 'links-doc-video-qr';
   const isDigitalCard = campaign.campaignType === 'digital-business-card';
   const trackedRedirectUrl = singleLinkPublicOpenUrl(campaign);
@@ -343,6 +352,9 @@ const CampaignDetailPage = () => {
     : isHubType
       ? hubPreviewUrl
       : trackedRedirectUrl;
+  const isArMedia = isArMediaType(campaign.campaignType);
+  const arProduct = isArMedia ? getArMediaProduct(campaign.campaignType) : null;
+  const hasCompositedPrintAsset = isArMedia && !!campaign.targetImageUrl;
 
   return (
     <div className="mx-auto max-w-4xl min-w-0 max-w-full space-y-4 overflow-x-hidden p-4 sm:space-y-5 sm:p-6">
@@ -422,6 +434,9 @@ const CampaignDetailPage = () => {
             {campaign.status === 'active' ? <Pause size={14} /> : <Play size={14} />}
             {campaign.status === 'active' ? 'Pause' : 'Activate'}
           </button>
+          {hasCompositedPrintAsset && (
+            <DownloadPrintCardButton campaign={campaign} variant="secondary" />
+          )}
         </div>
 
         {/* ── Mobile: condensed icon actions + three-dot overflow ── */}
@@ -516,23 +531,35 @@ const CampaignDetailPage = () => {
               transition={{ delay: 0.1 }}
               className="glass-card p-4 sm:p-5"
             >
-              <div className="mb-3 flex items-center gap-2">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
                 <ImageIcon size={16} className="text-brand-400" />
-                <h4 className="text-sm font-semibold text-[var(--text-primary)]">Business Card Image</h4>
-                <span className="ml-auto text-xs text-[var(--text-muted)]">AR Marker</span>
+                <h4 className="text-sm font-semibold text-[var(--text-primary)]">
+                  {isArMedia ? `Print-ready ${arProduct?.assetNoun || 'marker'} (with QR)` : 'Business Card Image'}
+                </h4>
+                <span className="ml-auto text-xs text-[var(--text-muted)]">
+                  {isArMedia ? 'AR marker · scan to open' : 'AR Marker'}
+                </span>
               </div>
               <img
                 src={resolvePlaybackMediaUrl(campaign.targetImageUrl)}
-                alt="Business card"
-                className="max-h-48 w-full rounded-xl border border-[var(--border-color)] object-contain"
+                alt="Business card with QR"
+                className="max-h-48 w-full rounded-xl border border-[var(--border-color)] object-contain bg-[var(--surface-2)]"
               />
+              {isArMedia && (
+                <p className="mt-2 text-xs text-[var(--text-muted)]">
+                  This is the image used for AR tracking and printing. Download a high-resolution PNG for your physical {arProduct?.assetNoun || 'marker'}.
+                </p>
+              )}
+              {isArMedia && (
+                <DownloadPrintCardButton campaign={campaign} className="mt-4" />
+              )}
             </motion.div>
           )}
 
           {/* AR intro video — ar-card only. Two paired sources: a transparent
               .webm used on Android / desktop, and a side-by-side .mov used on
               iOS Safari (RGB on the left half, alpha mask on the right half). */}
-          {campaign.campaignType === 'ar-card' && campaign.videoUrl && (
+          {isArMedia && campaign.videoUrl && (
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
@@ -556,7 +583,7 @@ const CampaignDetailPage = () => {
             </motion.div>
           )}
 
-          {campaign.campaignType === 'ar-card' && (
+          {isArMedia && (
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}

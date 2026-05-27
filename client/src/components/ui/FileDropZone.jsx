@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, X, CheckCircle2 } from 'lucide-react';
 import { cn } from '../../utils/cn';
@@ -22,6 +22,11 @@ const FileDropZone = ({
   const inputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const [sizeError, setSizeError] = useState('');
+  const [previewFailed, setPreviewFailed] = useState(false);
+
+  useEffect(() => {
+    setPreviewFailed(false);
+  }, [previewUrl]);
 
   const hasSizeLimit = Number.isFinite(maxSizeMB) && maxSizeMB > 0;
 
@@ -40,6 +45,7 @@ const FileDropZone = ({
   const handleFile = (file) => {
     if (!file) return;
     if (!validate(file)) return;
+    setPreviewFailed(false);
     onFile(file);
   };
 
@@ -64,17 +70,26 @@ const FileDropZone = ({
             exit={{ opacity: 0, scale: 0.97 }}
             className="relative overflow-hidden rounded-xl border border-brand-500/30 bg-[var(--surface-2)]"
           >
-            {previewType === 'video' ? (
+            {previewFailed ? (
+              <div className="flex min-h-[12rem] flex-col items-center justify-center gap-2 p-6 text-center text-sm text-[var(--text-muted)]">
+                <p>Preview could not be loaded.</p>
+                <a href={previewUrl} target="_blank" rel="noreferrer" className="text-brand-400 hover:underline">
+                  Open file in new tab
+                </a>
+              </div>
+            ) : previewType === 'video' ? (
               <video
                 src={previewUrl}
                 controls
                 className="max-h-72 w-full rounded-xl object-contain"
+                onError={() => setPreviewFailed(true)}
               />
             ) : (
               <img
                 src={previewUrl}
                 alt="Preview"
                 className="max-h-64 w-full rounded-xl object-contain"
+                onError={() => setPreviewFailed(true)}
               />
             )}
 
@@ -89,6 +104,7 @@ const FileDropZone = ({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
+                setPreviewFailed(false);
                 onClear?.();
               }}
               className="absolute right-2 top-2 inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm transition-opacity hover:bg-black/80"

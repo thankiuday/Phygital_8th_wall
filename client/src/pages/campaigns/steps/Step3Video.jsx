@@ -126,7 +126,7 @@ const FormatHeader = ({ icon: Icon, title, subtitle, accent }) => (
   </div>
 );
 
-const Step3Video = () => {
+const Step3Video = ({ fulfillMode = false }) => {
   const {
     wizardData,
     updateWizardData,
@@ -135,7 +135,10 @@ const Step3Video = () => {
     uploadVideoIos,
     uploadProgress,
     wizardError,
+    fulfillRequestId,
   } = useCampaignStore();
+
+  const isFulfill = fulfillMode || !!fulfillRequestId;
 
   const [webmError, setWebmError] = useState('');
   const [movError, setMovError] = useState('');
@@ -236,18 +239,28 @@ const Step3Video = () => {
         'Please upload the side-by-side .mov file so iPhone visitors see the hologram with a transparent background.',
       );
     }
-    setWizardStep(5);
+    setWizardStep(isFulfill ? 2 : 5);
   };
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h3 className="text-lg font-semibold text-[var(--text-primary)]">
-          Upload your hologram video
+          {isFulfill ? 'Upload processed hologram videos' : 'Upload your hologram video'}
         </h3>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          We need <strong>two</strong> transparent exports of the same clip so the hologram
-          renders correctly on both Android and iPhone visitors.
+          {isFulfill ? (
+            <>
+              Download the user&apos;s green-screen MP4 above, convert it, then upload{' '}
+              <strong>both</strong> transparent exports here. Their card image and QR placement
+              are already saved — you do not need to reposition the QR.
+            </>
+          ) : (
+            <>
+              We need <strong>two</strong> transparent exports of the same clip so the hologram
+              renders correctly on both Android and iPhone visitors.
+            </>
+          )}
         </p>
       </div>
 
@@ -342,15 +355,17 @@ const Step3Video = () => {
       </div>
 
       {/* Nav buttons — stacks on phones */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <button
-          type="button"
-          onClick={() => setWizardStep(3)}
-          disabled={anyUploading}
-          className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-[var(--border-color)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 disabled:opacity-50"
-        >
-          <ArrowLeft size={15} /> Back
-        </button>
+      <div className={`flex flex-col gap-3 ${isFulfill ? 'sm:justify-end' : 'sm:flex-row sm:items-center sm:justify-between'}`}>
+        {!isFulfill && (
+          <button
+            type="button"
+            onClick={() => setWizardStep(3)}
+            disabled={anyUploading}
+            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-[var(--border-color)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:border-brand-500/50 disabled:opacity-50"
+          >
+            <ArrowLeft size={15} /> Back
+          </button>
+        )}
 
         <button
           type="button"
@@ -361,7 +376,10 @@ const Step3Video = () => {
           {anyUploading ? (
             <><Loader2 size={15} className="animate-spin" /> Uploading…</>
           ) : (
-            <>Next: Social Links <ArrowRight size={15} /></>
+            <>
+              {isFulfill ? 'Next: Review & publish' : 'Next: Social Links'}
+              <ArrowRight size={15} />
+            </>
           )}
         </button>
       </div>

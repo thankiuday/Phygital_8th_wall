@@ -1,6 +1,7 @@
 'use strict';
 
 const mongoose = require('mongoose');
+const { isArMediaType } = require('../constants/arMediaTypes');
 
 /**
  * Type-aware required validators.
@@ -13,6 +14,14 @@ const mongoose = require('mongoose');
 const requiredForType = (type, message) => ({
   validator(value) {
     if (this.campaignType !== type) return true;
+    return value !== null && value !== undefined && value !== '';
+  },
+  message,
+});
+
+const requiredForArMedia = (message) => ({
+  validator(value) {
+    if (!isArMediaType(this.campaignType)) return true;
     return value !== null && value !== undefined && value !== '';
   },
   message,
@@ -45,6 +54,7 @@ const campaignSchema = new mongoose.Schema(
       enum: {
         values: [
           'ar-card',
+          'ar-poster',
           'single-link-qr',
           'multiple-links-qr',
           'links-video-qr',
@@ -52,18 +62,18 @@ const campaignSchema = new mongoose.Schema(
           'digital-business-card',
         ],
         message:
-          'campaignType must be one of: ar-card, single-link-qr, multiple-links-qr, links-video-qr, links-doc-video-qr, digital-business-card',
+          'campaignType must be one of: ar-card, ar-poster, single-link-qr, multiple-links-qr, links-video-qr, links-doc-video-qr, digital-business-card',
       },
       default: 'ar-card',
       required: true,
       index: true,
     },
 
-    // ── AR card fields (required only when campaignType === 'ar-card') ──
+    // ── AR media fields (ar-card + ar-poster) ──
     targetImageUrl: {
       type: String,
       default: null,
-      validate: requiredForType('ar-card', 'targetImageUrl is required for ar-card campaigns'),
+      validate: requiredForArMedia('targetImageUrl is required for AR media campaigns'),
     },
     targetImagePublicId: { type: String, default: null },
     /** Raw upload before QR composite (wizard re-edit / audit). */
@@ -75,7 +85,7 @@ const campaignSchema = new mongoose.Schema(
     videoUrl: {
       type: String,
       default: null,
-      validate: requiredForType('ar-card', 'videoUrl is required for ar-card campaigns'),
+      validate: requiredForArMedia('videoUrl is required for AR media campaigns'),
     },
     videoPublicId: { type: String, default: null },
 

@@ -35,6 +35,8 @@ const ensureOwnerHubFields = async (userId, campaignNameTrimmed) => {
  * @param {Function} params.persistLinkItems — async (linkItems) => persisted rows
  */
 const createArCardCampaignRecord = async ({ userId, body, persistLinkItems }) => {
+  const campaignType = body.campaignType || 'ar-card';
+
   const {
     campaignName,
     targetImageUrl,
@@ -60,7 +62,7 @@ const createArCardCampaignRecord = async ({ userId, body, persistLinkItems }) =>
 
   const campaign = await Campaign.create({
     userId,
-    campaignType: 'ar-card',
+    campaignType,
     campaignName: campaignName.trim(),
     targetImageUrl,
     targetImagePublicId: targetImagePublicId || null,

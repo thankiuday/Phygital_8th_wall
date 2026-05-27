@@ -1,15 +1,25 @@
-import { NavLink, Outlet, Link } from 'react-router-dom';
+import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, Users, QrCode, ArrowLeft, Shield } from 'lucide-react';
+import { LayoutDashboard, Users, QrCode, ArrowLeft, Shield, BarChart3, Ticket, Sparkles, Bell } from 'lucide-react';
 import Footer from '../../components/ui/Footer';
+import NotificationProvider from '../../components/notifications/NotificationProvider';
+import useNotificationStore from '../../store/useNotificationStore';
 
 const TABS = [
-  { to: '/admin',           icon: LayoutDashboard, label: 'Overview',  end: true },
-  { to: '/admin/users',     icon: Users,           label: 'Users' },
-  { to: '/admin/campaigns', icon: QrCode,          label: 'Campaigns' },
+  { to: '/admin',              icon: LayoutDashboard, label: 'Overview',  end: true },
+  { to: '/admin/analytics',    icon: BarChart3,       label: 'Analytics' },
+  { to: '/admin/users',        icon: Users,           label: 'Users' },
+  { to: '/admin/campaigns',    icon: QrCode,          label: 'Campaigns' },
+  { to: '/admin/coupons',      icon: Ticket,          label: 'Coupons' },
+  { to: '/admin/ar-requests',  icon: Sparkles,        label: 'AR Requests' },
 ];
 
-const AdminLayout = () => (
+const AdminLayout = () => {
+  const navigate = useNavigate();
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
+
+  return (
+  <NotificationProvider>
   <div className="min-h-screen bg-[var(--bg-primary)]">
     {/* ── Top bar ──────────────────────────────────────────────────────── */}
     <header className="sticky top-0 z-30 flex flex-col gap-2 border-b border-[var(--border-color)] bg-[var(--surface-1)]/90 px-4 py-2 backdrop-blur-sm sm:flex-row sm:items-center sm:gap-4 sm:px-6 sm:py-0 sm:h-14">
@@ -30,6 +40,20 @@ const AdminLayout = () => (
           </div>
           <span className="text-sm font-bold text-[var(--text-primary)]">Admin Panel</span>
         </div>
+
+        <button
+          type="button"
+          onClick={() => navigate('/dashboard/notifications')}
+          className="relative ml-auto inline-flex min-h-10 min-w-10 items-center justify-center rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] text-[var(--text-secondary)] hover:border-brand-500/50 hover:text-brand-400 sm:ml-0"
+          aria-label="Notifications"
+        >
+          <Bell size={16} />
+          {unreadCount > 0 && (
+            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-500 px-1 text-[10px] font-bold text-white">
+              {Math.min(unreadCount, 9)}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Tab navigation — horizontally scrollable on mobile so 3 pills can pan
@@ -66,6 +90,8 @@ const AdminLayout = () => (
     </motion.main>
     <Footer />
   </div>
-);
+  </NotificationProvider>
+  );
+};
 
 export default AdminLayout;
