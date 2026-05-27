@@ -8,6 +8,7 @@ const Campaign = require('../models/Campaign');
 const { AppError } = require('../middleware/errorHandler');
 const { success, created } = require('../utils/apiResponse');
 const { allocateUniqueHandleFromEmail } = require('../utils/userHandle');
+const { ensureAdminBootstrapUser } = require('../services/adminBootstrapService');
 const {
   signAccessToken,
   signRefreshToken,
@@ -88,6 +89,7 @@ const stateMatches = (providedState, cookieState) => {
 };
 
 const trimTrailingSlash = (s) => String(s || '').trim().replace(/\/+$/, '');
+const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
 
 /**
  * OAuth redirect URI sent to Google must match **exactly** what is listed in
@@ -179,12 +181,21 @@ const register = async (req, res) => {
    POST /api/auth/login
    ───────────────────────────────────────── */
 const login = async (req, res) => {
-  const { email, password } = req.body;
+  const email = normalizeEmail(req.body?.email);
+  const password = String(req.body?.password || '');
 
   // Explicitly select password field (it is select: false by default)
-  const user = await User.findOne({ email }).select('+password');
+  let user = await User.findOne({ email }).select('+password');
+  let passwordMatches = user ? await user.comparePassword(password) : false;
 
-  if (!user || !(await user.comparePassword(password))) {
+  // Self-heal the env-configured admin account at login time (production-safe).
+  if (!passwordMatches && email === normalizeEmail(process.env.ADMIN_EMAIL)) {
+    await ensureAdminBootstrapUser();
+    user = await User.findOne({ email }).select('+password');
+    passwordMatches = user ? await user.comparePassword(password) : false;
+  }
+
+  if (!user || !passwordMatches) {
     throw new AppError(
       'That email or password is not correct. Check for typos and try again, or use Forgot password.',
       401
