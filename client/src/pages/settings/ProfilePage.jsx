@@ -276,7 +276,15 @@ const ProfilePage = () => {
             className="space-y-3"
           >
             <p className="text-sm text-[var(--text-muted)]">
-              Have a promo code? Enter it below to unlock full platform access.
+              Partner or admin codes unlock full platform access here. Subscription discount codes
+              {' '}
+              <span className="font-mono">PHYGITALIZE10</span>–
+              <span className="font-mono">70</span>
+              {' '}
+              are entered on the Stripe payment page when you subscribe from
+              {' '}
+              <a href="/pricing" className="font-medium text-brand-400 hover:underline">Pricing</a>
+              .
             </p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <input

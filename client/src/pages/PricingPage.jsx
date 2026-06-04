@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Check, CreditCard, HelpCircle, Layers, X } from 'lucide-react';
+import { Check, CreditCard, HelpCircle, Layers, X } from 'lucide-react';
+import PlanCheckoutButton from '../components/billing/PlanCheckoutButton';
 import SEOHead from '../components/ui/SEOHead';
 import Icon3D, { ICON3D_PRESETS } from '../components/ui/Icon3D';
 import { pricingPlans as plans } from '../data/pricingPlans';
@@ -178,17 +179,14 @@ const PricingPage = () => {
                     })}
                   </ul>
 
-                  <Link
-                    to={plan.ctaTo}
-                    className={`mt-6 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all duration-200 hover:scale-[1.02] ${
-                      plan.featured
-                        ? 'bg-brand-600 text-white shadow-glow hover:bg-brand-500 hover:shadow-glow-lg'
-                        : 'border border-[var(--border-color)] bg-[var(--surface-2)] text-[var(--text-primary)] hover:border-brand-500/50'
-                    }`}
-                  >
-                    {plan.ctaLabel}
-                    <ArrowRight size={14} />
-                  </Link>
+                  <PlanCheckoutButton
+                    planId={plan.id}
+                    billingCycle={billingCycle}
+                    ctaLabel={plan.ctaLabel}
+                    ctaTo={plan.ctaTo}
+                    featured={plan.featured}
+                    className="mt-6"
+                  />
                 </motion.article>
               );
             })}

@@ -18,6 +18,7 @@ const {
   hashToken,
 } = require('../utils/jwt');
 const { sendPasswordResetEmail } = require('../services/emailService');
+const { subscriptionFieldsForClient } = require('../utils/subscriptionAccess');
 
 const googleAuthExchangeCache = new LRUCache({
   max: 1000,
@@ -41,6 +42,7 @@ const userPayload = (user) => ({
   hasFullAccess: !!user.hasFullAccess,
   couponRedeemed: user.couponRedeemed || null,
   fullAccessGrantedAt: user.fullAccessGrantedAt || null,
+  ...subscriptionFieldsForClient(user),
   createdAt: user.createdAt,
   lastLoginAt: user.lastLoginAt,
 });

@@ -33,6 +33,12 @@ const OPTIONAL = {
     'SMTP_USER',
     'SMTP_PASS',
   ],
+  'Stripe Billing — checkout and subscriptions disabled until set': [
+    'STRIPE_SECRET_KEY',
+    'STRIPE_WEBHOOK_SECRET',
+    'STRIPE_PRICE_PHYGITAL_QR_MONTHLY',
+    'STRIPE_PRICE_PHYGITAL_QR_YEARLY',
+  ],
 };
 
 const validateEnv = () => {

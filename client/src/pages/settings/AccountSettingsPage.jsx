@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { KeyRound, Loader2 } from 'lucide-react';
 import useAuthStore from '../../store/useAuthStore';
 import { authService } from '../../services/authService';
+import BillingSettingsCard from '../../components/billing/BillingSettingsCard';
 
 const AccountSettingsPage = () => {
   const navigate = useNavigate();
@@ -59,9 +60,11 @@ const AccountSettingsPage = () => {
       <div>
         <h2 className="text-lg font-bold text-[var(--text-primary)]">Settings</h2>
         <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Manage your password and active sessions.
+          Manage your subscription, password, and active sessions.
         </p>
       </div>
+
+      <BillingSettingsCard />
 
       <motion.section
         initial={{ opacity: 0, y: 8 }}

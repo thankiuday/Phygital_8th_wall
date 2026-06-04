@@ -113,6 +113,42 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+
+    // Stripe Billing (Phygital QR subscription)
+    stripeCustomerId: {
+      type: String,
+      default: null,
+      index: true,
+      sparse: true,
+    },
+    subscriptionId: {
+      type: String,
+      default: null,
+      sparse: true,
+    },
+    subscriptionStatus: {
+      type: String,
+      default: null,
+    },
+    plan: {
+      type: String,
+      enum: ['free', 'phygital_qr', 'enterprise'],
+      default: 'free',
+      index: true,
+    },
+    subscriptionPriceId: {
+      type: String,
+      default: null,
+    },
+    promotionCodeUsed: {
+      type: String,
+      default: null,
+      maxlength: 64,
+    },
+    currentPeriodEnd: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

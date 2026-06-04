@@ -8,10 +8,18 @@ const Coupon = require('../models/Coupon');
 const User = require('../models/User');
 const { success } = require('../utils/apiResponse');
 const { AppError } = require('../middleware/errorHandler');
+const { PHYGITALIZE_CODE_PREFIX } = require('../services/billingWebhookService');
 
 exports.redeemCoupon = async (req, res) => {
   const { code } = req.body;
   const normalized = code.trim().toUpperCase();
+
+  if (PHYGITALIZE_CODE_PREFIX.test(normalized)) {
+    throw new AppError(
+      `${normalized} is a subscription discount code. Enter it on the Stripe payment page when you subscribe to Phygital QR (Pricing → Start subscription).`,
+      400
+    );
+  }
 
   const coupon = await Coupon.findOne({ code: normalized, isActive: true });
   if (!coupon) throw new AppError('Invalid or inactive coupon code', 404);

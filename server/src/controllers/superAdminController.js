@@ -12,6 +12,7 @@ const ScanEvent = require('../models/ScanEvent');
 const LinkClickEvent = require('../models/LinkClickEvent');
 const VideoPlayEvent = require('../models/VideoPlayEvent');
 const Coupon = require('../models/Coupon');
+const { PHYGITALIZE_CODE_PREFIX } = require('../services/billingWebhookService');
 const { success, created } = require('../utils/apiResponse');
 const { AppError } = require('../middleware/errorHandler');
 
@@ -460,6 +461,12 @@ exports.createCoupon = async (req, res) => {
   const { code, description, benefit, maxUses, expiresAt } = req.body;
 
   const normalized = code.trim().toUpperCase();
+  if (PHYGITALIZE_CODE_PREFIX.test(normalized)) {
+    throw new AppError(
+      'PHYGITALIZE codes are managed in Stripe for paid subscriptions, not admin coupons',
+      400
+    );
+  }
   const exists = await Coupon.findOne({ code: normalized });
   if (exists) throw new AppError('Coupon code already exists', 409);
 

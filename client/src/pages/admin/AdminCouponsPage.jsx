@@ -97,7 +97,8 @@ const AdminCouponsPage = () => {
         <div>
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">Coupons</h1>
           <p className="mt-1 text-sm text-[var(--text-muted)]">
-            Create and manage redemption codes
+            Partner codes for 100% free access. Do not use PHYGITALIZE10–70 here — those are Stripe
+            subscription discounts at checkout.
           </p>
         </div>
         <button

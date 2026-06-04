@@ -18,6 +18,15 @@ services:
       # Used in hub/AR media proxy URLs when enriching S3 assets
       - key: API_PUBLIC_URL
         value: https://phygital8thwall-api.onrender.com
+      # Stripe Billing (set in Render dashboard; see docs/stripe-billing.md)
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_PHYGITAL_QR_MONTHLY
+        sync: false
+      - key: STRIPE_PRICE_PHYGITAL_QR_YEARLY
+        sync: false
     healthCheckPath: /health
 
   # ── Frontend Static Site ───────────────────────────────────────
@@ -32,6 +41,8 @@ services:
         value: https://phygital8thwall-api.onrender.com/api
       - key: VITE_APP_URL
         value: https://phygital8thwall-client.onrender.com
+      - key: VITE_STRIPE_PUBLISHABLE_KEY
+        sync: false
     routes:
       - type: rewrite
         source: /*

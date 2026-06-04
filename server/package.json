@@ -12,15 +12,16 @@
     "geo-smoke": "node scripts/geoExtractSmoke.js",
     "backfill-handles": "node scripts/backfillUserHandles.js",
     "backfill-campaign-vanity": "node scripts/backfillCampaignVanity.js",
+    "stripe-setup": "node scripts/stripe-setup.js",
     "lint": "eslint . --ext .js"
   },
   "engines": {
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "bcryptjs": "^2.4.3",
     "@aws-sdk/client-s3": "^3.758.0",
     "@aws-sdk/s3-request-presigner": "^3.758.0",
+    "bcryptjs": "^2.4.3",
     "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -42,6 +43,7 @@
     "nanoid": "^5.1.9",
     "nodemailer": "^8.0.5",
     "qrcode": "^1.5.4",
+    "stripe": "^22.2.0",
     "winston": "^3.19.0",
     "winston-daily-rotate-file": "^5.0.0",
     "xss": "^1.0.15",

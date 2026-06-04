@@ -117,6 +117,7 @@ const globalLimiter = rateLimit({
     process.env.NODE_ENV !== 'production' ||
     req.method === 'OPTIONS' ||
     req.path === '/health' ||
+    req.path === '/api/billing/webhook' ||
     req.path.startsWith('/r/'),
 });
 app.use(globalLimiter);
@@ -124,7 +125,17 @@ app.use(globalLimiter);
 /* ─────────────────────────────────────────
    HTTP Parameter Pollution
    ───────────────────────────────────────── */
-app.use(hpp({ whitelist: ['status', 'page', 'limit', 'period', 'role'] }));
+app.use(hpp({ whitelist: ['status', 'page', 'limit', 'period', 'role', 'billingCycle'] }));
+
+/* ─────────────────────────────────────────
+   Stripe webhook — raw body (must be before express.json)
+   ───────────────────────────────────────── */
+const { handleWebhook: handleStripeWebhook } = require('./src/controllers/billingController');
+app.post(
+  '/api/billing/webhook',
+  express.raw({ type: 'application/json' }),
+  handleStripeWebhook
+);
 
 /* ─────────────────────────────────────────
    Body Parsers
@@ -251,6 +262,7 @@ app.use('/api/public',    require('./src/routes/publicRoutes'));
 app.use('/api/analytics', require('./src/routes/analyticsRoutes'));
 app.use('/api/admin',     require('./src/routes/adminRoutes'));
 app.use('/api/coupons',   require('./src/routes/couponRoutes'));
+app.use('/api/billing',   require('./src/routes/billingRoutes'));
 app.use('/api/ar-service-requests', require('./src/routes/arServiceRequestRoutes'));
 app.use('/api/notifications', require('./src/routes/notificationRoutes'));
 
