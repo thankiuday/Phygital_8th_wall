@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Bootstrap Stripe test catalog: Phygital QR product, prices, PHYGITALIZE10–70 coupons.
+ * Bootstrap Stripe catalog: Phygital QR product, prices, PHYGITALIZE10–70, 99, 100 coupons.
  *
  * Usage (from server/):
  *   node scripts/stripe-setup.js
@@ -16,7 +16,7 @@ const Stripe = require('stripe');
 const PRODUCT_NAME = 'Phygital QR';
 const MONTHLY_CENTS = 1499;
 const YEARLY_CENTS = 14900;
-const DISCOUNT_PERCENTS = [10, 20, 30, 40, 50, 60, 70];
+const DISCOUNT_PERCENTS = [10, 20, 30, 40, 50, 60, 70, 99, 100];
 
 const main = async () => {
   const key = (process.env.STRIPE_SECRET_KEY || '').trim();

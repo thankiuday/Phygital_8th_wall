@@ -8,7 +8,7 @@ From `server/` with `STRIPE_SECRET_KEY` in `.env`:
 npm run stripe-setup
 ```
 
-This creates (or reuses) the **Phygital QR** product, **$14.99/mo** and **$149/yr** prices, and promotion codes **PHYGITALIZE10** through **PHYGITALIZE70** (10–70% off, repeating 12 months, product-scoped).
+This creates (or reuses) the **Phygital QR** product, **$14.99/mo** and **$149/yr** prices, and promotion codes **PHYGITALIZE10** through **PHYGITALIZE70**, plus **PHYGITALIZE99** and **PHYGITALIZE100** (repeating 12 months, product-scoped).
 
 Copy the printed `STRIPE_PRODUCT_*` and `STRIPE_PRICE_*` lines into `server/.env`.
 
@@ -50,7 +50,7 @@ In [Stripe Dashboard → Webhooks](https://dashboard.stripe.com/webhooks), add:
 | System | Codes | Where used |
 |--------|-------|------------|
 | MongoDB admin coupons | Created in Admin → Coupons | Profile → Coupon & access (100% free) |
-| Stripe promotion codes | PHYGITALIZE10–70 | Stripe Checkout promo field when subscribing |
+| Stripe promotion codes | PHYGITALIZE10–70, 99, 100 | Stripe Checkout promo field when subscribing |
 
 Do not create `PHYGITALIZE*` codes in the admin coupon UI.
 

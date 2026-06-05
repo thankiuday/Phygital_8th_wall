@@ -279,7 +279,7 @@ const ProfilePage = () => {
               Partner or admin codes unlock full platform access here. Subscription discount codes
               {' '}
               <span className="font-mono">PHYGITALIZE10</span>–
-              <span className="font-mono">70</span>
+              <span className="font-mono">100</span>
               {' '}
               are entered on the Stripe payment page when you subscribe from
               {' '}

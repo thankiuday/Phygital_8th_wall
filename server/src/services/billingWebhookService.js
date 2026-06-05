@@ -4,7 +4,7 @@ const User = require('../models/User');
 const { getStripe } = require('../config/stripe');
 const logger = require('../config/logger');
 
-const PHYGITALIZE_CODE_PREFIX = /^PHYGITALIZE\d{2}$/i;
+const PHYGITALIZE_CODE_PREFIX = /^PHYGITALIZE\d{2,3}$/i;
 
 const syncUserFromSubscription = async (subscription, extra = {}) => {
   const stripe = getStripe();

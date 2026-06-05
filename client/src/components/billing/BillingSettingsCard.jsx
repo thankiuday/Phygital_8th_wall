@@ -127,7 +127,9 @@ const BillingSettingsCard = () => {
 
           <p className="text-xs text-[var(--text-muted)]">
             Discount codes <span className="font-mono">PHYGITALIZE10</span>–
-            <span className="font-mono">70</span> are entered on the Stripe payment page (not in Profile coupons).
+            <span className="font-mono">100</span> (e.g. <span className="font-mono">99</span>,{' '}
+            <span className="font-mono">100</span>) are entered on the Stripe payment page (not in
+            Profile coupons).
           </p>
 
           {!status?.billingConfigured && (
