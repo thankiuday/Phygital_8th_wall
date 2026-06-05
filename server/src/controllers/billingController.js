@@ -9,6 +9,10 @@ const {
   processStripeWebhookEvent,
   syncUserFromSubscription,
 } = require('../services/billingWebhookService');
+const {
+  findActiveSubscriptionForCustomer,
+  retrieveSubscriptionForSync,
+} = require('../utils/stripeSubscription');
 const logger = require('../config/logger');
 
 const clientBaseUrl = () => {
@@ -118,13 +122,20 @@ exports.getBillingStatus = async (req, res) => {
   if (!user) throw new AppError('User not found', 404);
 
   const stripe = getStripe();
-  if (stripe && user.subscriptionId) {
+  if (stripe) {
     try {
-      const subscription = await stripe.subscriptions.retrieve(user.subscriptionId, {
-        expand: ['items.data.price'],
-      });
-      const synced = await syncUserFromSubscription(subscription, { userId: user._id.toString() });
-      if (synced) user = synced;
+      let subscription = null;
+      if (user.subscriptionId) {
+        subscription = await retrieveSubscriptionForSync(stripe, user.subscriptionId);
+      } else if (user.stripeCustomerId) {
+        subscription = await findActiveSubscriptionForCustomer(stripe, user.stripeCustomerId);
+      }
+      if (subscription) {
+        const synced = await syncUserFromSubscription(subscription, {
+          userId: user._id.toString(),
+        });
+        if (synced) user = synced;
+      }
     } catch (err) {
       logger.warn('billing status sync failed for user %s: %s', user._id, err.message);
     }

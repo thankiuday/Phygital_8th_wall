@@ -5,6 +5,10 @@ import { CreditCard, ExternalLink, Loader2 } from 'lucide-react';
 import useAuthStore from '../../store/useAuthStore';
 import { billingService } from '../../services/billingService';
 import SubscriptionStatusPanel from './SubscriptionStatusPanel';
+import {
+  hasActivePhygitalAccess,
+  subscriptionPatchFromBilling,
+} from '../../utils/subscriptionDisplay';
 
 const PLAN_LABELS = {
   free: 'QR (Free)',
@@ -16,6 +20,7 @@ const BillingSettingsCard = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const user = useAuthStore((s) => s.user);
   const refreshUser = useAuthStore((s) => s.refreshUser);
+  const updateUser = useAuthStore((s) => s.updateUser);
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [portalLoading, setPortalLoading] = useState(false);
@@ -32,6 +37,8 @@ const BillingSettingsCard = () => {
     try {
       const data = await billingService.getStatus();
       setStatus(data);
+      const patch = subscriptionPatchFromBilling(data);
+      if (patch) updateUser(patch);
       return data;
     } catch {
       setStatus({ billingConfigured: false });
@@ -44,9 +51,15 @@ const BillingSettingsCard = () => {
       showToast('Phygital QR is now active. You can create Phygital QR campaigns.');
       searchParams.delete('billing');
       setSearchParams(searchParams, { replace: true });
-      refreshUser()
-        .then(() => loadStatus())
-        .catch(() => {});
+      (async () => {
+        try {
+          await loadStatus();
+          await refreshUser();
+          await loadStatus();
+        } catch {
+          /* non-fatal */
+        }
+      })();
     }
   }, [searchParams, setSearchParams, refreshUser]);
 
@@ -88,9 +101,9 @@ const BillingSettingsCard = () => {
     }
   };
 
-  const effectivePlan = user?.effectivePlan || user?.plan || 'free';
-  const hasPaid = user?.hasPhygitalQrAccess || user?.hasFullAccess;
-  const billingView = { ...user, ...status };
+  const effectivePlan =
+    status?.effectivePlan || user?.effectivePlan || user?.plan || 'free';
+  const hasPaid = hasActivePhygitalAccess(user, status);
 
   return (
     <motion.section
@@ -166,7 +179,7 @@ const BillingSettingsCard = () => {
                   </button>
                 </>
               )}
-              {user?.stripeCustomerId && (
+              {hasPaid && (user?.stripeCustomerId || status?.stripeCustomerId) && (
                 <button
                   type="button"
                   disabled={portalLoading}

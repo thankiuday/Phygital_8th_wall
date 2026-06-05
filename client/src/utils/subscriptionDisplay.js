@@ -40,3 +40,37 @@ export const billingCycleLabel = (cycle) => {
   if (cycle === 'monthly') return 'Monthly';
   return null;
 };
+
+const SUBSCRIPTION_USER_FIELDS = [
+  'plan',
+  'effectivePlan',
+  'hasPhygitalQrAccess',
+  'subscriptionStatus',
+  'subscriptionPriceId',
+  'promotionCodeUsed',
+  'currentPeriodStart',
+  'currentPeriodEnd',
+  'billingCycle',
+  'billingAmountCents',
+  'billingCurrency',
+  'billingPriceLabel',
+  'isSubscriptionActive',
+  'stripeCustomerId',
+];
+
+export const subscriptionPatchFromBilling = (billing) => {
+  if (!billing) return null;
+  const patch = {};
+  SUBSCRIPTION_USER_FIELDS.forEach((key) => {
+    if (billing[key] !== undefined) patch[key] = billing[key];
+  });
+  return Object.keys(patch).length ? patch : null;
+};
+
+export const hasActivePhygitalAccess = (user, billing) =>
+  !!(
+    user?.hasPhygitalQrAccess ||
+    user?.hasFullAccess ||
+    billing?.hasPhygitalQrAccess ||
+    billing?.isSubscriptionActive
+  );

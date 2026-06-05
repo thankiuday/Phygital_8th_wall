@@ -28,6 +28,8 @@ import {
 } from 'recharts';
 import useAuthStore from '../../store/useAuthStore';
 import SubscriptionStatusPanel from '../../components/billing/SubscriptionStatusPanel';
+import useBillingSync from '../../hooks/useBillingSync';
+import { hasActivePhygitalAccess } from '../../utils/subscriptionDisplay';
 import useDashboardStore from '../../store/useDashboardStore';
 import useIsMobile from '../../hooks/useIsMobile';
 import Icon3D, { ICON3D_PRESETS } from '../../components/ui/Icon3D';
@@ -103,6 +105,7 @@ const ChartTooltip = ({ active, payload, label }) => {
 /* ── Dashboard Page ──────────────────────────────────────────────── */
 const DashboardPage = () => {
   const { user, pendingWelcomeNotification, markWelcomeNotificationSeen } = useAuthStore();
+  const { syncBillingToUser } = useBillingSync();
   const { stats, recentCampaigns, scanTrend, isLoading, fetchStats } = useDashboardStore();
   const isMobile = useIsMobile();
   const [welcomeOpen, setWelcomeOpen] = useState(false);
@@ -114,6 +117,7 @@ const DashboardPage = () => {
 
   useEffect(() => {
     fetchStats();
+    syncBillingToUser();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -202,7 +206,7 @@ const DashboardPage = () => {
         </div>
       </motion.div>
 
-      {user?.hasPhygitalQrAccess ? (
+      {hasActivePhygitalAccess(user) ? (
         <SubscriptionStatusPanel user={user} />
       ) : (
         <motion.div

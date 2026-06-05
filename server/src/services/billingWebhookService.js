@@ -3,6 +3,11 @@
 const User = require('../models/User');
 const { getStripe } = require('../config/stripe');
 const logger = require('../config/logger');
+const {
+  periodDatesFromSubscription,
+  priceIdFromSubscription,
+  retrieveSubscriptionForSync,
+} = require('../utils/stripeSubscription');
 
 const PHYGITALIZE_CODE_PREFIX = /^PHYGITALIZE\d{2,3}$/i;
 
@@ -32,7 +37,8 @@ const syncUserFromSubscription = async (subscription, extra = {}) => {
   }
 
   const status = subscription.status;
-  const priceId = subscription.items?.data?.[0]?.price?.id || null;
+  const priceId = priceIdFromSubscription(subscription);
+  const { currentPeriodStart, currentPeriodEnd } = periodDatesFromSubscription(subscription);
   const isPaidActive = status === 'active' || status === 'trialing';
 
   const update = {
@@ -43,12 +49,8 @@ const syncUserFromSubscription = async (subscription, extra = {}) => {
     subscriptionId: subscription.id,
     subscriptionStatus: status,
     subscriptionPriceId: priceId,
-    currentPeriodStart: subscription.current_period_start
-      ? new Date(subscription.current_period_start * 1000)
-      : null,
-    currentPeriodEnd: subscription.current_period_end
-      ? new Date(subscription.current_period_end * 1000)
-      : null,
+    currentPeriodStart,
+    currentPeriodEnd,
   };
 
   if (extra.promotionCodeUsed) {
@@ -113,9 +115,7 @@ const handleCheckoutSessionCompleted = async (session) => {
         ? session.subscription
         : session.subscription.id;
     const promotionCodeUsed = await promotionCodeFromSubscription(subId);
-    const subscription = await stripe.subscriptions.retrieve(subId, {
-      expand: ['items.data.price'],
-    });
+    const subscription = await retrieveSubscriptionForSync(stripe, subId);
     if (!subscription.metadata?.userId) {
       await stripe.subscriptions.update(subId, {
         metadata: { userId: user._id.toString() },
@@ -130,7 +130,11 @@ const handleCheckoutSessionCompleted = async (session) => {
 };
 
 const handleSubscriptionEvent = async (subscription) => {
-  await syncUserFromSubscription(subscription);
+  const stripe = getStripe();
+  if (!stripe) return;
+  const full = await retrieveSubscriptionForSync(stripe, subscription);
+  if (!full) return;
+  await syncUserFromSubscription(full);
 };
 
 const handleInvoicePaymentFailed = async (invoice) => {
@@ -143,7 +147,8 @@ const handleInvoicePaymentFailed = async (invoice) => {
   const stripe = getStripe();
   if (!stripe) return;
 
-  const subscription = await stripe.subscriptions.retrieve(subId);
+  const subscription = await retrieveSubscriptionForSync(stripe, subId);
+  if (!subscription) return;
   await syncUserFromSubscription(subscription);
 };
 
@@ -160,8 +165,8 @@ const processStripeWebhookEvent = async (event) => {
     case 'invoice.paid':
       if (event.data.object?.subscription) {
         const stripe = getStripe();
-        const sub = await stripe.subscriptions.retrieve(event.data.object.subscription);
-        await syncUserFromSubscription(sub);
+        const sub = await retrieveSubscriptionForSync(stripe, event.data.object.subscription);
+        if (sub) await syncUserFromSubscription(sub);
       }
       break;
     case 'invoice.payment_failed':

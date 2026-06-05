@@ -11,11 +11,12 @@ import {
  */
 const SubscriptionStatusPanel = ({ user, billing = null, className = '' }) => {
   const merged = { ...user, ...billing };
-  const hasAccess = merged?.hasPhygitalQrAccess || merged?.hasFullAccess;
   const isPaidSubscription =
+    merged?.hasPhygitalQrAccess ||
     merged?.isSubscriptionActive ||
     (merged?.plan === 'phygital_qr' &&
       (merged?.subscriptionStatus === 'active' || merged?.subscriptionStatus === 'trialing'));
+  const hasAccess = isPaidSubscription || merged?.hasFullAccess;
 
   if (!hasAccess) return null;
 
