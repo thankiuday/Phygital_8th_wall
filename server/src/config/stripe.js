@@ -28,8 +28,25 @@ const getPhygitalQrPriceId = (billingCycle) => {
   return (process.env.STRIPE_PRICE_PHYGITAL_QR_MONTHLY || '').trim();
 };
 
+const PHYGITAL_QR_PRICING = {
+  monthly: { cents: 1499, currency: 'usd', label: '$14.99/mo' },
+  yearly: { cents: 14900, currency: 'usd', label: '$149/yr' },
+};
+
+const getBillingCycleFromPriceId = (priceId) => {
+  const id = (priceId || '').trim();
+  if (!id) return null;
+  const yearly = (process.env.STRIPE_PRICE_PHYGITAL_QR_YEARLY || '').trim();
+  const monthly = (process.env.STRIPE_PRICE_PHYGITAL_QR_MONTHLY || '').trim();
+  if (yearly && id === yearly) return 'yearly';
+  if (monthly && id === monthly) return 'monthly';
+  return null;
+};
+
 module.exports = {
   getStripe,
   isStripeConfigured,
   getPhygitalQrPriceId,
+  PHYGITAL_QR_PRICING,
+  getBillingCycleFromPriceId,
 };

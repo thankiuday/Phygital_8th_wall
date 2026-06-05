@@ -199,6 +199,7 @@ app.get('/cors-debug', (req, res) => {
    API Routes
    ───────────────────────────────────────── */
 const { protect } = require('./src/middleware/auth');
+const requirePhygitalQrAccess = require('./src/middleware/requirePhygitalQrAccess');
 const { validate } = require('./src/middleware/validate');
 const {
   createSingleLinkOnlySchema,
@@ -237,6 +238,7 @@ app.post(
 app.post(
   '/api/campaigns/links-video',
   protect,
+  requirePhygitalQrAccess,
   validate(createLinksVideoOnlySchema),
   createLinksVideoCampaign
 );
@@ -244,6 +246,7 @@ app.post(
 app.post(
   '/api/campaigns/links-doc-video',
   protect,
+  requirePhygitalQrAccess,
   validate(createLinksDocVideoOnlySchema),
   createLinksDocVideoCampaign
 );

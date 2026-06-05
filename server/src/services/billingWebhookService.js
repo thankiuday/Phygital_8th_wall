@@ -43,6 +43,9 @@ const syncUserFromSubscription = async (subscription, extra = {}) => {
     subscriptionId: subscription.id,
     subscriptionStatus: status,
     subscriptionPriceId: priceId,
+    currentPeriodStart: subscription.current_period_start
+      ? new Date(subscription.current_period_start * 1000)
+      : null,
     currentPeriodEnd: subscription.current_period_end
       ? new Date(subscription.current_period_end * 1000)
       : null,

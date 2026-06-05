@@ -1,5 +1,7 @@
 'use strict';
 
+const { getBillingCycleFromPriceId, PHYGITAL_QR_PRICING } = require('../config/stripe');
+
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing']);
 
 /**
@@ -29,16 +31,30 @@ const getEffectivePlan = (user) => {
   return user.plan || 'free';
 };
 
-const subscriptionFieldsForClient = (user) => ({
-  plan: user.plan || 'free',
-  effectivePlan: getEffectivePlan(user),
-  hasPhygitalQrAccess: hasPhygitalQrAccess(user),
-  subscriptionStatus: user.subscriptionStatus || null,
-  subscriptionPriceId: user.subscriptionPriceId || null,
-  promotionCodeUsed: user.promotionCodeUsed || null,
-  currentPeriodEnd: user.currentPeriodEnd || null,
-  stripeCustomerId: user.stripeCustomerId ? true : false,
-});
+const subscriptionFieldsForClient = (user) => {
+  const billingCycle = getBillingCycleFromPriceId(user.subscriptionPriceId);
+  const pricing = billingCycle ? PHYGITAL_QR_PRICING[billingCycle] : null;
+  const isSubscriptionActive =
+    user.plan === 'phygital_qr' &&
+    ACTIVE_SUBSCRIPTION_STATUSES.has(user.subscriptionStatus);
+
+  return {
+    plan: user.plan || 'free',
+    effectivePlan: getEffectivePlan(user),
+    hasPhygitalQrAccess: hasPhygitalQrAccess(user),
+    subscriptionStatus: user.subscriptionStatus || null,
+    subscriptionPriceId: user.subscriptionPriceId || null,
+    promotionCodeUsed: user.promotionCodeUsed || null,
+    currentPeriodStart: user.currentPeriodStart || null,
+    currentPeriodEnd: user.currentPeriodEnd || null,
+    billingCycle,
+    billingAmountCents: pricing?.cents ?? null,
+    billingCurrency: pricing?.currency ?? 'usd',
+    billingPriceLabel: pricing?.label ?? null,
+    isSubscriptionActive,
+    stripeCustomerId: user.stripeCustomerId ? true : false,
+  };
+};
 
 module.exports = {
   ACTIVE_SUBSCRIPTION_STATUSES,

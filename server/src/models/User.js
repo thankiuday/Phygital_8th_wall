@@ -145,6 +145,10 @@ const userSchema = new mongoose.Schema(
       default: null,
       maxlength: 64,
     },
+    currentPeriodStart: {
+      type: Date,
+      default: null,
+    },
     currentPeriodEnd: {
       type: Date,
       default: null,

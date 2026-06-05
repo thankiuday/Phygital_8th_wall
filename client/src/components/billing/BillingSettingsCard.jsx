@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { CreditCard, ExternalLink, Loader2 } from 'lucide-react';
 import useAuthStore from '../../store/useAuthStore';
 import { billingService } from '../../services/billingService';
+import SubscriptionStatusPanel from './SubscriptionStatusPanel';
 
 const PLAN_LABELS = {
   free: 'QR (Free)',
@@ -24,32 +25,42 @@ const BillingSettingsCard = () => {
 
   const showToast = (msg) => {
     setToast(msg);
-    setTimeout(() => setToast(''), 4000);
+    setTimeout(() => setToast(''), 5000);
+  };
+
+  const loadStatus = async () => {
+    try {
+      const data = await billingService.getStatus();
+      setStatus(data);
+      return data;
+    } catch {
+      setStatus({ billingConfigured: false });
+      return null;
+    }
   };
 
   useEffect(() => {
     if (searchParams.get('billing') === 'success') {
-      showToast('Subscription updated. Thank you!');
+      showToast('Phygital QR is now active. You can create Phygital QR campaigns.');
       searchParams.delete('billing');
       setSearchParams(searchParams, { replace: true });
-      refreshUser().catch(() => {});
+      refreshUser()
+        .then(() => loadStatus())
+        .catch(() => {});
     }
   }, [searchParams, setSearchParams, refreshUser]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const data = await billingService.getStatus();
-        if (!cancelled) setStatus(data);
-      } catch {
-        if (!cancelled) setStatus({ billingConfigured: false });
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      const data = await loadStatus();
+      if (!cancelled && data) setStatus(data);
+      if (!cancelled) setLoading(false);
     })();
-    return () => { cancelled = true; };
-  }, [user?.plan, user?.subscriptionStatus]);
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.plan, user?.subscriptionStatus, user?.currentPeriodEnd]);
 
   const handlePortal = async () => {
     setErr('');
@@ -79,6 +90,7 @@ const BillingSettingsCard = () => {
 
   const effectivePlan = user?.effectivePlan || user?.plan || 'free';
   const hasPaid = user?.hasPhygitalQrAccess || user?.hasFullAccess;
+  const billingView = { ...user, ...status };
 
   return (
     <motion.section
@@ -104,33 +116,26 @@ const BillingSettingsCard = () => {
         </div>
       ) : (
         <>
-          <p className="text-sm text-[var(--text-secondary)]">
-            Current plan:{' '}
-            <span className="font-semibold text-[var(--text-primary)]">
-              {PLAN_LABELS[effectivePlan] || effectivePlan}
-            </span>
-            {user?.hasFullAccess && (
-              <span className="ml-1 text-[var(--text-muted)]">(partner / admin access)</span>
-            )}
-            {user?.subscriptionStatus && !user?.hasFullAccess && (
-              <span className="ml-1 text-[var(--text-muted)]">
-                — {user.subscriptionStatus}
+          {hasPaid ? (
+            <SubscriptionStatusPanel user={user} billing={status} />
+          ) : (
+            <p className="text-sm text-[var(--text-secondary)]">
+              Current plan:{' '}
+              <span className="font-semibold text-[var(--text-primary)]">
+                {PLAN_LABELS[effectivePlan] || effectivePlan}
               </span>
-            )}
-          </p>
-
-          {user?.promotionCodeUsed && (
-            <p className="text-xs text-[var(--text-muted)]">
-              Promo used at checkout: <span className="font-mono">{user.promotionCodeUsed}</span>
+              . Subscribe to Phygital QR to create Links + Video and Links, Doc &amp; Video
+              campaigns.
             </p>
           )}
 
-          <p className="text-xs text-[var(--text-muted)]">
-            Discount codes <span className="font-mono">PHYGITALIZE10</span>–
-            <span className="font-mono">100</span> (e.g. <span className="font-mono">99</span>,{' '}
-            <span className="font-mono">100</span>) are entered on the Stripe payment page (not in
-            Profile coupons).
-          </p>
+          {!hasPaid && (
+            <p className="text-xs text-[var(--text-muted)]">
+              Discount codes <span className="font-mono">PHYGITALIZE10</span>–
+              <span className="font-mono">100</span> are entered on the Stripe payment page (not in
+              Profile coupons).
+            </p>
+          )}
 
           {!status?.billingConfigured && (
             <p className="text-sm text-amber-400/90">
@@ -149,7 +154,7 @@ const BillingSettingsCard = () => {
                     className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-500 disabled:opacity-60"
                   >
                     {checkoutLoading ? <Loader2 size={14} className="animate-spin" /> : null}
-                    Subscribe monthly
+                    Subscribe — $14.99/mo
                   </button>
                   <button
                     type="button"
@@ -157,7 +162,7 @@ const BillingSettingsCard = () => {
                     onClick={() => handleUpgrade('yearly')}
                     className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-4 py-2 text-sm font-semibold text-[var(--text-primary)] hover:border-brand-500/50 disabled:opacity-60"
                   >
-                    Subscribe yearly
+                    Subscribe — $149/yr
                   </button>
                 </>
               )}

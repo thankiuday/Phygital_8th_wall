@@ -27,6 +27,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import useAuthStore from '../../store/useAuthStore';
+import SubscriptionStatusPanel from '../../components/billing/SubscriptionStatusPanel';
 import useDashboardStore from '../../store/useDashboardStore';
 import useIsMobile from '../../hooks/useIsMobile';
 import Icon3D, { ICON3D_PRESETS } from '../../components/ui/Icon3D';
@@ -200,6 +201,26 @@ const DashboardPage = () => {
           <Icon3D icon={Sparkles} size={30} className="h-16 w-16" accent={ICON3D_PRESETS.rose} />
         </div>
       </motion.div>
+
+      {user?.hasPhygitalQrAccess ? (
+        <SubscriptionStatusPanel user={user} />
+      ) : (
+        <motion.div
+          {...fadeUp(0.05)}
+          className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-[var(--text-secondary)]"
+        >
+          <strong className="font-semibold text-[var(--text-primary)]">Phygital QR</strong> (Links +
+          Video, Links + Doc + Video) requires a subscription before you can publish.{' '}
+          <Link to="/pricing" className="font-semibold text-brand-400 hover:underline">
+            View plans
+          </Link>{' '}
+          or{' '}
+          <Link to="/dashboard/settings" className="font-semibold text-brand-400 hover:underline">
+            manage subscription
+          </Link>
+          .
+        </motion.div>
+      )}
 
       {welcomeOpen && (
         <motion.section

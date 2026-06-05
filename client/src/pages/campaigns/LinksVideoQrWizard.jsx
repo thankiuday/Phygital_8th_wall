@@ -10,6 +10,7 @@ import Step2DesignQr from './single-link/Step2DesignQr';
 import { slugifyCampaignNamePreview } from '../../utils/hubVanityPreview';
 import Step1LinksVideo from './links-video/Step1LinksVideo';
 import { resolveClientAppBase } from '../../utils/clientAppBase';
+import PhygitalQrSubscribeGate from '../../components/billing/PhygitalQrSubscribeGate';
 
 const STEPS = [
   { number: 1, shortLabel: 'Details', label: 'Enter Details' },
@@ -248,6 +249,7 @@ const LinksVideoQrWizard = () => {
   };
 
   return (
+    <PhygitalQrSubscribeGate enabled={isAuthenticated}>
     <div
       className={`mx-auto max-w-5xl min-w-0 overflow-x-hidden px-4 sm:px-6 ${isPublicRoute ? 'pt-[calc(var(--navbar-height)+1rem)] sm:pt-[calc(var(--navbar-height)+1.5rem)] pb-6' : ''}`}
     >
@@ -302,6 +304,7 @@ const LinksVideoQrWizard = () => {
         </AnimatePresence>
       </div>
     </div>
+    </PhygitalQrSubscribeGate>
   );
 };
 

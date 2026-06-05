@@ -11,6 +11,8 @@ import {
   User,
   Sparkles,
   ArrowRight,
+  CreditCard,
+  Lock,
 } from 'lucide-react';
 import Icon3D, { ICON3D_PRESETS } from '../../components/ui/Icon3D';
 import useAuthStore from '../../store/useAuthStore';
@@ -35,7 +37,7 @@ const buildSections = (basePath) => [
   {
     id: 'phygital-qr',
     title: 'Phygital QR',
-    subtitle: 'Bridge physical prints with rich digital experiences.',
+    subtitle: 'Requires Phygital QR subscription ($14.99/mo or $149/yr). Subscribe before creating.',
     icon: QrCode,
     cards: [
       {
@@ -123,22 +125,20 @@ const buildSections = (basePath) => [
 ];
 
 /* ── Single campaign-type card ───────────────────────────────────── */
-const TypeCard = ({ card, index }) => {
+const TypeCard = ({ card, index, requiresSubscription = false, hasSubscription = true }) => {
   const Icon = card.icon;
   const accent = ICON_ACCENTS[card.id] || ICON3D_PRESETS.brand;
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: 'easeOut', delay: index * 0.04 }}
-    >
-      <Link
-        to={card.to}
-        className="group glass-card relative flex h-full flex-col gap-3 p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-500/40 hover:shadow-glow"
-      >
+  const locked = requiresSubscription && !hasSubscription;
+  const inner = (
+    <>
         <div className="flex items-start justify-between gap-3">
           <Icon3D icon={Icon} accent={accent} size={20} className="h-11 w-11" />
-          {card.available ? (
+          {locked ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-400">
+              <Lock size={10} />
+              Subscribe
+            </span>
+          ) : card.available ? (
             <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-400">
               Available
             </span>
@@ -159,10 +159,30 @@ const TypeCard = ({ card, index }) => {
         </div>
 
         <div className="mt-auto flex items-center gap-1.5 pt-1 text-xs font-medium text-brand-400 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-          {card.available ? 'Start creating' : 'Preview'}
+          {locked ? 'Subscribe to unlock' : card.available ? 'Start creating' : 'Preview'}
           <ArrowRight size={12} className="transition-transform duration-200 group-hover:translate-x-0.5" />
         </div>
-      </Link>
+    </>
+  );
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: 'easeOut', delay: index * 0.04 }}
+    >
+      {locked ? (
+        <div className="glass-card relative flex h-full flex-col gap-3 p-5 opacity-95">
+          {inner}
+        </div>
+      ) : (
+        <Link
+          to={card.to}
+          className="group glass-card relative flex h-full flex-col gap-3 p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-500/40 hover:shadow-glow"
+        >
+          {inner}
+        </Link>
+      )}
     </motion.div>
   );
 };
@@ -180,11 +200,12 @@ const SectionHeader = ({ icon: Icon, title, subtitle, accent }) => (
 
 /* ── Main page ───────────────────────────────────────────────────── */
 const PhygitalizePickerPage = () => {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const location = useLocation();
   const qrBasePath = isAuthenticated ? '/dashboard/campaigns/new' : '/create';
   const sections = buildSections(qrBasePath);
   const isPublicRoute = !location.pathname.startsWith('/dashboard');
+  const hasPhygitalQrAccess = user?.hasPhygitalQrAccess || user?.hasFullAccess;
 
   return (
     <div
@@ -203,6 +224,17 @@ const PhygitalizePickerPage = () => {
       <p className="text-sm text-[var(--text-secondary)] sm:text-base">
         Pick the campaign type you want to launch. Every option is one scan away from real-world engagement.
       </p>
+      {isAuthenticated && !hasPhygitalQrAccess && (
+        <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-[var(--text-secondary)]">
+          <strong className="font-semibold text-[var(--text-primary)]">Phygital QR</strong> campaigns
+          require a subscription ($14.99/mo or $149/yr).{' '}
+          <Link to="/pricing" className="inline-flex items-center gap-1 font-semibold text-brand-400 hover:underline">
+            <CreditCard size={14} />
+            Subscribe first
+          </Link>
+          , then create Links + Video or Links, Doc &amp; Video QR.
+        </div>
+      )}
     </motion.div>
 
     {/* Sections */}
@@ -223,7 +255,13 @@ const PhygitalizePickerPage = () => {
           />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {section.cards.map((card, idx) => (
-              <TypeCard key={card.id} card={card} index={idx} />
+              <TypeCard
+                key={card.id}
+                card={card}
+                index={idx}
+                requiresSubscription={section.id === 'phygital-qr'}
+                hasSubscription={hasPhygitalQrAccess}
+              />
             ))}
           </div>
         </motion.section>
