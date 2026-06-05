@@ -27,6 +27,7 @@ const BillingSettingsCard = () => {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [toast, setToast] = useState('');
   const [err, setErr] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -85,6 +86,19 @@ const BillingSettingsCard = () => {
       setErr(error.response?.data?.message || error.message || 'Could not open billing portal');
     } finally {
       setPortalLoading(false);
+    }
+  };
+
+  const handleRefreshStatus = async () => {
+    setErr('');
+    setRefreshing(true);
+    try {
+      await refreshUser();
+      await loadStatus();
+    } catch (error) {
+      setErr(error.response?.data?.message || error.message || 'Could not refresh subscription');
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -157,7 +171,16 @@ const BillingSettingsCard = () => {
           )}
 
           {status?.billingConfigured && !user?.hasFullAccess && (
-            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <button
+                type="button"
+                disabled={refreshing || loading}
+                onClick={handleRefreshStatus}
+                className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-[var(--border-color)] px-4 py-2 text-sm font-semibold text-[var(--text-primary)] hover:border-brand-500/50 disabled:opacity-60"
+              >
+                {refreshing ? <Loader2 size={14} className="animate-spin" /> : null}
+                Refresh subscription status
+              </button>
               {!hasPaid && (
                 <>
                   <button

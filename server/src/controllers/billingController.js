@@ -5,14 +5,8 @@ const { AppError } = require('../middleware/errorHandler');
 const { success, created } = require('../utils/apiResponse');
 const { getStripe, isStripeConfigured, getPhygitalQrPriceId } = require('../config/stripe');
 const { subscriptionFieldsForClient, hasPhygitalQrAccess } = require('../utils/subscriptionAccess');
-const {
-  processStripeWebhookEvent,
-  syncUserFromSubscription,
-} = require('../services/billingWebhookService');
-const {
-  findActiveSubscriptionForCustomer,
-  retrieveSubscriptionForSync,
-} = require('../utils/stripeSubscription');
+const { processStripeWebhookEvent } = require('../services/billingWebhookService');
+const { reconcileUserBillingFromStripe } = require('../services/billingReconcileService');
 const logger = require('../config/logger');
 
 const clientBaseUrl = () => {
@@ -101,7 +95,9 @@ exports.createCheckoutSession = async (req, res) => {
  */
 exports.createPortalSession = async (req, res) => {
   const stripe = requireStripe();
-  const user = await User.findById(req.user._id);
+  let user = await User.findById(req.user._id);
+  if (!user) throw new AppError('User not found', 404);
+  user = await reconcileUserBillingFromStripe(stripe, user);
   if (!user?.stripeCustomerId) {
     throw new AppError('No billing account found. Subscribe to Phygital QR first.', 400);
   }
@@ -124,26 +120,18 @@ exports.getBillingStatus = async (req, res) => {
   const stripe = getStripe();
   if (stripe) {
     try {
-      let subscription = null;
-      if (user.subscriptionId) {
-        subscription = await retrieveSubscriptionForSync(stripe, user.subscriptionId);
-      } else if (user.stripeCustomerId) {
-        subscription = await findActiveSubscriptionForCustomer(stripe, user.stripeCustomerId);
-      }
-      if (subscription) {
-        const synced = await syncUserFromSubscription(subscription, {
-          userId: user._id.toString(),
-        });
-        if (synced) user = synced;
-      }
+      user = await reconcileUserBillingFromStripe(stripe, user);
     } catch (err) {
       logger.warn('billing status sync failed for user %s: %s', user._id, err.message);
     }
   }
 
+  const fields = subscriptionFieldsForClient(user);
   return success(res, {
     billingConfigured: isStripeConfigured(),
-    ...subscriptionFieldsForClient(user),
+    stripeMode: (process.env.STRIPE_SECRET_KEY || '').includes('_live_') ? 'live' : 'test',
+    reconciled: !!fields.hasPhygitalQrAccess,
+    ...fields,
   });
 };
 
