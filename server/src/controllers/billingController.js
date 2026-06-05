@@ -5,7 +5,10 @@ const { AppError } = require('../middleware/errorHandler');
 const { success, created } = require('../utils/apiResponse');
 const { getStripe, isStripeConfigured, getPhygitalQrPriceId } = require('../config/stripe');
 const { subscriptionFieldsForClient, hasPhygitalQrAccess } = require('../utils/subscriptionAccess');
-const { processStripeWebhookEvent } = require('../services/billingWebhookService');
+const {
+  processStripeWebhookEvent,
+  syncUserFromSubscription,
+} = require('../services/billingWebhookService');
 const logger = require('../config/logger');
 
 const clientBaseUrl = () => {
@@ -111,8 +114,21 @@ exports.createPortalSession = async (req, res) => {
  * GET /api/billing/status
  */
 exports.getBillingStatus = async (req, res) => {
-  const user = await User.findById(req.user._id);
+  let user = await User.findById(req.user._id);
   if (!user) throw new AppError('User not found', 404);
+
+  const stripe = getStripe();
+  if (stripe && user.subscriptionId) {
+    try {
+      const subscription = await stripe.subscriptions.retrieve(user.subscriptionId, {
+        expand: ['items.data.price'],
+      });
+      const synced = await syncUserFromSubscription(subscription, { userId: user._id.toString() });
+      if (synced) user = synced;
+    } catch (err) {
+      logger.warn('billing status sync failed for user %s: %s', user._id, err.message);
+    }
+  }
 
   return success(res, {
     billingConfigured: isStripeConfigured(),
