@@ -52,6 +52,7 @@ const subscriptionFieldsForClient = (user) => {
     billingCurrency: pricing?.currency ?? 'usd',
     billingPriceLabel: pricing?.label ?? null,
     isSubscriptionActive,
+    cancelAtPeriodEnd: !!user.subscriptionCancelAtPeriodEnd,
     stripeCustomerId: user.stripeCustomerId ? true : false,
   };
 };

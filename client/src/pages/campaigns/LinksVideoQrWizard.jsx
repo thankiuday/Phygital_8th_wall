@@ -249,7 +249,7 @@ const LinksVideoQrWizard = () => {
   };
 
   return (
-    <PhygitalQrSubscribeGate enabled={isAuthenticated}>
+    <PhygitalQrSubscribeGate enabled>
     <div
       className={`mx-auto max-w-5xl min-w-0 overflow-x-hidden px-4 sm:px-6 ${isPublicRoute ? 'pt-[calc(var(--navbar-height)+1rem)] sm:pt-[calc(var(--navbar-height)+1.5rem)] pb-6' : ''}`}
     >

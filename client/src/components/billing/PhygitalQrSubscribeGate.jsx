@@ -13,9 +13,13 @@ const PhygitalQrSubscribeGate = ({
   const user = useAuthStore((s) => s.user);
   const hasAccess = user?.hasPhygitalQrAccess || user?.hasFullAccess;
 
-  if (!enabled || !user || hasAccess) {
+  // When enabled, block Phygital QR wizard access unless the user has an active subscription.
+  // This applies to both logged-out and logged-in users.
+  if (!enabled || hasAccess) {
     return children;
   }
+
+  const isGuest = !user;
 
   return (
     <div className="mx-auto max-w-lg space-y-5 py-8 text-center">
@@ -25,15 +29,34 @@ const PhygitalQrSubscribeGate = ({
       <div className="space-y-2">
         <h2 className="text-xl font-bold text-[var(--text-primary)]">{title}</h2>
         <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-          Phygital QR campaigns (Links + Video and Links, Doc &amp; Video) require an active{' '}
-          <strong className="font-semibold text-[var(--text-primary)]">Phygital QR</strong>{' '}
-          subscription. Subscribe first, then return here to create your campaign.
+          {isGuest ? (
+            <>
+              Phygital QR campaigns (Links + Video and Links, Doc &amp; Video) require a{' '}
+              <strong className="font-semibold text-[var(--text-primary)]">Phygital QR</strong>{' '}
+              subscription. Sign up and subscribe first, then come back to create your campaign.
+            </>
+          ) : (
+            <>
+              Phygital QR campaigns (Links + Video and Links, Doc &amp; Video) require an active{' '}
+              <strong className="font-semibold text-[var(--text-primary)]">Phygital QR</strong>{' '}
+              subscription. Subscribe first, then return here to create your campaign.
+            </>
+          )}
         </p>
         <p className="text-xs text-[var(--text-muted)]">
           Dynamic QR and digital business cards remain available on the free plan.
         </p>
       </div>
       <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
+        {isGuest && (
+          <Link
+            to="/register?plan=phygital-qr&cycle=monthly"
+            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-500"
+          >
+            <CreditCard size={16} />
+            Create account &amp; subscribe
+          </Link>
+        )}
         <Link
           to="/pricing"
           className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-500"
@@ -41,12 +64,14 @@ const PhygitalQrSubscribeGate = ({
           <CreditCard size={16} />
           View plans &amp; subscribe
         </Link>
-        <Link
-          to="/dashboard/settings"
-          className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-[var(--border-color)] px-5 py-2.5 text-sm font-semibold text-[var(--text-primary)] hover:border-brand-500/50"
-        >
-          Subscription settings
-        </Link>
+        {!isGuest && (
+          <Link
+            to="/dashboard/settings"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-[var(--border-color)] px-5 py-2.5 text-sm font-semibold text-[var(--text-primary)] hover:border-brand-500/50"
+          >
+            Subscription settings
+          </Link>
+        )}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { CheckCircle2, Sparkles } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Sparkles } from 'lucide-react';
 import {
   billingCycleLabel,
   formatBillingDate,
@@ -44,18 +44,31 @@ const SubscriptionStatusPanel = ({ user, billing = null, className = '' }) => {
     merged?.billingPriceLabel ||
     formatMoneyFromCents(merged?.billingAmountCents, merged?.billingCurrency);
   const statusLabel = formatSubscriptionStatus(merged?.subscriptionStatus);
+  const cancelPending = !!merged?.cancelAtPeriodEnd;
+  const StatusIcon = cancelPending ? AlertTriangle : CheckCircle2;
 
   return (
     <div
-      className={`rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 ${className}`}
+      className={`rounded-xl border p-4 ${
+        cancelPending
+          ? 'border-amber-500/30 bg-amber-500/10'
+          : 'border-emerald-500/30 bg-emerald-500/10'
+      } ${className}`}
     >
       <div className="flex items-start gap-3">
-        <CheckCircle2 size={20} className="mt-0.5 shrink-0 text-emerald-400" />
+        <StatusIcon
+          size={20}
+          className={`mt-0.5 shrink-0 ${cancelPending ? 'text-amber-400' : 'text-emerald-400'}`}
+        />
         <div className="min-w-0 flex-1 space-y-3">
           <div>
-            <p className="font-semibold text-[var(--text-primary)]">Phygital QR activated</p>
+            <p className="font-semibold text-[var(--text-primary)]">
+              {cancelPending ? 'Phygital QR — cancellation scheduled' : 'Phygital QR activated'}
+            </p>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              You can create Links + Video and Links, Doc &amp; Video QR campaigns.
+              {cancelPending
+                ? 'Access continues until the end of your current billing period.'
+                : 'You can create Links + Video and Links, Doc & Video QR campaigns.'}
             </p>
           </div>
 
@@ -65,7 +78,9 @@ const SubscriptionStatusPanel = ({ user, billing = null, className = '' }) => {
                 Status
               </dt>
               <dd className="mt-0.5 font-medium text-[var(--text-primary)]">
-                {statusLabel || 'Active'}
+                {cancelPending
+                  ? `${statusLabel || 'Active'} (cancels at period end)`
+                  : statusLabel || 'Active'}
               </dd>
             </div>
             {cycle && amount && (
@@ -88,13 +103,24 @@ const SubscriptionStatusPanel = ({ user, billing = null, className = '' }) => {
             </div>
             <div>
               <dt className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
-                Renews / ends on
+                {merged?.cancelAtPeriodEnd ? 'Cancels on' : 'Renews on'}
               </dt>
               <dd className="mt-0.5 font-medium text-[var(--text-primary)]">
                 {formatBillingDate(merged?.currentPeriodEnd)}
               </dd>
             </div>
           </dl>
+
+          {merged?.cancelAtPeriodEnd && (
+            <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200/90">
+              Your subscription is scheduled to cancel. You keep Phygital QR access until{' '}
+              <strong className="font-semibold text-amber-100">
+                {formatBillingDate(merged?.currentPeriodEnd)}
+              </strong>
+              . After that, you cannot create new Phygital QR campaigns, but existing ones keep
+              working.
+            </p>
+          )}
 
           {merged?.promotionCodeUsed && (
             <p className="text-xs text-[var(--text-muted)]">

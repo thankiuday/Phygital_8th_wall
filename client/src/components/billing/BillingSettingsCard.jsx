@@ -74,7 +74,7 @@ const BillingSettingsCard = () => {
     return () => {
       cancelled = true;
     };
-  }, [user?.plan, user?.subscriptionStatus, user?.currentPeriodEnd]);
+  }, [user?.plan, user?.subscriptionStatus, user?.currentPeriodEnd, user?.cancelAtPeriodEnd]);
 
   const handlePortal = async () => {
     setErr('');

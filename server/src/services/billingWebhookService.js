@@ -51,6 +51,8 @@ const syncUserFromSubscription = async (subscription, extra = {}) => {
     subscriptionPriceId: priceId,
     currentPeriodStart,
     currentPeriodEnd,
+    subscriptionCancelAtPeriodEnd:
+      isPaidActive && !!subscription.cancel_at_period_end,
   };
 
   if (extra.promotionCodeUsed) {

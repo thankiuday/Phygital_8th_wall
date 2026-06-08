@@ -5,6 +5,8 @@ import { Helmet } from 'react-helmet-async';
 import { publicService } from '../services/publicService';
 import BusinessCardLivePreview from '../components/card/BusinessCardLivePreview';
 import BrandLockup from '../components/ui/BrandLockup';
+import PublicQuickLinksMenu from '../components/hub/PublicQuickLinksMenu';
+import PoweredByPhygitalFooter from '../components/hub/PoweredByPhygitalFooter';
 
 const visitorHashKey = 'card-visitor-hash';
 
@@ -117,6 +119,13 @@ const DigitalCardPublicPage = () => {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#1e293b,_#0f172a_45%,_#020617_100%)] px-3 py-6 sm:px-4 sm:py-10">
+
+      {/* ── Brand header ── */}
+      <div className="mx-auto mb-4 flex max-w-3xl items-center justify-between">
+        <BrandLockup variant="compact" className="[&_.brand-word]:brightness-110" />
+        <PublicQuickLinksMenu theme="dark" />
+      </div>
+
       <Helmet>
         <title>{cardContent?.fullName || campaignName} – Digital Business Card</title>
         <meta name="description" content={cardContent?.bio || campaignName} />
@@ -145,10 +154,7 @@ const DigitalCardPublicPage = () => {
             onAction={onAction}
           />
         </div>
-        <p className="mt-4 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-center text-[11px] text-slate-500">
-          <span>Powered by</span>
-          <BrandLockup variant="compact" className="gap-1 scale-[0.92] origin-center" />
-        </p>
+        <PoweredByPhygitalFooter theme="dark" />
       </div>
     </div>
   );

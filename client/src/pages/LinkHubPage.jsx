@@ -2,16 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   ExternalLink,
-  Phone,
-  MessageCircle,
-  AtSign,
-  Users,
-  Feather,
-  Briefcase,
-  Globe,
-  Music2,
-  Link2,
-  Mail,
   PauseCircle,
   FileText,
   FileSpreadsheet,
@@ -23,21 +13,11 @@ import {
 import publicApi from '../services/publicApi';
 import SEOHead from '../components/ui/SEOHead';
 import HubVideoPlayer from '../components/hub/HubVideoPlayer';
+import HubPageShell from '../components/hub/HubPageShell';
+import HubIntro from '../components/hub/HubIntro';
+import HubLinkButton from '../components/hub/HubLinkButton';
 import { resolvePlaybackMediaUrl } from '../utils/assetUrl';
 import { isArMediaType } from '../constants/arMediaProducts';
-
-const KIND_ICONS = {
-  contact: Phone,
-  whatsapp: MessageCircle,
-  email: Mail,
-  instagram: AtSign,
-  facebook: Users,
-  twitter: Feather,
-  linkedin: Briefcase,
-  website: Globe,
-  tiktok: Music2,
-  custom: Link2,
-};
 
 const HUB_TYPES = new Set([
   'multiple-links-qr',
@@ -78,6 +58,14 @@ const deviceTypeGuess = () => {
   if (/iPad|Tablet|Android(?!.*Mobile)/i.test(ua)) return 'tablet';
   return 'desktop';
 };
+
+const HubSectionLabel = ({ children }) => (
+  <p className="mb-3 inline-flex rounded-full border border-[var(--border-color)] bg-[var(--surface-2)] px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+    {children}
+  </p>
+);
+
+const SIMPLE_HUB_MAX_WIDTH = 'max-w-md md:max-w-lg lg:max-w-xl';
 
 /**
  * Public link-in-bio style page for multiple-links-qr campaigns.
@@ -302,49 +290,55 @@ const LinkHubPage = () => {
 
   if (phase === 'loading') {
     return (
-      <div className="min-h-screen bg-[var(--bg-primary)] px-4 py-10 text-[var(--text-primary)]">
-        <div className="mx-auto max-w-md">
-          <div className="mb-8 flex flex-col items-center gap-3">
-            <div className="h-7 w-48 animate-pulse rounded-lg bg-[var(--surface-2)]" />
-            <div className="h-4 w-32 animate-pulse rounded bg-[var(--surface-3)]" />
-          </div>
-          <ul className="flex min-h-[22rem] flex-col gap-3">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <li
-                key={i}
-                className="h-[4.25rem] animate-pulse rounded-2xl bg-[var(--surface-2)]"
-              />
-            ))}
-          </ul>
+      <HubPageShell maxWidth={SIMPLE_HUB_MAX_WIDTH} centerMain panel>
+        <div className="mb-8 flex flex-col items-center gap-3">
+          <div className="h-7 w-40 animate-pulse rounded-lg bg-[var(--surface-2)]" />
+          <div className="h-4 w-56 animate-pulse rounded bg-[var(--surface-3)]" />
         </div>
-      </div>
+        <ul className="flex w-full flex-col gap-3 max-md:glass-card max-md:p-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <li
+              key={i}
+              className="h-[3.25rem] animate-pulse rounded-2xl bg-[var(--surface-2)]"
+            />
+          ))}
+        </ul>
+      </HubPageShell>
     );
   }
 
   if (phase === 'error') {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 bg-[var(--bg-primary)] px-6 text-center">
-        <p className="text-[var(--text-primary)]">{error}</p>
-      </div>
+      <HubPageShell maxWidth={SIMPLE_HUB_MAX_WIDTH} centerMain panel>
+        <div className="text-center">
+          <p className="text-sm leading-relaxed text-[var(--text-secondary)]">{error}</p>
+        </div>
+      </HubPageShell>
     );
   }
 
   if (phase === 'paused' && meta) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--bg-primary)] px-6 py-12 text-center text-[var(--text-primary)]">
-        <SEOHead title={meta.campaignName ? `${meta.campaignName} — Paused` : 'Paused'} description="This link page is temporarily unavailable." />
-        <div className="mx-auto max-w-md">
+      <HubPageShell maxWidth={SIMPLE_HUB_MAX_WIDTH} centerMain panel>
+        <SEOHead title="Paused" description="This link page is temporarily unavailable." />
+        <div className="text-center">
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-500">
             <PauseCircle size={36} strokeWidth={1.75} aria-hidden />
           </div>
-          <h1 className="text-xl font-bold tracking-tight">
-            {meta.campaignName || 'Link page'}
-          </h1>
+          <h1 className="text-xl font-bold tracking-tight">Link page paused</h1>
           <p className="mt-4 text-sm leading-relaxed text-[var(--text-secondary)]">
             This link page is temporarily paused by the campaign owner. Check back later or contact them if you need access.
           </p>
         </div>
-      </div>
+      </HubPageShell>
+    );
+  }
+
+  if (!meta) {
+    return (
+      <HubPageShell maxWidth={SIMPLE_HUB_MAX_WIDTH} centerMain panel>
+        <p className="text-center text-sm text-[var(--text-secondary)]">Loading…</p>
+      </HubPageShell>
     );
   }
 
@@ -362,134 +356,137 @@ const LinkHubPage = () => {
     ? 'grid grid-cols-1 gap-4'
     : 'grid grid-cols-1 gap-4 md:grid-cols-2';
 
+  const shouldCenterMain =
+    !hasHeroVideo
+    && !isMultiAssetHub
+    && links.length <= 6
+    && videoItems.length === 0
+    && docItems.length === 0;
+
+  const maxWidth = (() => {
+    if (isMultiAssetHub) {
+      return videoItems.length > 1 ? 'max-w-3xl lg:max-w-4xl' : 'max-w-3xl lg:max-w-4xl';
+    }
+    if (hasHeroVideo) {
+      return 'max-w-md md:max-w-2xl lg:max-w-3xl';
+    }
+    if (shouldCenterMain) {
+      return SIMPLE_HUB_MAX_WIDTH;
+    }
+    return SIMPLE_HUB_MAX_WIDTH;
+  })();
+
+  const showLinksSectionLabel = isMultiAssetHub && (videoItems.length > 0 || docItems.length > 0);
+  const linksGridClass = links.length >= 4 ? 'md:grid md:grid-cols-2 md:gap-3' : '';
+
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
+    <HubPageShell
+      maxWidth={maxWidth}
+      centerMain={shouldCenterMain}
+      panel={shouldCenterMain}
+    >
       <SEOHead title={campaignName || 'Links'} description="Quick links" />
-      <div className={`mx-auto px-4 py-10 ${isMultiAssetHub && videoItems.length > 1 ? 'max-w-3xl' : 'max-w-md'}`}>
-        <header className="mb-8 text-center">
-          <h1 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
-            {campaignName}
-          </h1>
-          <p className="mt-1 text-sm text-[var(--text-muted)]">Tap a link below</p>
-        </header>
 
-        {hasHeroVideo && (
-          <div className="mb-5">
-            <HubVideoPlayer
-              source={meta.videoSource}
-              videoUrl={meta.videoUrl}
-              externalVideoUrl={meta.externalVideoUrl}
-              embedSrc={meta.embedSrc}
-              embedHost={meta.embedHost}
-              thumbnailUrl={meta.thumbnailUrl}
-              onEvent={onVideoEvent}
-            />
+      <HubIntro />
+
+      {hasHeroVideo && (
+        <div className="mb-5">
+          <HubVideoPlayer
+            source={meta.videoSource}
+            videoUrl={meta.videoUrl}
+            externalVideoUrl={meta.externalVideoUrl}
+            embedSrc={meta.embedSrc}
+            embedHost={meta.embedHost}
+            thumbnailUrl={meta.thumbnailUrl}
+            onEvent={onVideoEvent}
+          />
+        </div>
+      )}
+
+      {arPageUrl && (
+        <a
+          href={arPageUrl}
+          className="mb-5 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl border border-brand-500/40 bg-brand-500/10 px-4 py-3 text-sm font-semibold text-brand-300 transition hover:bg-brand-500/20 active:scale-[0.98]"
+        >
+          <Zap size={18} aria-hidden />
+          Launch hologram
+        </a>
+      )}
+
+      {isMultiAssetHub && videoItems.length > 0 && (
+        <section className="mb-6">
+          <HubSectionLabel>Videos</HubSectionLabel>
+          <div className={videoGridClass}>
+            {videoItems.map((item) => (
+              <div key={item.videoId} className="flex flex-col gap-2">
+                <HubVideoPlayer
+                  source={item.source}
+                  videoUrl={item.videoUrl}
+                  externalVideoUrl={item.externalVideoUrl}
+                  embedSrc={item.embedSrc}
+                  embedHost={item.embedHost}
+                  thumbnailUrl={item.thumbnailUrl}
+                  onEvent={makeVideoEventHandler(item.videoId)}
+                />
+                <p className="line-clamp-2 px-1 text-sm font-medium text-[var(--text-primary)]">
+                  {item.label}
+                </p>
+              </div>
+            ))}
           </div>
-        )}
+        </section>
+      )}
 
-        {arPageUrl && (
-          <a
-            href={arPageUrl}
-            className="mb-5 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl border border-brand-500/40 bg-brand-500/10 px-4 py-3 text-sm font-semibold text-brand-300 transition hover:bg-brand-500/20"
-          >
-            <Zap size={18} aria-hidden />
-            Launch hologram
-          </a>
-        )}
-
-        {isMultiAssetHub && videoItems.length > 0 && (
-          <section className="mb-6">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-              Videos
-            </h2>
-            <div className={videoGridClass}>
-              {videoItems.map((item) => (
-                <div key={item.videoId} className="flex flex-col gap-2">
-                  <HubVideoPlayer
-                    source={item.source}
-                    videoUrl={item.videoUrl}
-                    externalVideoUrl={item.externalVideoUrl}
-                    embedSrc={item.embedSrc}
-                    embedHost={item.embedHost}
-                    thumbnailUrl={item.thumbnailUrl}
-                    onEvent={makeVideoEventHandler(item.videoId)}
-                  />
-                  <p className="line-clamp-2 px-1 text-sm font-medium text-[var(--text-primary)]">
-                    {item.label}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {isMultiAssetHub && docItems.length > 0 && (
-          <section className="mb-6">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-              Documents
-            </h2>
-            <ul className="flex flex-col gap-3">
-              {docItems.map((doc) => {
-                const Icon = docIconForMime(doc.mimeType || '');
-                return (
-                  <li key={doc.docId}>
-                    <button
-                      type="button"
-                      onClick={() => onDocActivate(doc)}
-                      className="flex w-full items-center gap-3 rounded-2xl border border-[var(--border-color)] bg-[var(--surface-1)] px-4 py-4 text-left shadow-sm transition hover:border-brand-500/40 hover:bg-[var(--surface-2)]"
-                    >
-                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400">
-                        <Icon size={20} />
+      {isMultiAssetHub && docItems.length > 0 && (
+        <section className="mb-6">
+          <HubSectionLabel>Documents</HubSectionLabel>
+          <ul className="flex flex-col gap-3">
+            {docItems.map((doc) => {
+              const Icon = docIconForMime(doc.mimeType || '');
+              return (
+                <li key={doc.docId}>
+                  <button
+                    type="button"
+                    onClick={() => onDocActivate(doc)}
+                    className="flex w-full min-h-[52px] items-center gap-3 rounded-2xl border border-[var(--border-color)] bg-[var(--surface-1)] px-4 py-3.5 text-left shadow-sm transition-all duration-200 hover:border-brand-500/40 hover:bg-[var(--surface-2)] hover:shadow-md active:scale-[0.98]"
+                  >
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400">
+                      <Icon size={20} aria-hidden />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-[var(--text-primary)]">
+                        {doc.label}
                       </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-medium text-[var(--text-primary)]">
-                          {doc.label}
+                      {doc.bytes ? (
+                        <span className="block truncate text-xs text-[var(--text-muted)]">
+                          {formatBytes(doc.bytes)}
                         </span>
-                        {doc.bytes ? (
-                          <span className="block truncate text-xs text-[var(--text-muted)]">
-                            {formatBytes(doc.bytes)}
-                          </span>
-                        ) : null}
-                      </span>
-                      <ExternalLink size={16} className="shrink-0 text-[var(--text-muted)]" />
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        )}
+                      ) : null}
+                    </span>
+                    <ExternalLink size={16} className="shrink-0 text-[var(--text-muted)]" aria-hidden />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
-        {(isMultiAssetHub && (videoItems.length > 0 || docItems.length > 0)) && (
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-            Links
-          </h2>
-        )}
+      {showLinksSectionLabel && <HubSectionLabel>Links</HubSectionLabel>}
 
-        <ul className="flex flex-col gap-3">
-          {links.map((link) => {
-            const Icon = KIND_ICONS[link.kind] || Link2;
-            return (
-              <li key={link.linkId}>
-                <button
-                  type="button"
-                  onClick={() => onLinkActivate(link)}
-                  className="flex w-full items-center gap-3 rounded-2xl border border-[var(--border-color)] bg-[var(--surface-1)] px-4 py-4 text-left shadow-sm transition hover:border-brand-500/40 hover:bg-[var(--surface-2)]"
-                >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-500/15 text-brand-400">
-                    <Icon size={20} />
-                  </span>
-                  <span className="min-w-0 flex-1 font-medium text-[var(--text-primary)]">
-                    {link.label}
-                  </span>
-                  <ExternalLink size={16} className="shrink-0 text-[var(--text-muted)]" />
-                </button>
-              </li>
-            );
-          })}
+      <div className={shouldCenterMain ? 'w-full max-md:glass-card max-md:p-4 max-md:sm:p-5' : 'w-full'}>
+        <ul className={`flex flex-col gap-3 ${linksGridClass}`}>
+          {links.map((link, idx) => (
+            <HubLinkButton
+              key={link.linkId}
+              link={link}
+              index={idx}
+              onActivate={onLinkActivate}
+            />
+          ))}
         </ul>
       </div>
-    </div>
+    </HubPageShell>
   );
 };
 

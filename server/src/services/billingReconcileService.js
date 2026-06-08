@@ -68,6 +68,7 @@ const reconcileUserBillingFromStripe = async (stripe, user) => {
             currentPeriodStart: 1,
             currentPeriodEnd: 1,
           },
+          subscriptionCancelAtPeriodEnd: false,
           plan: user.hasFullAccess ? user.plan : 'free',
         });
         user.subscriptionId = null;

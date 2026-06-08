@@ -17,6 +17,8 @@ import useThemeStore, { applyThemeClass } from '../store/useThemeStore';
 import BrandWord from '../components/ui/BrandWord';
 import BrandLockup from '../components/ui/BrandLockup';
 import CampaignThumbnail from '../components/ui/CampaignThumbnail';
+import PublicQuickLinksMenu from '../components/hub/PublicQuickLinksMenu';
+import PoweredByPhygitalFooter from '../components/hub/PoweredByPhygitalFooter';
 
 /* ── Detect device type for analytics ───────────────────────────── */
 const getDeviceType = () => {
@@ -147,7 +149,10 @@ const ARExperiencePage = () => {
       </div>
 
       {/* Header */}
-      <BrandLockup variant="header" className="min-h-11 self-start py-1 [&_.brand-word]:brightness-110" />
+      <div className="flex w-full items-center justify-between">
+        <BrandLockup variant="header" className="min-h-11 py-1 [&_.brand-word]:brightness-110" />
+        <PublicQuickLinksMenu theme="dark" />
+      </div>
 
       {/* Main content */}
       <motion.div
@@ -251,14 +256,10 @@ const ARExperiencePage = () => {
       </motion.div>
 
       {/* Footer */}
-      <p className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-xs text-white/25">
-        <span>Powered by</span>
-        <BrandLockup
-          variant="compact"
-          className="gap-1.5 [&_.brand-word]:brightness-110"
-        />
-        <span>· Immersive WebAR</span>
-      </p>
+      <div className="flex flex-col items-center gap-1">
+        <PoweredByPhygitalFooter theme="dark" />
+        <span className="text-[11px] text-white/20">· Immersive WebAR</span>
+      </div>
     </div>
   );
 };

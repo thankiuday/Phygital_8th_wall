@@ -411,6 +411,16 @@
     border-radius: 1rem;
   }
 
+  /* Subtle dot grid for public hub pages on tablet/desktop */
+  .hub-ambient-grid {
+    background-image: radial-gradient(
+      circle,
+      color-mix(in srgb, var(--text-muted) 8%, transparent) 1px,
+      transparent 1px
+    );
+    background-size: 24px 24px;
+  }
+
   /* AuthCard surface — solid on phones, glass from sm: up. Sized as a
      single component so we don't need to compose @apply with media
      queries elsewhere. */

@@ -55,6 +55,7 @@ const SUBSCRIPTION_USER_FIELDS = [
   'billingCurrency',
   'billingPriceLabel',
   'isSubscriptionActive',
+  'cancelAtPeriodEnd',
   'stripeCustomerId',
 ];
 
