@@ -411,6 +411,40 @@
     border-radius: 1rem;
   }
 
+  /* AR effect picker — tiny CSS-only animated preview swatches */
+  .ar-fx-ring {
+    animation: ar-fx-pulse 2s ease-in-out infinite;
+  }
+  .ar-fx-ring-x {
+    animation: ar-fx-pulse-x 2s ease-in-out infinite;
+  }
+  .ar-fx-pillar {
+    animation: ar-fx-pulse-x 2.4s ease-in-out infinite;
+  }
+  .ar-fx-spark {
+    animation: ar-fx-rise 1.6s linear infinite;
+  }
+  .ar-fx-wave {
+    animation: ar-fx-expand 2s ease-out infinite;
+  }
+  @keyframes ar-fx-pulse {
+    0%, 100% { opacity: 0.45; transform: translate(-50%, -50%) scale(0.92); }
+    50% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+  }
+  @keyframes ar-fx-pulse-x {
+    0%, 100% { opacity: 0.45; transform: translateX(-50%) scale(0.92); }
+    50% { opacity: 1; transform: translateX(-50%) scale(1.05); }
+  }
+  @keyframes ar-fx-rise {
+    0% { transform: translateY(0); opacity: 0; }
+    15% { opacity: 1; }
+    100% { transform: translateY(-2.4rem); opacity: 0; }
+  }
+  @keyframes ar-fx-expand {
+    0% { transform: translateX(-50%) scale(0.5); opacity: 0.9; }
+    100% { transform: translateX(-50%) scale(1.8); opacity: 0; }
+  }
+
   /* Subtle dot grid for public hub pages on tablet/desktop */
   .hub-ambient-grid {
     background-image: radial-gradient(

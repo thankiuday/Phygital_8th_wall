@@ -18,6 +18,7 @@ import FileDropZone from './FileDropZone';
 import FormInput from './FormInput';
 import UploadProgress from './UploadProgress';
 import VideoItemsEditor from './VideoItemsEditor';
+import ArEffectPicker from '../campaigns/ArEffectPicker';
 import { campaignService } from '../../services/campaignService';
 import { isArMediaType } from '../../constants/arMediaProducts';
 
@@ -198,6 +199,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
   const [videoIosProgress, setVideoIosProgress] = useState(0);
   const [videoIosError, setVideoIosError] = useState('');
   const [arIosChangeMode, setArIosChangeMode] = useState(false);
+  const [arEffect, setArEffect] = useState(campaign.arEffect || 'none');
 
   /** When true, hero FileDropZone hides saved campaign video so the drop zone is empty after ✕. */
   const [suppressExistingHeroPreview, setSuppressExistingHeroPreview] = useState(false);
@@ -540,6 +542,9 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
         updates.videoUrlIos = pendingVideoIos.url;
         updates.videoIosPublicId = pendingVideoIos.publicId;
       }
+      if (arEffect !== (campaign.arEffect || 'none')) {
+        updates.arEffect = arEffect;
+      }
     }
 
     if (isLinksVideo) {
@@ -855,6 +860,18 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
                         New iOS .mov ready — save to apply on the AR experience.
                       </p>
                     )}
+                  </div>
+
+                  {/* Hologram base effect — animated theme under the AR video */}
+                  <div className="mt-2 space-y-3 border-t border-dashed border-[var(--border-color)] pt-4">
+                    <div>
+                      <p className="text-xs font-medium text-[var(--text-secondary)]">AR effect</p>
+                      <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                        Animated hologram effect shown at the base of the video when the target is
+                        detected. Applies instantly to the live AR experience after saving.
+                      </p>
+                    </div>
+                    <ArEffectPicker value={arEffect} onChange={setArEffect} />
                   </div>
                 </div>
               )}

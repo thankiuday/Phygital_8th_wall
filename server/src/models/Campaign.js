@@ -82,6 +82,13 @@ const campaignSchema = new mongoose.Schema(
     /** Normalized placement used when compositing QR onto the card image. */
     qrPlacement: { type: mongoose.Schema.Types.Mixed, default: null },
 
+    /** Hologram base effect rendered under the AR video (owner-selectable). */
+    arEffect: {
+      type: String,
+      enum: ['none', 'portal-rings', 'light-pillar', 'sparkles', 'energy-spiral', 'pulse-glow'],
+      default: 'none',
+    },
+
     videoUrl: {
       type: String,
       default: null,

@@ -870,6 +870,10 @@ const updateCampaignSchema = z
     targetImageUrl: z.string().url().optional(),
     targetImagePublicId: z.string().min(1).max(512).nullable().optional(),
     qrPlacement: qrPlacementSchema.nullable().optional(),
+    /* ── ar-card / ar-poster hologram base effect ── */
+    arEffect: z
+      .enum(['none', 'portal-rings', 'light-pillar', 'sparkles', 'energy-spiral', 'pulse-glow'])
+      .optional(),
   })
   .strict()
   .refine((d) => Object.keys(d).length > 0, { message: 'No valid fields to update' });

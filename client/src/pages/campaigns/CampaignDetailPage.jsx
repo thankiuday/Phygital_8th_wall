@@ -22,6 +22,7 @@ import {
   FileImage,
   Presentation,
   FileType,
+  Sparkles,
 } from 'lucide-react';
 import QRCodeDisplay from '../../components/ui/QRCodeDisplay';
 import DownloadPrintCardButton from '../../components/campaigns/DownloadPrintCardButton';
@@ -36,6 +37,7 @@ import {
 import { resolveClientAppBase } from '../../utils/clientAppBase';
 import CampaignThumbnail from '../../components/ui/CampaignThumbnail';
 import { pickCampaignImageThumbUrl, resolvePlaybackMediaUrl } from '../../utils/assetUrl';
+import { arEffectLabel } from '../../constants/arEffects';
 
 const resolveRedirectBase = () => {
   if (import.meta.env.VITE_REDIRECT_BASE) {
@@ -611,6 +613,27 @@ const CampaignDetailPage = () => {
                   Use <strong>Edit</strong> to add the side-by-side .mov export.
                 </p>
               )}
+            </motion.div>
+          )}
+
+          {isArMedia && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="glass-card p-4 sm:p-5"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <Sparkles size={16} className="text-brand-400" />
+                <h4 className="text-sm font-semibold text-[var(--text-primary)]">AR effect</h4>
+                <span className="ml-auto inline-flex items-center rounded-full border border-brand-500/30 bg-brand-500/10 px-3 py-1 text-xs font-medium text-brand-300">
+                  {arEffectLabel(campaign.arEffect)}
+                </span>
+              </div>
+              <p className="mt-2 text-xs text-[var(--text-muted)]">
+                Animated hologram effect shown at the base of the video when the target is detected.
+                Change it via <strong>Edit</strong>.
+              </p>
             </motion.div>
           )}
 

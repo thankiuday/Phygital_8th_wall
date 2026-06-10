@@ -150,7 +150,7 @@ router.use('/media', mediaLimiter, async (req, res, next) => {
 router.get('/campaigns/:id', publicLimiter, async (req, res) => {
   const campaign = await Campaign.findOne(
     { _id: req.params.id, status: 'active' },
-    'campaignName targetImageUrl videoUrl videoUrlIos thumbnailUrl status analytics ownerHandle hubSlug redirectSlug'
+    'campaignName targetImageUrl videoUrl videoUrlIos thumbnailUrl status analytics ownerHandle hubSlug redirectSlug arEffect'
   ).lean();
 
   if (!campaign) {

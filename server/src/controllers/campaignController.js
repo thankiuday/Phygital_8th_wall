@@ -1052,6 +1052,13 @@ const updateCampaign = async (req, res) => {
       updates.videoIosPublicId = req.body.videoIosPublicId;
     }
     if (thumbnailUrl !== undefined) updates.thumbnailUrl = thumbnailUrl;
+    if (req.body.arEffect !== undefined) {
+      const AR_EFFECTS = ['none', 'portal-rings', 'light-pillar', 'sparkles', 'energy-spiral', 'pulse-glow'];
+      if (!AR_EFFECTS.includes(req.body.arEffect)) {
+        throw new AppError('Invalid AR effect', 400);
+      }
+      updates.arEffect = req.body.arEffect;
+    }
   }
 
   if (existing.campaignType === 'digital-business-card') {

@@ -49,6 +49,7 @@
 
 import { compileMindTarget } from './targetCompiler.js';
 import { animateTargetFound, animateTargetLost } from './animations.js';
+import { createArEffect } from './effects/index.js';
 import { updateLoadingProgress, showError, hideLoading } from '../utils/loadingScreen.js';
 import { updateSession } from '../services/campaignLoader.js';
 import { isApplePlaybackEngine } from '../utils/platform.js';
@@ -94,6 +95,7 @@ export class ARExperience {
 
     // Scene meshes
     this._plane        = null;   // video quad (billboard quaternion each frame)
+    this._effect       = null;   // optional hologram base effect (campaign.arEffect)
 
     // Pre-allocated render-loop scratch objects
     this._scratch      = null;
@@ -213,6 +215,9 @@ export class ARExperience {
     anchor.onTargetFound = () => this._onTargetFound();
     anchor.onTargetLost  = () => this._onTargetLost();
     anchor.group.add(this._plane);
+    // Hologram base effect shares the anchor group, so MindAR's single pose
+    // update keeps it perfectly aligned with the video plane.
+    if (this._effect) anchor.group.add(this._effect.group);
 
     scene.add(new THREE.AmbientLight(0xffffff, 1));
 
@@ -253,6 +258,9 @@ export class ARExperience {
           this._plane.quaternion.copy(sc.parentQuatInv);
         }
       }
+
+      // 1b. Animate the hologram base effect (no-op while hidden)
+      this._effect?.update(now ?? performance.now());
 
       // 2. Upload latest decoded video frame to GPU texture
       if (
@@ -357,6 +365,11 @@ export class ARExperience {
     this._plane.position.set(0, 0, 0);
     this._plane.renderOrder = 1;
     this._plane.visible = false;
+
+    // ── Hologram base effect (campaign-selected, default none) ───────────────
+    // Built once at boot — show()/hide() on detection only toggles visibility
+    // and tweens opacity, so re-detection has zero allocation/decode delay.
+    this._effect = createArEffect(this._campaign.arEffect, THREE);
   }
 
   /**
@@ -571,6 +584,9 @@ export class ARExperience {
 
     this._playWithAudio();
     animateTargetFound(this._plane, PLANE_REST_Z);
+    // Base effect fades in alongside the video entrance — same tick, same
+    // anchor pose, so they always appear together and stay aligned.
+    this._effect?.show();
 
     // Reveal the controls overlay (after the entrance has started)
     this._ui.controls?.classList.add('visible');
@@ -580,6 +596,7 @@ export class ARExperience {
     this._setScanningOverlayVisible(true);
 
     animateTargetLost(this._plane, PLANE_REST_Z);
+    this._effect?.hide();
     this._videoEl?.pause();
     // Keep controls visible — user may want to keep using them; spinner hides
     this._ui.buffer?.classList.remove('visible');
@@ -682,6 +699,7 @@ export class ARExperience {
     }
 
     this._videoTexture?.dispose();
+    this._effect?.dispose();
 
     // Remove DOM overlays
     this._ui.controls?.remove();
