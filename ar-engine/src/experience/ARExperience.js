@@ -53,6 +53,7 @@ import { createArEffect } from './effects/index.js';
 import { updateLoadingProgress, showError, hideLoading } from '../utils/loadingScreen.js';
 import { updateSession } from '../services/campaignLoader.js';
 import { isApplePlaybackEngine } from '../utils/platform.js';
+import { initGravityTracker, getUpVector } from '../utils/gravity.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Scene constants
@@ -61,9 +62,6 @@ import { isApplePlaybackEngine } from '../utils/platform.js';
 // Portrait 9:16 plane — 65 % of card width.
 const PLANE_WIDTH  = 0.65;
 const PLANE_HEIGHT = PLANE_WIDTH * (16 / 9);   // ≈ 1.156
-
-// Plane centre offset from card surface when fully emerged (anchor-local +Z).
-export const PLANE_REST_Z = PLANE_HEIGHT / 2;  // ≈ 0.578
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Smoothing levers — tune to dial responsiveness vs stability.
@@ -77,6 +75,18 @@ const BILLBOARD_ALPHA = 0.18;
 const FPS_DROP_THRESHOLD    = 30;
 const FPS_RESTORE_THRESHOLD = 50;
 const FPS_SAMPLE_FRAMES     = 60;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Surface gating for the hologram base effect
+// ─────────────────────────────────────────────────────────────────────────────
+// The base effect only makes sense when the card lies on a horizontal surface
+// (rings/pillar rising "up" off a table). We dot the card's normal with the
+// device-gravity up vector; hysteresis prevents show/hide flicker near the
+// threshold. When sensor data is unavailable (iOS permission denied), we
+// default to showing the effect.
+const SURFACE_ON_DOT   = 0.6;    // card facing up within ~53° → surface mode
+const SURFACE_OFF_DOT  = 0.45;   // tilted beyond ~63° → wall/handheld mode
+const SURFACE_CHECK_INTERVAL = 10;   // frames between checks
 
 // ─────────────────────────────────────────────────────────────────────────────
 const SCAN_OVERLAY_ID = 'ar-scanning-overlay';
@@ -96,6 +106,12 @@ export class ARExperience {
     // Scene meshes
     this._plane        = null;   // video quad (billboard quaternion each frame)
     this._effect       = null;   // optional hologram base effect (campaign.arEffect)
+
+    // Surface gating state (effect only shows on horizontal surfaces)
+    this._targetVisible      = false;
+    this._surfaceMode        = true;   // permissive default (no sensor → show)
+    this._effectShown        = false;
+    this._surfaceCheckFrame  = 0;
 
     // Pre-allocated render-loop scratch objects
     this._scratch      = null;
@@ -158,6 +174,10 @@ export class ARExperience {
     }
 
     updateLoadingProgress(5, 'Preparing AR experience…');
+
+    // Gravity tracking for surface-only base effects (no-op without an effect,
+    // but cheap enough to start unconditionally).
+    initGravityTracker();
 
     // 1 — Compile target image → .mind blob
     let mindBlobUrl;
@@ -259,7 +279,19 @@ export class ARExperience {
         }
       }
 
-      // 1b. Animate the hologram base effect (no-op while hidden)
+      // 1b. Surface gating — re-evaluate every few frames while tracking, and
+      //     show/hide the base effect when the card transitions between lying
+      //     on a surface and hanging vertically.
+      if (this._effect && this._targetVisible) {
+        this._surfaceCheckFrame += 1;
+        if (this._surfaceCheckFrame >= SURFACE_CHECK_INTERVAL) {
+          this._surfaceCheckFrame = 0;
+          this._evaluateSurfaceMode();
+          this._syncEffectVisibility();
+        }
+      }
+
+      // 1c. Animate the hologram base effect (no-op while hidden)
       this._effect?.update(now ?? performance.now());
 
       // 2. Upload latest decoded video frame to GPU texture
@@ -293,6 +325,9 @@ export class ARExperience {
       smoothBillboardQuat: new THREE.Quaternion(),
       parentQuatInv:       new THREE.Quaternion(),
       FWD:                 new THREE.Vector3(0, 0, 1),
+      // Surface gating
+      cardNormal:          new THREE.Vector3(),
+      anchorQuat:          new THREE.Quaternion(),
     };
 
     // ── Pick the right source per platform ──────────────────────────────────
@@ -350,7 +385,15 @@ export class ARExperience {
     this._videoTexture.anisotropy = maxAniso;
 
     // ── Video plane (billboard — render loop sets quaternion each frame) ─────
+    // Geometry is translated so the mesh origin is the BOTTOM EDGE of the
+    // plane, not its centre. Two wins:
+    //   • the billboard quaternion pivots around the base, so the video's
+    //     bottom edge stays glued to the anchor origin (where the hologram
+    //     base effect sits) in every orientation — no more drift;
+    //   • the entrance animation is a pure scale.y 0→1 (no position.z
+    //     driving needed to keep the bottom edge on the card surface).
     const planeGeo = new THREE.PlaneGeometry(PLANE_WIDTH, PLANE_HEIGHT);
+    planeGeo.translate(0, PLANE_HEIGHT / 2, 0);
     const planeMat = wantsIosShader
       ? this._buildSideBySideAlphaMaterial(THREE, this._videoTexture)
       : new THREE.MeshBasicMaterial({
@@ -565,6 +608,47 @@ export class ARExperience {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
+  // Surface gating — base effect only on horizontal surfaces
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Updates `this._surfaceMode` from the card-normal · gravity-up dot product
+   * with hysteresis. Without sensor data (`getUpVector()` null) we stay
+   * permissive and treat the card as on a surface.
+   */
+  _evaluateSurfaceMode() {
+    const up = getUpVector();
+    if (!up) {
+      this._surfaceMode = true;
+      return;
+    }
+
+    const sc = this._scratch;
+    this._anchor.group.getWorldQuaternion(sc.anchorQuat);
+    sc.cardNormal.set(0, 0, 1).applyQuaternion(sc.anchorQuat);
+    const dot = sc.cardNormal.x * up.x + sc.cardNormal.y * up.y + sc.cardNormal.z * up.z;
+
+    if (this._surfaceMode) {
+      if (dot < SURFACE_OFF_DOT) this._surfaceMode = false;
+    } else if (dot > SURFACE_ON_DOT) {
+      this._surfaceMode = true;
+    }
+  }
+
+  /** Shows/hides the base effect to match tracking + surface state. */
+  _syncEffectVisibility() {
+    if (!this._effect) return;
+    const shouldShow = this._targetVisible && this._surfaceMode;
+    if (shouldShow && !this._effectShown) {
+      this._effect.show();
+      this._effectShown = true;
+    } else if (!shouldShow && this._effectShown) {
+      this._effect.hide();
+      this._effectShown = false;
+    }
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
   // Event handlers
   // ───────────────────────────────────────────────────────────────────────────
   _onTargetFound() {
@@ -583,10 +667,18 @@ export class ARExperience {
     }
 
     this._playWithAudio();
-    animateTargetFound(this._plane, PLANE_REST_Z);
-    // Base effect fades in alongside the video entrance — same tick, same
-    // anchor pose, so they always appear together and stay aligned.
-    this._effect?.show();
+    animateTargetFound(this._plane);
+
+    // Base effect rises alongside the video entrance — same tick, same anchor
+    // pose, so they always appear together and stay aligned. Only shown when
+    // the card lies on a horizontal surface (gravity check, permissive when
+    // sensor data is unavailable).
+    this._targetVisible = true;
+    this._surfaceCheckFrame = 0;
+    if (this._effect) {
+      this._evaluateSurfaceMode();
+      this._syncEffectVisibility();
+    }
 
     // Reveal the controls overlay (after the entrance has started)
     this._ui.controls?.classList.add('visible');
@@ -595,8 +687,9 @@ export class ARExperience {
   _onTargetLost() {
     this._setScanningOverlayVisible(true);
 
-    animateTargetLost(this._plane, PLANE_REST_Z);
-    this._effect?.hide();
+    animateTargetLost(this._plane);
+    this._targetVisible = false;
+    this._syncEffectVisibility();
     this._videoEl?.pause();
     // Keep controls visible — user may want to keep using them; spinner hides
     this._ui.buffer?.classList.remove('visible');

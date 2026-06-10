@@ -1,14 +1,16 @@
 /**
  * animations.js — GSAP animations for the AR hologram
  *
+ * The plane geometry is translated so its origin is the BOTTOM EDGE
+ * (see _buildScene), so a pure scale.y tween grows the hologram out of the
+ * card surface with the base pinned at the anchor origin — no position
+ * driving needed, and the billboard rotation can never detach the base.
+ *
  * CINEMATIC ENTRANCE ("animateTargetFound")
  * ──────────────────────────────────────────
  *  Phase 1 (0 – 0.6 s)  Plane rises out of the card surface
- *    • proxy scalar k drives both plane.scale.y AND plane.position.z so the
- *      bottom edge stays at the card surface as the plane rises:
- *        bottom_z = position.z − k*(H/2) = k*(H/2) − k*(H/2) = 0  ✓
+ *    • plane.scale.y 0 → 1, base fixed at the anchor origin
  *    • power3.out easing — snappy at start, soft at end, no overshoot
- *      (replaces the old elastic.out bounce; reads as cinematic, not toy-like)
  *
  *  Phase 1' (0.05 – 0.55 s)  Opacity trails the rise
  *    • Avoids seeing a flat first frame before the plane has meaningfully grown.
@@ -38,15 +40,14 @@ const _active = { scale: null };
 /**
  * animateTargetFound
  *
- * @param {THREE.Mesh} plane  Video plane (billboard; scale.y starts at 0)
- * @param {number}     restZ  plane.position.z when fully emerged (= PLANE_HEIGHT/2)
+ * @param {THREE.Mesh} plane  Video plane (base-pivoted; scale.y starts at 0)
  */
-export const animateTargetFound = (plane, restZ) => {
+export const animateTargetFound = (plane) => {
   const gsap = g();
   if (!gsap) return;
 
   // Kill any tweens that may still be in flight (e.g. rapid re-detection)
-  gsap.killTweensOf([plane.scale, plane.position, plane.material]);
+  gsap.killTweensOf([plane.scale, plane.material]);
   _stopFloat();
 
   // ── Reset to the "collapsed / invisible" start state ─────────────────────
@@ -57,17 +58,13 @@ export const animateTargetFound = (plane, restZ) => {
 
   const tl = gsap.timeline();
 
-  // Phase 1: plane rises out of the card surface (cinematic ease-out, no bounce)
-  const proxy = { k: 0 };
-  tl.to(proxy, {
-    k: 1,
+  // Phase 1: plane rises out of the card surface (cinematic ease-out, no
+  // bounce). Geometry origin is the bottom edge, so scaling Y alone grows
+  // the hologram upward with the base pinned to the card surface.
+  tl.to(plane.scale, {
+    y: 1,
     duration: 0.6,
     ease: 'power3.out',
-    onUpdate() {
-      const k = proxy.k;
-      plane.scale.y    = k;
-      plane.position.z = k * restZ;
-    },
   }, 0);
 
   // Phase 1': opacity trails the rise
@@ -89,17 +86,13 @@ export const animateTargetFound = (plane, restZ) => {
  * animateTargetLost
  *
  * @param {THREE.Mesh} plane
- * @param {number}     restZ
  */
-export const animateTargetLost = (plane, restZ) => {
+export const animateTargetLost = (plane) => {
   const gsap = g();
   if (!gsap) return;
 
-  gsap.killTweensOf([plane.scale, plane.position, plane.material]);
+  gsap.killTweensOf([plane.scale, plane.material]);
   _stopFloat();
-
-  // proxy k: 1 = fully risen, 0 = collapsed at card surface
-  const proxy = { k: 1 };
 
   const tl = gsap.timeline({
     onComplete: () => {
@@ -110,15 +103,11 @@ export const animateTargetLost = (plane, restZ) => {
     },
   });
 
-  // Smooth collapse — power2.in accelerates toward the end (no bounce)
-  tl.to(proxy, {
-    k: 0,
+  // Smooth collapse into the card surface — power2.in, no bounce
+  tl.to(plane.scale, {
+    y: 0,
     duration: 0.25,
     ease: 'power2.in',
-    onUpdate() {
-      plane.scale.y    = proxy.k;
-      plane.position.z = proxy.k * restZ;
-    },
   }, 0);
   tl.to(plane.material, { opacity: 0, duration: 0.22 }, 0);
 };
