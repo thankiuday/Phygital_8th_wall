@@ -427,6 +427,9 @@
   .ar-fx-wave {
     animation: ar-fx-expand 2s ease-out infinite;
   }
+  .ar-fx-orbit {
+    animation: ar-fx-spin 3s linear infinite;
+  }
   @keyframes ar-fx-pulse {
     0%, 100% { opacity: 0.45; transform: translate(-50%, -50%) scale(0.92); }
     50% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
@@ -443,6 +446,10 @@
   @keyframes ar-fx-expand {
     0% { transform: translateX(-50%) scale(0.5); opacity: 0.9; }
     100% { transform: translateX(-50%) scale(1.8); opacity: 0; }
+  }
+  @keyframes ar-fx-spin {
+    from { transform: translate(-50%, -50%) rotate(0deg); }
+    to { transform: translate(-50%, -50%) rotate(360deg); }
   }
 
   /* Subtle dot grid for public hub pages on tablet/desktop */

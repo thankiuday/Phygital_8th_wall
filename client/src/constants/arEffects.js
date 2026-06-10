@@ -33,6 +33,21 @@ export const AR_EFFECT_OPTIONS = [
     label: 'Pulse Glow',
     description: 'Breathing glow with expanding shockwaves.',
   },
+  {
+    value: 'ember-rise',
+    label: 'Ember Rise',
+    description: 'Warm golden embers drifting up from the surface.',
+  },
+  {
+    value: 'rune-circle',
+    label: 'Rune Circle',
+    description: 'Violet magic circle with counter-rotating rings.',
+  },
+  {
+    value: 'orbit-orbs',
+    label: 'Orbit Orbs',
+    description: 'Colorful glowing orbs circling the hologram base.',
+  },
 ];
 
 export const arEffectLabel = (value) =>

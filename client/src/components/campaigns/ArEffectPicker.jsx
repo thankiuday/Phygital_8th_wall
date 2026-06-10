@@ -42,6 +42,34 @@ const EffectSwatch = ({ effect }) => (
         <span className="ar-fx-wave absolute bottom-0.5 left-1/2 h-3 w-6 -translate-x-1/2 rounded-[50%] border border-cyan-300/80" />
       </>
     )}
+    {effect === 'ember-rise' && (
+      <>
+        <span className="absolute bottom-1 left-1/2 h-1.5 w-8 -translate-x-1/2 rounded-full bg-amber-400/50 blur-[2px]" />
+        <span className="ar-fx-spark absolute bottom-1 left-[36%] h-1 w-1 rounded-full bg-amber-300" />
+        <span className="ar-fx-spark absolute bottom-1 left-1/2 h-1.5 w-1.5 rounded-full bg-orange-300 [animation-delay:0.4s]" />
+        <span className="ar-fx-spark absolute bottom-1 left-[64%] h-1 w-1 rounded-full bg-amber-200 [animation-delay:0.9s]" />
+      </>
+    )}
+    {effect === 'rune-circle' && (
+      <>
+        <span className="ar-fx-ring absolute left-1/2 top-1/2 h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-purple-400/80" />
+        <span className="ar-fx-ring absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-fuchsia-300/60 [animation-direction:reverse]" />
+      </>
+    )}
+    {effect === 'orbit-orbs' && (
+      <>
+        <span className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-300/60 blur-[2px]" />
+        <span className="ar-fx-orbit absolute left-1/2 top-1/2 h-10 w-10">
+          <span className="absolute -top-0.5 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-cyan-300" />
+        </span>
+        <span className="ar-fx-orbit absolute left-1/2 top-1/2 h-7 w-7 [animation-direction:reverse] [animation-duration:2.2s]">
+          <span className="absolute -top-0.5 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-fuchsia-300" />
+        </span>
+        <span className="ar-fx-orbit absolute left-1/2 top-1/2 h-12 w-12 [animation-duration:4s]">
+          <span className="absolute -top-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-amber-300" />
+        </span>
+      </>
+    )}
   </div>
 );
 

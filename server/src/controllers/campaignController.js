@@ -1053,7 +1053,7 @@ const updateCampaign = async (req, res) => {
     }
     if (thumbnailUrl !== undefined) updates.thumbnailUrl = thumbnailUrl;
     if (req.body.arEffect !== undefined) {
-      const AR_EFFECTS = ['none', 'portal-rings', 'light-pillar', 'sparkles', 'energy-spiral', 'pulse-glow'];
+      const AR_EFFECTS = ['none', 'portal-rings', 'light-pillar', 'sparkles', 'energy-spiral', 'pulse-glow', 'ember-rise', 'rune-circle', 'orbit-orbs'];
       if (!AR_EFFECTS.includes(req.body.arEffect)) {
         throw new AppError('Invalid AR effect', 400);
       }

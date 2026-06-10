@@ -28,6 +28,9 @@ import { createLightPillar } from './lightPillar.js';
 import { createSparkles } from './sparkles.js';
 import { createEnergySpiral } from './energySpiral.js';
 import { createPulseGlow } from './pulseGlow.js';
+import { createEmberRise } from './emberRise.js';
+import { createRuneCircle } from './runeCircle.js';
+import { createOrbitOrbs } from './orbitOrbs.js';
 
 const BUILDERS = {
   'portal-rings': createPortalRings,
@@ -35,6 +38,9 @@ const BUILDERS = {
   sparkles: createSparkles,
   'energy-spiral': createEnergySpiral,
   'pulse-glow': createPulseGlow,
+  'ember-rise': createEmberRise,
+  'rune-circle': createRuneCircle,
+  'orbit-orbs': createOrbitOrbs,
 };
 
 // Matches the video entrance/exit timings in animations.js

@@ -85,7 +85,7 @@ const campaignSchema = new mongoose.Schema(
     /** Hologram base effect rendered under the AR video (owner-selectable). */
     arEffect: {
       type: String,
-      enum: ['none', 'portal-rings', 'light-pillar', 'sparkles', 'energy-spiral', 'pulse-glow'],
+      enum: ['none', 'portal-rings', 'light-pillar', 'sparkles', 'energy-spiral', 'pulse-glow', 'ember-rise', 'rune-circle', 'orbit-orbs'],
       default: 'none',
     },
 

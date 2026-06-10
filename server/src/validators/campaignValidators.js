@@ -872,7 +872,7 @@ const updateCampaignSchema = z
     qrPlacement: qrPlacementSchema.nullable().optional(),
     /* ── ar-card / ar-poster hologram base effect ── */
     arEffect: z
-      .enum(['none', 'portal-rings', 'light-pillar', 'sparkles', 'energy-spiral', 'pulse-glow'])
+      .enum(['none', 'portal-rings', 'light-pillar', 'sparkles', 'energy-spiral', 'pulse-glow', 'ember-rise', 'rune-circle', 'orbit-orbs'])
       .optional(),
   })
   .strict()
