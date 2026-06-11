@@ -99,6 +99,17 @@ fi
 
 apt-get install -y git nginx curl
 
+# Chromium + libs for Puppeteer card PNG rendering (print step).
+if ! command -v chromium >/dev/null 2>&1 && ! command -v chromium-browser >/dev/null 2>&1; then
+  log "Installing Chromium for card print rendering"
+  apt-get install -y chromium-browser \
+    fonts-liberation libasound2 libatk-bridge2.0-0 libatk1.0-0 libcups2 \
+    libdbus-1-3 libdrm2 libgbm1 libgtk-3-0 libnspr4 libnss3 libx11-xcb1 \
+    libxcomposite1 libxdamage1 libxfixes3 libxrandr2 xdg-utils \
+    2>/dev/null || apt-get install -y chromium \
+    2>/dev/null || log "WARN: could not install chromium — card PNG export may fail"
+fi
+
 if ! command -v pm2 >/dev/null; then
   npm install -g pm2
 fi
@@ -130,6 +141,13 @@ cp "$SECRETS_FILE" "$APP_ROOT/server/.env"
 if [[ "$INSTALL_REDIS" == "1" ]] && ! grep -q '^REDIS_URL=' "$APP_ROOT/server/.env" 2>/dev/null; then
   echo "REDIS_URL=redis://127.0.0.1:6379" >> "$APP_ROOT/server/.env"
 fi
+for chrome in /usr/bin/chromium /usr/bin/chromium-browser /usr/bin/google-chrome-stable; do
+  if [[ -x "$chrome" ]] && ! grep -q '^PUPPETEER_EXECUTABLE_PATH=' "$APP_ROOT/server/.env" 2>/dev/null; then
+    echo "PUPPETEER_EXECUTABLE_PATH=$chrome" >> "$APP_ROOT/server/.env"
+    log "Set PUPPETEER_EXECUTABLE_PATH=$chrome"
+    break
+  fi
+done
 
 cp deploy/env/client.env.production "$APP_ROOT/client/.env.production"
 cp deploy/env/ar-engine.env.production "$APP_ROOT/ar-engine/.env.production"

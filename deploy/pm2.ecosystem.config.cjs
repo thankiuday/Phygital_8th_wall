@@ -38,7 +38,11 @@ module.exports = {
       script: 'src/workers/cardRenderWorker.js',
       instances: 1,
       exec_mode: 'fork',
-      env: { NODE_ENV: 'production' },
+      env: {
+        NODE_ENV: 'production',
+        // Overridden by server/.env via dotenv in the worker; fallback for PM2-only env.
+        PUPPETEER_EXECUTABLE_PATH: '/usr/bin/chromium',
+      },
       autorestart: true,
       max_memory_restart: '1G',
       error_file: '/var/log/phygital/render-worker-error.log',

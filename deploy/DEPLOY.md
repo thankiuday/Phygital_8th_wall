@@ -53,9 +53,43 @@ Add authorized redirect URI in Google Cloud Console:
 
 ```bash
 cd /var/www/phygital/app
-git pull
+git fetch origin && git reset --hard origin/main
 npm install
 npm run build:client && npm run build:ar
 pm2 restart phygital-api
+pm2 restart phygital-render-worker 2>/dev/null || true
 nginx -t && systemctl reload nginx
+```
+
+### Card PNG export (“Generate & download”) troubleshooting
+
+If print download fails in production:
+
+1. **Chromium** (required for Puppeteer):
+
+```bash
+apt-get update
+apt-get install -y chromium-browser fonts-liberation libgbm1 libnss3 libatk-bridge2.0-0
+# confirm path:
+which chromium || which chromium-browser
+```
+
+2. **server `.env`** must include:
+
+```bash
+CLIENT_URL=https://phygital.zone
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium   # or chromium-browser
+```
+
+3. **Render worker** (when `REDIS_URL` is set):
+
+```bash
+pm2 start deploy/pm2.ecosystem.config.cjs --only phygital-render-worker
+pm2 logs phygital-render-worker --lines 50
+```
+
+4. **API logs** for direct-render errors:
+
+```bash
+pm2 logs phygital-api --lines 80
 ```

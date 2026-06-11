@@ -18,7 +18,12 @@ const {
 const { generateQRCode } = require('../services/qrService');
 const { createArCardCampaignRecord } = require('../services/arCardCampaignService');
 const { redirectCache, dynamicQrMetaCache, cardMetaCache } = require('../utils/redirectCache');
-const { renderCardPng, getCachedCardDownload, streamCachedCardPng } = require('../services/cardPrintService');
+const {
+  renderCardPng,
+  getCachedCardDownload,
+  streamCachedCardPng,
+  usesRenderQueue,
+} = require('../services/cardPrintService');
 const { CARD_SIZE_IDS, DEFAULT_CARD_SIZE } = require('../constants/cardSizes');
 const logger = require('../config/logger');
 const { resolveLinkHref } = require('../utils/linkItemResolver');
@@ -668,7 +673,15 @@ const renderCampaignCardImage = async (req, res) => {
   let front;
   let back;
   try {
-    [front, back] = await Promise.all([renderFace('front'), renderFace('back')]);
+    // Puppeteer direct renders are heavy — run sequentially on the API box so a
+    // 512MB PM2 limit is not exceeded by two Chromium tabs at once. BullMQ only
+    // enqueues lightweight jobs, so parallel is fine there.
+    if (usesRenderQueue()) {
+      [front, back] = await Promise.all([renderFace('front'), renderFace('back')]);
+    } else {
+      front = await renderFace('front');
+      back = await renderFace('back');
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error('renderCampaignCardImage failed', {

@@ -76,7 +76,16 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
   const pollFace = (face, jobId, expectedFilename) =>
     new Promise((resolve) => {
       const setter = face === 'front' ? setFront : setBack;
+      const started = Date.now();
+      const POLL_TIMEOUT_MS = 3 * 60 * 1000;
       const handle = setInterval(async () => {
+        if (Date.now() - started > POLL_TIMEOUT_MS) {
+          clearInterval(handle);
+          const reason = 'Render timed out. Ensure phygital-render-worker is running on the server.';
+          setter({ ...initialJob(), status: 'failed', face });
+          resolve({ status: 'failed', face, reason });
+          return;
+        }
         try {
           const s = await campaignService.getCardRenderStatus(jobId);
           if (s.status === 'ready') {
@@ -94,7 +103,7 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
           } else if (s.status === 'failed') {
             clearInterval(handle);
             setter({ ...initialJob(), status: 'failed', face });
-            resolve({ status: 'failed', face, reason: s.reason });
+            resolve({ status: 'failed', face, reason: s.reason || 'Render failed' });
           }
         } catch {/* keep polling */}
       }, 2000);
@@ -143,6 +152,11 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
         promises.push(pollFace('back', bk.jobId, bk.filename).then((r) => { settled.back = r; }));
       }
       if (promises.length) await Promise.all(promises);
+
+      const failedFace = [settled.front, settled.back].find((r) => r?.status === 'failed');
+      if (failedFace) {
+        throw new Error(failedFace.reason || `Failed to render ${failedFace.face} card.`);
+      }
 
       // Persist the latest renders on the draft so re-opening the wizard
       // shows the cached download links without triggering a fresh job.

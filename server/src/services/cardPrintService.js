@@ -22,6 +22,7 @@
  */
 
 const crypto = require('crypto');
+const fs = require('fs');
 const { GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getS3Client, getBucket } = require('../config/s3');
 const { uploadBuffer, headObject, publicUrlForKey, getPresignedReadUrlForKey } = require('./storageService');
@@ -130,6 +131,33 @@ let browserPromise = null;
 let rendersOnCurrentBrowser = 0;
 const MAX_RENDERS_PER_BROWSER = Number(process.env.CARD_RENDER_MAX_PER_BROWSER) || 200;
 
+const SYSTEM_CHROMIUM_CANDIDATES = [
+  '/usr/bin/chromium',
+  '/usr/bin/chromium-browser',
+  '/usr/bin/google-chrome-stable',
+  '/usr/bin/google-chrome',
+  '/snap/bin/chromium',
+];
+
+const resolveChromiumExecutable = (puppeteer) => {
+  const fromEnv = process.env.PUPPETEER_EXECUTABLE_PATH;
+  if (fromEnv && fs.existsSync(fromEnv)) return fromEnv;
+
+  for (const candidate of SYSTEM_CHROMIUM_CANDIDATES) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+
+  try {
+    const bundled = puppeteer.executablePath?.();
+    if (bundled && fs.existsSync(bundled)) return bundled;
+  } catch {
+    /* fall through */
+  }
+
+  if (fromEnv) return fromEnv;
+  return undefined;
+};
+
 const getBrowser = async () => {
   if (browserPromise && rendersOnCurrentBrowser < MAX_RENDERS_PER_BROWSER) {
     return browserPromise;
@@ -147,8 +175,13 @@ const getBrowser = async () => {
   // an env-supplied executable (so deployments on Render can use the system
   // Chromium build at /usr/bin/google-chrome-stable etc.).
   let puppeteer;
-  let launchArgs = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'];
-  let executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
+  const launchArgs = [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-gpu',
+    '--font-render-hinting=none',
+  ];
 
   try {
     puppeteer = require('puppeteer');
@@ -160,9 +193,13 @@ const getBrowser = async () => {
       logger.error(msg, { puppeteerError: errFull.message, coreError: errCore.message });
       throw new Error(msg);
     }
-    if (!executablePath) {
-      throw new Error('PUPPETEER_EXECUTABLE_PATH is required when only puppeteer-core is installed');
-    }
+  }
+
+  const executablePath = resolveChromiumExecutable(puppeteer);
+  if (!executablePath) {
+    throw new Error(
+      'Chromium not found. On the VPS run: apt install -y chromium-browser (or set PUPPETEER_EXECUTABLE_PATH)'
+    );
   }
 
   browserPromise = puppeteer.launch({
@@ -220,10 +257,10 @@ const renderDirect = async ({ campaignId, userId, cardSlug, size, face, renderHa
     const slug = cardSlug || campaignId;
     const url = `${clientBase}/print/card/${slug}?size=${encodeURIComponent(size)}&face=${encodeURIComponent(requestedFace)}&token=${encodeURIComponent(token)}&campaignId=${encodeURIComponent(campaignId)}`;
 
-    await page.goto(url, { waitUntil: 'networkidle0', timeout: 30_000 });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
     // The print page paints a sentinel attribute when fonts/images/QR are settled.
     try {
-      await page.waitForSelector('[data-print-ready="1"]', { timeout: 45_000 });
+      await page.waitForSelector('[data-print-ready="1"]', { timeout: 90_000 });
     } catch (err) {
       throw new Error(
         `Print page did not become ready in time (${requestedFace}). ${err.message}`
@@ -473,4 +510,5 @@ module.exports = {
   mintPrintToken,
   verifyPrintToken,
   CARD_RENDER_QUEUE_NAME,
+  usesRenderQueue: () => !!queueAdapter,
 };
