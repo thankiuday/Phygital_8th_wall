@@ -22,7 +22,7 @@ const LinkClickEvent = require('../models/LinkClickEvent');
 const Campaign = require('../models/Campaign');
 
 const ALLOWED_ACTIONS = new Set([
-  'call', 'email', 'whatsapp', 'website', 'social',
+  'call', 'email', 'whatsapp', 'website', 'address', 'social',
   'galleryView', 'videoPlay', 'docOpen', 'cta', 'print-download',
 ]);
 

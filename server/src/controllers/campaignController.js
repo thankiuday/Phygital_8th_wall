@@ -18,7 +18,7 @@ const {
 const { generateQRCode } = require('../services/qrService');
 const { createArCardCampaignRecord } = require('../services/arCardCampaignService');
 const { redirectCache, dynamicQrMetaCache, cardMetaCache } = require('../utils/redirectCache');
-const { renderCardPng } = require('../services/cardPrintService');
+const { renderCardPng, getCachedCardDownload, streamCachedCardPng } = require('../services/cardPrintService');
 const { CARD_SIZE_IDS, DEFAULT_CARD_SIZE } = require('../constants/cardSizes');
 const logger = require('../config/logger');
 const { resolveLinkHref } = require('../utils/linkItemResolver');
@@ -702,6 +702,77 @@ const renderCampaignCardImage = async (req, res) => {
   ).catch(() => {});
 
   return success(res, { status, front, back }, 'Card image ready');
+};
+
+/* ─────────────────────────────────────────
+   GET /api/campaigns/:id/card-image/download?face=&size=
+   Fresh presigned URL for a previously rendered PNG (re-download without re-render).
+   ───────────────────────────────────────── */
+const getCampaignCardImageDownload = async (req, res) => {
+  const campaign = await Campaign.findOne(
+    { _id: req.params.id, userId: req.user._id, isDeleted: { $ne: true } },
+    'campaignType cardSlug redirectSlug cardContent cardDesign cardPrintSettings'
+  ).lean();
+  if (!campaign) throw new AppError('Campaign not found', 404);
+  if (campaign.campaignType !== 'digital-business-card') {
+    throw new AppError('This endpoint is only available for digital business cards', 400);
+  }
+
+  const requestedFace = req.query.face === 'back' ? 'back' : 'front';
+  const sizeOverride = String(req.query.size || '').trim();
+  const size = CARD_SIZE_IDS.includes(sizeOverride)
+    ? sizeOverride
+    : (campaign.cardPrintSettings?.cardSize || DEFAULT_CARD_SIZE);
+  const renderHash = buildCardRenderHash(campaign, { cardSize: size }, requestedFace);
+  const filename = `card-${campaign.cardSlug || campaign._id}-${size}-${requestedFace}.png`;
+
+  const download = await getCachedCardDownload({
+    userId: String(req.user._id),
+    renderHash,
+    filename,
+    face: requestedFace,
+  });
+  if (!download?.url) {
+    throw new AppError('Card image not found. Generate your card first.', 404);
+  }
+
+  return success(res, {
+    url: download.url,
+    filename: download.filename || filename,
+    face: requestedFace,
+  }, 'Download URL ready');
+};
+
+/* ─────────────────────────────────────────
+   GET /api/campaigns/:id/card-image/file?face=&size=
+   Streams the PNG with Content-Disposition: attachment (save to disk).
+   ───────────────────────────────────────── */
+const getCampaignCardImageFile = async (req, res) => {
+  const campaign = await Campaign.findOne(
+    { _id: req.params.id, userId: req.user._id, isDeleted: { $ne: true } },
+    'campaignType cardSlug redirectSlug cardContent cardDesign cardPrintSettings'
+  ).lean();
+  if (!campaign) throw new AppError('Campaign not found', 404);
+  if (campaign.campaignType !== 'digital-business-card') {
+    throw new AppError('This endpoint is only available for digital business cards', 400);
+  }
+
+  const requestedFace = req.query.face === 'back' ? 'back' : 'front';
+  const sizeOverride = String(req.query.size || '').trim();
+  const size = CARD_SIZE_IDS.includes(sizeOverride)
+    ? sizeOverride
+    : (campaign.cardPrintSettings?.cardSize || DEFAULT_CARD_SIZE);
+  const renderHash = buildCardRenderHash(campaign, { cardSize: size }, requestedFace);
+  const filename = `card-${campaign.cardSlug || campaign._id}-${size}-${requestedFace}.png`;
+
+  const streamed = await streamCachedCardPng({
+    userId: String(req.user._id),
+    renderHash,
+    filename,
+  }, res);
+  if (!streamed) {
+    throw new AppError('Card image not found. Generate your card first.', 404);
+  }
 };
 
 /* ─────────────────────────────────────────
@@ -1549,6 +1620,8 @@ module.exports = {
   createDigitalBusinessCardCampaign,
   checkCardSlugAvailability,
   renderCampaignCardImage,
+  getCampaignCardImageDownload,
+  getCampaignCardImageFile,
   getCampaigns,
   getCampaign,
   updateCampaign,

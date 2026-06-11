@@ -1,14 +1,38 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Phone,
   Mail,
   MessageCircle,
   Globe,
-  Send,
   ExternalLink,
+  MapPin,
+  X,
 } from 'lucide-react';
 
 import { TEMPLATE_BY_ID } from './cardTemplates';
+import { resolveCardImageUrl, resolvePlaybackMediaUrl } from '../../utils/assetUrl';
+import SocialPlatformIcon, { SOCIAL_PLATFORM_ACCENTS, SOCIAL_PLATFORM_LABELS } from './SocialPlatformIcon';
+
+const normalizeWebUrl = (url) => {
+  const s = String(url || '').trim();
+  if (!s) return '';
+  if (/^(https?:|mailto:|tel:|sms:)/i.test(s)) return s;
+  return `https://${s}`;
+};
+
+const normalizeTelHref = (phone) => {
+  const digits = String(phone || '').trim();
+  if (!digits) return '';
+  return `tel:${digits.replace(/[^\d+]/g, '')}`;
+};
+
+const normalizeMailtoHref = (email) => {
+  const s = String(email || '').trim();
+  return s ? `mailto:${s}` : '';
+};
+
+const isHttpHref = (href) => /^https?:\/\//i.test(href);
 
 /**
  * BusinessCardLivePreview — single source of truth for rendering a digital
@@ -57,37 +81,69 @@ const BusinessCardLivePreview = ({
   );
   const spacingTokens = spacingMap[spacing] || spacingMap.normal;
 
-  const profileUrl = content?.profileImagePreview || content?.profileImageUrl || null;
-  const bannerUrl = content?.bannerImagePreview || content?.bannerImageUrl || null;
+  const profileUrl = resolveCardImageUrl(content?.profileImagePreview, content?.profileImageUrl);
+  const bannerUrl = resolveCardImageUrl(content?.bannerImagePreview, content?.bannerImageUrl);
+  const addressText = String(content?.contact?.address || content?.address || '').trim();
+
+  const wrapText = {
+    wordBreak: 'break-word',
+    overflowWrap: 'anywhere',
+    maxWidth: '100%',
+  };
+
+  const [lightboxUrl, setLightboxUrl] = useState(null);
+  const interactive = mode !== 'print';
 
   const fire = (action, target) => {
     if (typeof onAction === 'function') onAction(action, target);
   };
 
+  const closeLightbox = useCallback(() => setLightboxUrl(null), []);
+
+  useEffect(() => {
+    if (!lightboxUrl) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') closeLightbox(); };
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [lightboxUrl, closeLightbox]);
+
+  const BannerStrip = ({ height = '120px' }) => {
+    if (!bannerUrl) return null;
+    return (
+      <div
+        style={{
+          width: '100%',
+          height,
+          borderRadius: innerRadius,
+          backgroundImage: `url(${bannerUrl})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      />
+    );
+  };
+
   /* ── HEADER (varies by layout) ─────────────────────────────── */
   const HeaderCentered = () => (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
-      {bannerUrl && (
-        <div
-          style={{
-            width: '100%',
-            height: '120px',
-            borderRadius: innerRadius,
-            backgroundImage: `url(${bannerUrl})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-          }}
-        />
-      )}
+      <BannerStrip />
       <Avatar />
       <Identity />
     </div>
   );
 
   const HeaderLeftAligned = () => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-      <Avatar size={84} />
-      <Identity />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
+      <BannerStrip />
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', minWidth: 0 }}>
+        <Avatar size={84} />
+        <Identity />
+      </div>
     </div>
   );
 
@@ -143,7 +199,7 @@ const BusinessCardLivePreview = ({
 
   function Identity() {
     return (
-      <div>
+      <div style={{ ...wrapText, minWidth: 0 }}>
         <div style={{ fontSize: '20px', fontWeight: 700, lineHeight: 1.15 }}>
           {content.fullName || 'Your Name'}
         </div>
@@ -159,26 +215,63 @@ const BusinessCardLivePreview = ({
     );
   }
 
+  /* ── ADDRESS ───────────────────────────────────────────────── */
+  const AddressRow = () => {
+    if (!addressText) return null;
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressText)}`;
+    const Tag = mode === 'print' ? 'div' : 'a';
+    const props = mode === 'print'
+      ? {}
+      : { href: mapsUrl, target: '_blank', rel: 'noopener noreferrer', onClick: () => fire('address') };
+
+    return (
+      <Tag
+        {...props}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'flex-start',
+          gap: '8px',
+          fontSize: '13px',
+          lineHeight: 1.5,
+          opacity: 0.85,
+          color: 'inherit',
+          textDecoration: 'none',
+          ...wrapText,
+        }}
+      >
+        <MapPin size={16} style={{ flexShrink: 0, marginTop: '2px', opacity: 0.75 }} />
+        <span>{addressText}</span>
+      </Tag>
+    );
+  };
+
   /* ── ACTION BUTTONS ────────────────────────────────────────── */
   const PrimaryActions = () => {
     const actions = [];
     const c = content.contact || {};
-    if (c.phone) actions.push({ key: 'call', label: 'Call', Icon: Phone, href: `tel:${c.phone}` });
-    if (c.email) actions.push({ key: 'email', label: 'Email', Icon: Mail, href: `mailto:${c.email}` });
+    if (c.phone) actions.push({ key: 'call', label: 'Call', Icon: Phone, href: normalizeTelHref(c.phone) });
+    if (c.email) actions.push({ key: 'email', label: 'Email', Icon: Mail, href: normalizeMailtoHref(c.email) });
     if (c.whatsapp) {
       const wa = String(c.whatsapp).replace(/\D/g, '');
-      actions.push({ key: 'whatsapp', label: 'WhatsApp', Icon: MessageCircle, href: `https://wa.me/${wa}` });
+      if (wa) actions.push({ key: 'whatsapp', label: 'WhatsApp', Icon: MessageCircle, href: `https://wa.me/${wa}` });
     }
-    if (c.website) actions.push({ key: 'website', label: 'Website', Icon: Globe, href: c.website });
+    if (c.website) {
+      const href = normalizeWebUrl(c.website);
+      if (href) actions.push({ key: 'website', label: 'Website', Icon: Globe, href });
+    }
     if (!actions.length) return null;
 
     return (
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
         {actions.map((a) => {
-          const Tag = mode === 'print' ? 'div' : 'a';
-          const props = mode === 'print'
-            ? {}
-            : { href: a.href, target: '_blank', rel: 'noopener noreferrer', onClick: () => fire(a.key) };
+          const Tag = interactive ? 'a' : 'div';
+          const props = interactive
+            ? {
+              href: a.href,
+              ...(isHttpHref(a.href) ? { target: '_blank', rel: 'noopener noreferrer' } : {}),
+              onClick: () => fire(a.key),
+            }
+            : {};
           return (
             <Tag
               key={a.key}
@@ -206,16 +299,6 @@ const BusinessCardLivePreview = ({
   };
 
   /* ── SOCIAL ROW ────────────────────────────────────────────── */
-  const SOCIAL_ICONS = {
-    instagram: Globe,
-    linkedin: Globe,
-    twitter: Globe,
-    github: Globe,
-    youtube: Globe,
-    facebook: Globe,
-    telegram: Send,
-  };
-
   const SocialRow = () => {
     const s = content.social || {};
     const items = Object.entries(s).filter(([, url]) => !!url);
@@ -223,25 +306,29 @@ const BusinessCardLivePreview = ({
     return (
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
         {items.map(([platform, url]) => {
-          const Icon = SOCIAL_ICONS[platform] || ExternalLink;
-          const Tag = mode === 'print' ? 'div' : 'a';
-          const props = mode === 'print'
-            ? {}
-            : { href: url, target: '_blank', rel: 'noopener noreferrer', onClick: () => fire('social', platform) };
+          const accent = SOCIAL_PLATFORM_ACCENTS[platform] || { color: colors.primary, bg: 'rgba(255,255,255,0.08)' };
+          const label = SOCIAL_PLATFORM_LABELS[platform] || platform;
+          const href = normalizeWebUrl(url);
+          const Tag = interactive ? 'a' : 'div';
+          const props = interactive
+            ? { href, target: '_blank', rel: 'noopener noreferrer', onClick: () => fire('social', platform) }
+            : {};
           return (
             <Tag
               key={platform}
               {...props}
+              aria-label={label}
+              title={label}
               style={{
                 width: '36px', height: '36px',
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                 borderRadius: '50%',
-                backgroundColor: 'rgba(255,255,255,0.08)',
-                color: colors.primary,
+                backgroundColor: accent.bg,
+                color: accent.color,
                 textDecoration: 'none',
               }}
             >
-              <Icon size={18} />
+              <SocialPlatformIcon platform={platform} size={18} />
             </Tag>
           );
         })}
@@ -269,7 +356,7 @@ const BusinessCardLivePreview = ({
       return (
         <div>
           {sec.title && <div style={{ fontSize: '13px', fontWeight: 600, opacity: 0.8, marginBottom: '6px' }}>{sec.title}</div>}
-          <p style={{ fontSize: '14px', lineHeight: 1.6, margin: 0, opacity: 0.9 }}>
+          <p style={{ fontSize: '14px', lineHeight: 1.6, margin: 0, opacity: 0.9, ...wrapText, whiteSpace: 'pre-wrap' }}>
             {sec.body || sec.text || ''}
           </p>
         </div>
@@ -282,35 +369,51 @@ const BusinessCardLivePreview = ({
         <div>
           {sec.title && <div style={{ fontSize: '13px', fontWeight: 600, opacity: 0.8, marginBottom: '8px' }}>{sec.title}</div>}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '8px' }}>
-            {imgs.map((img, i) => (
-              <div
-                key={img.publicId || img.url || i}
-                onClick={() => fire('galleryView', String(i))}
-                style={{
-                  aspectRatio: '1 / 1',
-                  borderRadius: innerRadius,
-                  backgroundImage: `url(${img.url})`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  cursor: mode === 'print' ? 'default' : 'zoom-in',
-                }}
-              />
-            ))}
+            {imgs.map((img, i) => {
+              const imgUrl = resolvePlaybackMediaUrl(img.url);
+              return (
+                <button
+                  key={img.publicId || img.url || i}
+                  type="button"
+                  onClick={() => {
+                    fire('galleryView', String(i));
+                    if (interactive && imgUrl) setLightboxUrl(imgUrl);
+                  }}
+                  style={{
+                    aspectRatio: '1 / 1',
+                    borderRadius: innerRadius,
+                    backgroundImage: imgUrl ? `url(${imgUrl})` : 'none',
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    cursor: interactive ? 'zoom-in' : 'default',
+                    border: 'none',
+                    padding: 0,
+                    backgroundColor: 'rgba(255,255,255,0.06)',
+                  }}
+                  aria-label={`View image ${i + 1}`}
+                />
+              );
+            })}
           </div>
         </div>
       );
     }
     if (sec.type === 'video') {
-      const src = sec.embedSrc || sec.externalVideoUrl || sec.videoUrl || sec.url;
-      if (!src) return null;
+      const embedSrc = sec.embedSrc || null;
+      const nativeRaw = sec.source === 'upload'
+        ? (sec.url || sec.videoUrl)
+        : (sec.videoUrl || sec.url || sec.externalVideoUrl);
+      const nativeSrc = nativeRaw ? resolvePlaybackMediaUrl(nativeRaw) : null;
+      if (!embedSrc && !nativeSrc) return null;
+
       return (
         <div>
           {sec.title && <div style={{ fontSize: '13px', fontWeight: 600, opacity: 0.8, marginBottom: '8px' }}>{sec.title}</div>}
-          {sec.embedSrc ? (
+          {embedSrc ? (
             <div style={{ position: 'relative', width: '100%', paddingTop: '56.25%' }}>
               <iframe
                 title={sec.title || 'video'}
-                src={src}
+                src={embedSrc}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
                 style={{
@@ -324,10 +427,12 @@ const BusinessCardLivePreview = ({
             </div>
           ) : (
             <video
-              src={src}
+              src={nativeSrc}
               controls
               playsInline
-              style={{ width: '100%', borderRadius: innerRadius, display: 'block' }}
+              preload="metadata"
+              crossOrigin="anonymous"
+              style={{ width: '100%', borderRadius: innerRadius, display: 'block', backgroundColor: '#000' }}
               onPlay={() => fire('videoPlay', sec.id)}
             />
           )}
@@ -342,10 +447,11 @@ const BusinessCardLivePreview = ({
           {sec.title && <div style={{ fontSize: '13px', fontWeight: 600, opacity: 0.8, marginBottom: '8px' }}>{sec.title}</div>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {items.map((it, i) => {
-              const Tag = mode === 'print' ? 'div' : 'a';
-              const props = mode === 'print'
-                ? {}
-                : { href: it.url, target: '_blank', rel: 'noopener noreferrer', onClick: () => fire('cta', it.label || `link-${i}`) };
+              const href = normalizeWebUrl(it.url);
+              const Tag = interactive ? 'a' : 'div';
+              const props = interactive && href
+                ? { href, target: '_blank', rel: 'noopener noreferrer', onClick: () => fire('cta', it.label || `link-${i}`) }
+                : {};
               return (
                 <Tag
                   key={i}
@@ -410,7 +516,64 @@ const BusinessCardLivePreview = ({
       ? HeaderLeftAligned
       : HeaderCentered;
 
+  const lightbox = lightboxUrl && interactive && typeof document !== 'undefined'
+    ? createPortal(
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Image preview"
+        onClick={closeLightbox}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 10000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px',
+          backgroundColor: 'rgba(0, 0, 0, 0.92)',
+        }}
+      >
+        <button
+          type="button"
+          onClick={closeLightbox}
+          aria-label="Close image"
+          style={{
+            position: 'absolute',
+            top: '16px',
+            right: '16px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '44px',
+            height: '44px',
+            borderRadius: '50%',
+            border: 'none',
+            backgroundColor: 'rgba(255, 255, 255, 0.15)',
+            color: '#fff',
+            cursor: 'pointer',
+          }}
+        >
+          <X size={22} />
+        </button>
+        <img
+          src={lightboxUrl}
+          alt=""
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            maxWidth: '100%',
+            maxHeight: '100%',
+            objectFit: 'contain',
+            borderRadius: innerRadius,
+          }}
+        />
+      </div>,
+      document.body
+    )
+    : null;
+
   return (
+    <>
     <div
       className={className}
       style={{
@@ -425,20 +588,33 @@ const BusinessCardLivePreview = ({
         gap: spacingTokens.gap,
         width: '100%',
         boxSizing: 'border-box',
+        minWidth: 0,
+        overflow: 'hidden',
       }}
     >
       <Header />
       {content.bio && (
-        <p style={{ fontSize: '14px', lineHeight: 1.6, margin: 0, opacity: 0.9, padding: layout === 'cover' ? `0 ${spacingTokens.padding}` : 0 }}>
+        <p style={{
+          fontSize: '14px',
+          lineHeight: 1.6,
+          margin: 0,
+          opacity: 0.9,
+          padding: layout === 'cover' ? `0 ${spacingTokens.padding}` : 0,
+          ...wrapText,
+          whiteSpace: 'pre-wrap',
+        }}>
           {content.bio}
         </p>
       )}
-      <div style={{ padding: layout === 'cover' ? `0 ${spacingTokens.padding}` : 0, display: 'flex', flexDirection: 'column', gap: spacingTokens.gap }}>
+      <div style={{ padding: layout === 'cover' ? `0 ${spacingTokens.padding}` : 0, display: 'flex', flexDirection: 'column', gap: spacingTokens.gap, minWidth: 0 }}>
+        <AddressRow />
         <PrimaryActions />
         <SocialRow />
         <Sections />
       </div>
     </div>
+    {lightbox}
+    </>
   );
 };
 

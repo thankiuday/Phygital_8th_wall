@@ -284,6 +284,21 @@ export const campaignService = {
     return res.data.data;
   },
 
+  getCardImageDownloadUrl: async (id, { face, size } = {}) => {
+    const res = await api.get(`/campaigns/${id}/card-image/download`, {
+      params: { face, size },
+    });
+    return res.data.data;
+  },
+
+  downloadCardImageFile: async (id, { face, size } = {}) => {
+    const res = await api.get(`/campaigns/${id}/card-image/file`, {
+      params: { face, size },
+      responseType: 'blob',
+    });
+    return res.data;
+  },
+
   getCampaigns: async (params = {}) => {
     const res = await api.get('/campaigns', { params });
     const data = res.data.data;

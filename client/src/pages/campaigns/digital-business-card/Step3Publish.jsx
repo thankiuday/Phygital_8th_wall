@@ -36,50 +36,182 @@ const resolveRedirectBase = () => {
   return typeof window !== 'undefined' ? window.location.origin : '';
 };
 
+const pruneEmpty = (obj) => {
+  const out = {};
+  for (const [key, value] of Object.entries(obj || {})) {
+    if (value === undefined || value === null || value === '') continue;
+    out[key] = value;
+  }
+  return out;
+};
+
+const sectionIdForApi = (sec) => {
+  const id = typeof sec?.id === 'string' ? sec.id.trim() : '';
+  if (!id || id.length > 24) return {};
+  return { id };
+};
+
+const sanitizeSectionForApi = (sec) => {
+  if (!sec || typeof sec !== 'object') return null;
+
+  if (sec.type === 'heading') {
+    const title = String(sec.title || sec.text || '').trim();
+    if (!title) return null;
+    return { type: 'heading', ...sectionIdForApi(sec), title };
+  }
+
+  if (sec.type === 'text' || sec.type === 'about') {
+    const body = String(sec.body || sec.text || '').trim();
+    if (!body) return null;
+    const out = { type: sec.type, ...sectionIdForApi(sec), body };
+    const title = String(sec.title || '').trim();
+    if (title) out.title = title;
+    return out;
+  }
+
+  if (sec.type === 'imageGallery') {
+    const images = (Array.isArray(sec.images) ? sec.images : [])
+      .filter((img) => img?.url)
+      .map((img) => pruneEmpty({
+        url: img.url,
+        publicId: img.publicId,
+        alt: img.alt,
+      }));
+    const out = { type: 'imageGallery', ...sectionIdForApi(sec), images };
+    const title = String(sec.title || '').trim();
+    if (title) out.title = title;
+    return out;
+  }
+
+  if (sec.type === 'video') {
+    const source = sec.source === 'upload' ? 'upload' : 'link';
+    const title = String(sec.title || '').trim();
+    if (source === 'upload') {
+      const url = sec.url || sec.videoUrl;
+      if (!url) return null;
+      const out = { type: 'video', source: 'upload', ...sectionIdForApi(sec), url };
+      if (title) out.title = title;
+      if (sec.publicId) out.publicId = sec.publicId;
+      if (sec.thumbnailUrl) out.thumbnailUrl = sec.thumbnailUrl;
+      return out;
+    }
+    const externalVideoUrl = String(sec.externalVideoUrl || '').trim();
+    if (!externalVideoUrl) return null;
+    const out = { type: 'video', source: 'link', ...sectionIdForApi(sec), externalVideoUrl };
+    if (title) out.title = title;
+    return out;
+  }
+
+  if (sec.type === 'links') {
+    const items = (Array.isArray(sec.items) ? sec.items : [])
+      .map((it) => pruneEmpty({
+        label: typeof it?.label === 'string' ? it.label.trim() : '',
+        url: typeof it?.url === 'string' ? it.url.trim() : '',
+      }))
+      .filter((it) => it.label && it.url);
+    const out = { type: 'customLinks', ...sectionIdForApi(sec), items };
+    const title = String(sec.title || '').trim();
+    if (title) out.title = title;
+    return out;
+  }
+
+  if (sec.type === 'testimonials') {
+    const items = (Array.isArray(sec.items) ? sec.items : [])
+      .map((it) => {
+        const quote = String(it?.quote || '').trim();
+        if (!quote) return null;
+        const row = { quote };
+        const author = String(it?.author || '').trim();
+        const role = String(it?.role || '').trim();
+        if (author) row.author = author;
+        if (role) row.role = role;
+        if (it?.avatarUrl) row.avatarUrl = it.avatarUrl;
+        return row;
+      })
+      .filter(Boolean);
+    const out = { type: 'testimonials', ...sectionIdForApi(sec), items };
+    const title = String(sec.title || '').trim();
+    if (title) out.title = title;
+    return out;
+  }
+
+  return null;
+};
+
 /**
  * Normalize client draft -> server Zod schema shape.
- * The editor keeps a few UI-friendly keys (e.g. `videoUrl`, `links`, heading
- * `text`) that the strict API schema rejects.
+ * The editor keeps UI-only keys and loose section shapes the strict API rejects.
  */
 const normalizeCardContentForApi = (content = {}) => {
   const {
     profileImagePreview,
     bannerImagePreview,
     address,
-    ...restContent
+    contact: rawContact,
+    social: rawSocial,
+    sections: rawSections,
+    fullName,
+    jobTitle,
+    company,
+    bio,
+    tagline,
+    profileImageUrl,
+    profileImagePublicId,
+    bannerImageUrl,
+    bannerImagePublicId,
   } = content;
 
-  const sections = Array.isArray(content.sections)
-    ? content.sections.map((sec) => {
-        if (!sec || typeof sec !== 'object') return sec;
-        if (sec.type === 'video') {
-          return {
-            ...sec,
-            // API expects `url` for uploaded videos.
-            url: sec.url || sec.videoUrl || undefined,
-            videoUrl: undefined,
-          };
-        }
-        if (sec.type === 'links') {
-          // API enum is `customLinks`.
-          return { ...sec, type: 'customLinks' };
-        }
-        if (sec.type === 'heading') {
-          // API expects heading `title`.
-          return { ...sec, title: sec.title || sec.text || '', text: undefined };
-        }
-        return sec;
-      })
-    : [];
-  return {
-    ...restContent,
-    // UI keeps address at top-level; API expects it under contact.
-    contact: {
-      ...(restContent.contact || {}),
-      ...(address ? { address } : {}),
-    },
+  const contact = pruneEmpty({
+    ...(rawContact || {}),
+    ...(address ? { address: String(address).trim() } : {}),
+  });
+
+  const social = pruneEmpty(rawSocial || {});
+
+  const sections = (Array.isArray(rawSections) ? rawSections : [])
+    .map(sanitizeSectionForApi)
+    .filter(Boolean);
+
+  const out = {
+    fullName: String(fullName || '').trim(),
+    profileImageUrl: profileImageUrl || null,
+    profileImagePublicId: profileImagePublicId || null,
+    bannerImageUrl: bannerImageUrl || null,
+    bannerImagePublicId: bannerImagePublicId || null,
+    jobTitle: jobTitle ? String(jobTitle).trim() : null,
+    company: company ? String(company).trim() : null,
+    bio: bio ? String(bio).trim() : null,
+    tagline: tagline ? String(tagline).trim() : null,
     sections,
   };
+
+  if (Object.keys(contact).length) out.contact = contact;
+  if (Object.keys(social).length) out.social = social;
+
+  return out;
+};
+
+const ALLOWED_QR_POSITIONS = new Set([
+  'top-left', 'top-right', 'top-center', 'bottom-left', 'bottom-right', 'bottom-center', 'center',
+]);
+
+const normalizePrintSettingsForApi = (settings = {}) => {
+  if (!settings || typeof settings !== 'object') return settings;
+  const out = { ...settings };
+  if (out.qrPosition && !ALLOWED_QR_POSITIONS.has(out.qrPosition)) {
+    out.qrPosition = 'bottom-right';
+  }
+  return out;
+};
+
+const formatApiError = (err, fallback = 'Failed to save card. Please try again.') => {
+  const apiErrors = err?.response?.data?.errors;
+  if (Array.isArray(apiErrors) && apiErrors.length) {
+    return apiErrors
+      .map((e) => (e.field ? `${e.field}: ${e.message}` : e.message))
+      .join(' · ');
+  }
+  return err?.response?.data?.message || err?.message || fallback;
 };
 
 /**
@@ -197,8 +329,8 @@ const Step3Publish = ({ draft, store, onContinue, onBack }) => {
     if (saving) return;
     setSaving(true);
     setSaveError('');
+    let slugToSave = (draft.cardSlug || '').trim();
     try {
-      let slugToSave = (draft.cardSlug || '').trim();
       if (!slugToSave) slugToSave = slugifyFor(draft.cardContent?.fullName || draft.campaignName || 'my-card');
       if (!SLUG_RE.test(slugToSave || '')) {
         const auto = await findAvailableSlug(slugToSave || seedSlug || 'my-card');
@@ -211,24 +343,29 @@ const Step3Publish = ({ draft, store, onContinue, onBack }) => {
         slugToSave = auto;
       }
 
+      const cardContent = normalizeCardContentForApi(draft.cardContent);
+      const cardPrintSettings = normalizePrintSettingsForApi(draft.cardPrintSettings);
+
       let savedCampaign;
       if (draft.savedCampaignId) {
         savedCampaign = await campaignService.updateCampaign(draft.savedCampaignId, {
           campaignName: draft.campaignName,
           cardSlug: slugToSave || undefined,
           visibility: draft.visibility,
-          cardContent: normalizeCardContentForApi(draft.cardContent),
+          preciseGeoAnalytics: !!draft.preciseGeoAnalytics,
+          cardContent,
           cardDesign: draft.cardDesign,
-          cardPrintSettings: draft.cardPrintSettings,
+          cardPrintSettings,
         });
       } else {
         savedCampaign = await campaignService.createDigitalBusinessCardCampaign({
           campaignName: draft.campaignName,
           cardSlug: slugToSave,
           visibility: draft.visibility,
-          cardContent: normalizeCardContentForApi(draft.cardContent),
+          preciseGeoAnalytics: !!draft.preciseGeoAnalytics,
+          cardContent,
           cardDesign: draft.cardDesign,
-          cardPrintSettings: draft.cardPrintSettings,
+          cardPrintSettings,
           qrDesign: draft.qrDesign,
         });
       }
@@ -253,12 +390,21 @@ const Step3Publish = ({ draft, store, onContinue, onBack }) => {
       if (forContinue) onContinue();
       return true;
     } catch (err) {
-      const message =
-        err?.message
-        || err?.response?.data?.errors?.[0]?.message
-        || err?.response?.data?.message
-        || 'Failed to save card. Please try again.';
-      setSaveError(message);
+      const status = err?.response?.status;
+      if (status === 409) {
+        try {
+          const auto = await findAvailableSlug(slugToSave || seedSlug || 'my-card');
+          if (auto) {
+            store.setSlug(auto);
+            store.setSlugAvailability({ state: 'available', available: true, lastChecked: auto });
+            setSaveError('That custom URL was just taken. We picked an available one — click Save again.');
+            return false;
+          }
+        } catch {
+          /* fall through */
+        }
+      }
+      setSaveError(formatApiError(err));
       return false;
     } finally {
       setSaving(false);
@@ -316,6 +462,24 @@ const Step3Publish = ({ draft, store, onContinue, onBack }) => {
             </div>
           </button>
         </div>
+      </section>
+
+      <section className="wizard-section mt-4 space-y-2">
+        <h4 className="wizard-section-title">Location analytics</h4>
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] px-4 py-3">
+          <input
+            type="checkbox"
+            checked={!!draft.preciseGeoAnalytics}
+            onChange={(e) => store.setPreciseGeoAnalytics(e.target.checked)}
+            className="mt-1 h-4 w-4 shrink-0 rounded border-[var(--border-color)] text-brand-600 focus:ring-brand-500"
+          />
+          <span className="text-left text-xs text-[var(--text-secondary)]">
+            <span className="font-semibold text-[var(--text-primary)]">Precise location analytics (optional)</span>
+            {' '}
+            When someone scans your QR and opens this card, they can opt in to one-time browser GPS for finer location maps.
+            Approximate IP-based location is always collected when this is off.
+          </span>
+        </label>
       </section>
 
       <section className="wizard-section mt-4 space-y-2">

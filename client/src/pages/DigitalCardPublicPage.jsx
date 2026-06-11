@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
+import { MapPin } from 'lucide-react';
 
 import { publicService } from '../services/publicService';
 import BusinessCardLivePreview from '../components/card/BusinessCardLivePreview';
@@ -9,6 +10,7 @@ import PublicQuickLinksMenu from '../components/hub/PublicQuickLinksMenu';
 import PoweredByPhygitalFooter from '../components/hub/PoweredByPhygitalFooter';
 
 const visitorHashKey = 'card-visitor-hash';
+const GEO_CONSENT_VERSION = 'browser-geolocation-v1';
 
 const ensureVisitorHash = () => {
   let h = localStorage.getItem(visitorHashKey);
@@ -41,15 +43,61 @@ const detectBrowser = () => {
  * DigitalCardPublicPage — public hub for `/card/:slug`. Renders the shared
  * `BusinessCardLivePreview` in `mode="public"` and wires telemetry beacons:
  *
- *   • One `scan` on first paint.
+ *   • One `scan` on first paint (with optional browser GPS when enabled).
  *   • One `action` per call/email/whatsapp/website/social/etc tap.
  *   • One `session` on `pagehide` with the total dwell time.
  */
 const DigitalCardPublicPage = () => {
   const { slug } = useParams();
   const [state, setState] = useState({ status: 'loading', data: null, error: null });
+  const [geoPrompt, setGeoPrompt] = useState(false);
+  const [geoStatus, setGeoStatus] = useState('');
   const sessionStartRef = useRef(Date.now());
+  const scanRecordedRef = useRef(false);
   const visitorHash = useMemo(ensureVisitorHash, []);
+
+  const recordScan = useCallback((extra = {}) => {
+    if (scanRecordedRef.current) return;
+    scanRecordedRef.current = true;
+    publicService.recordCardScan(slug, {
+      visitorHash,
+      deviceType: detectDeviceType(),
+      browser: detectBrowser(),
+      ...extra,
+    });
+  }, [slug, visitorHash]);
+
+  const finishGeoFlow = useCallback((coords = {}) => {
+    setGeoPrompt(false);
+    recordScan(coords);
+  }, [recordScan]);
+
+  const tryPreciseGeo = useCallback(() => {
+    if (!window.isSecureContext) {
+      setGeoStatus('Location needs HTTPS. Continuing with approximate location only.');
+      finishGeoFlow();
+      return;
+    }
+    if (!navigator.geolocation) {
+      finishGeoFlow();
+      return;
+    }
+    setGeoStatus('Waiting for permission…');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        finishGeoFlow({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracyM: pos.coords.accuracy,
+          consentVersion: GEO_CONSENT_VERSION,
+        });
+      },
+      () => {
+        finishGeoFlow();
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  }, [finishGeoFlow]);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,11 +106,11 @@ const DigitalCardPublicPage = () => {
       .then((data) => {
         if (cancelled) return;
         setState({ status: 'ready', data, error: null });
-        publicService.recordCardScan(slug, {
-          visitorHash,
-          deviceType: detectDeviceType(),
-          browser: detectBrowser(),
-        });
+        if (data.preciseGeoAnalytics) {
+          setGeoPrompt(true);
+        } else {
+          recordScan();
+        }
       })
       .catch((err) => {
         if (cancelled) return;
@@ -71,7 +119,7 @@ const DigitalCardPublicPage = () => {
         setState({ status: code === 404 ? 'not-found' : 'error', data: null, error: msg });
       });
     return () => { cancelled = true; };
-  }, [slug, visitorHash]);
+  }, [slug, recordScan]);
 
   // pagehide beacon for total session dwell.
   useEffect(() => {
@@ -82,7 +130,6 @@ const DigitalCardPublicPage = () => {
           [JSON.stringify({ visitorHash, sessionDurationMs: ms })],
           { type: 'application/json' }
         );
-        // sendBeacon survives unload; fall back to fetch keepalive.
         if (navigator.sendBeacon) {
           navigator.sendBeacon(`/api/public/card/${slug}/session`, blob);
         } else {
@@ -120,7 +167,6 @@ const DigitalCardPublicPage = () => {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#1e293b,_#0f172a_45%,_#020617_100%)] px-3 py-6 sm:px-4 sm:py-10">
 
-      {/* ── Brand header ── */}
       <div className="mx-auto mb-4 flex max-w-3xl items-center justify-between">
         <BrandLockup variant="compact" className="[&_.brand-word]:brightness-110" />
         <PublicQuickLinksMenu theme="dark" />
@@ -136,16 +182,42 @@ const DigitalCardPublicPage = () => {
       </Helmet>
 
       <div className="mx-auto w-full max-w-3xl">
+        {geoPrompt && (
+          <div className="mb-3 rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-4 text-sm text-slate-200">
+            <div className="flex items-start gap-3">
+              <MapPin size={18} className="mt-0.5 shrink-0 text-cyan-300" />
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-white">Share your location? (optional)</p>
+                <p className="mt-1 text-xs text-slate-300">
+                  Helps the card owner see where visitors open their card. You can skip — approximate location is still collected.
+                </p>
+                {geoStatus && <p className="mt-2 text-xs text-cyan-200">{geoStatus}</p>}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={tryPreciseGeo}
+                    className="rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-cyan-500"
+                  >
+                    Share location
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => finishGeoFlow()}
+                    className="rounded-lg border border-white/20 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-white/10"
+                  >
+                    Skip
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {paused && (
           <div className="mb-3 rounded-md bg-amber-500/10 p-3 text-xs text-amber-300">
             This card is currently paused by its owner.
           </div>
         )}
-        <div className="mb-4 rounded-2xl border border-white/12 bg-gradient-to-br from-white/15 to-white/5 px-4 py-3 shadow-xl backdrop-blur-md">
-          <p className="text-xs uppercase tracking-[0.22em] text-slate-300">Personalized Identity Card</p>
-          <h1 className="mt-1 text-lg font-semibold text-white">{cardContent?.fullName || campaignName}</h1>
-          <p className="text-xs text-slate-300/90">Tap any action on the card to connect instantly.</p>
-        </div>
         <div className="rounded-2xl border border-white/10 bg-white/5 p-2 shadow-2xl backdrop-blur-sm sm:p-4">
           <BusinessCardLivePreview
             content={cardContent}

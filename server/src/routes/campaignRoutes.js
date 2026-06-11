@@ -20,6 +20,8 @@ const {
   getCampaignQR,
   checkCardSlugAvailability,
   renderCampaignCardImage,
+  getCampaignCardImageDownload,
+  getCampaignCardImageFile,
 } = require('../controllers/campaignController');
 
 router.use(protect);
@@ -66,6 +68,18 @@ router.post(
   cardImageLimiter,
   cardImageDailyLimiter,
   renderCampaignCardImage
+);
+router.get(
+  '/:id/card-image/download',
+  cardImageLimiter,
+  cardImageDailyLimiter,
+  getCampaignCardImageDownload
+);
+router.get(
+  '/:id/card-image/file',
+  cardImageLimiter,
+  cardImageDailyLimiter,
+  getCampaignCardImageFile
 );
 
 router.route('/')

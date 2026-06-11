@@ -132,5 +132,9 @@ export const enrichCampaignMedia = (campaign) => {
   return out;
 };
 
-/** @deprecated Use assetUrl */
-export const cloudinaryTransform = assetUrl;
+/** Resolve card profile/banner URLs for display (blob preview or proxied S3). */
+export const resolveCardImageUrl = (preview, url) => {
+  if (preview) return preview;
+  if (url) return resolvePlaybackMediaUrl(url);
+  return null;
+};

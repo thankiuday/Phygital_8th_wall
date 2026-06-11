@@ -74,6 +74,14 @@ export const canPreviewAr = (campaign) => {
 export const hasPrintAsset = (campaign) =>
   isArMediaType(campaign?.campaignType) && !!campaign?.targetImageUrl;
 
+export const isDigitalBusinessCard = (campaign) =>
+  campaign?.campaignType === 'digital-business-card';
+
+export const digitalCardEditUrl = (campaign) => {
+  if (!campaign?._id) return '/dashboard/identity';
+  return `/dashboard/campaigns/new/digital-business-card/personalized-identity?edit=${campaign._id}`;
+};
+
 export const CAMPAIGN_TYPE_LABELS = {
   'ar-card': 'AR Card',
   'ar-poster': 'AR Poster',

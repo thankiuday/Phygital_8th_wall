@@ -18,6 +18,7 @@ import useAnalyticsStore from '../../store/useAnalyticsStore';
 import useIsMobile from '../../hooks/useIsMobile';
 import { useCampaignAnalytics } from '../../hooks/useAnalyticsQueries';
 import Icon3D, { ICON3D_PRESETS } from '../../components/ui/Icon3D';
+import { aggregateCountriesFromLocations, formatGeoSource } from '../../constants/cardAnalyticsLabels';
 
 // ---------------------------------------------------------------------------
 // Constants (same as AnalyticsPage to keep brand consistent)
@@ -110,7 +111,7 @@ const TYPE_CONFIG = {
     scanEmptyHint: 'Visits appear after someone opens your link page.',
   },
   'digital-business-card': {
-    headerSub: 'Card opens, contact taps, and print downloads',
+    headerSub: 'Card opens, engagement breakdowns, and where viewers open your card',
     scanLabel: 'Card opens',
     showAvgSession: true,
     avgSessionSub: 'Time spent on card',
@@ -118,8 +119,10 @@ const TYPE_CONFIG = {
     showLinkClicksTile: false,
     showAssetTiles: false,
     showCardActions: true,
-    locationsTitle: 'Top viewer locations',
-    scanEmptyHint: 'Opens appear after someone visits or scans your card.',
+    locationsTitle: 'Where viewers open your card',
+    scanEmptyHint: 'Opens appear after someone scans your QR or visits your card hub.',
+    locationEmptyHint:
+      'Location data appears after QR scans or hub visits. Enable precise location analytics in Publish for GPS-level maps.',
   },
 };
 
@@ -222,6 +225,11 @@ const CampaignAnalyticsPage = () => {
     (isArCard && typeConfig.showHubVideoSection && hubVideoAnalytics);
   const activeHubVideo = isArCard ? hubVideoAnalytics : videoAnalytics;
   const hubVisitTrend = isArCard ? arCardAnalytics?.hub?.visitTrend : [];
+  const campaignBackUrl = isDigitalCard ? '/dashboard/identity' : `/dashboard/campaigns/${id}`;
+  const countryBreakdown = useMemo(
+    () => (isDigitalCard ? aggregateCountriesFromLocations(locations).slice(0, 5) : []),
+    [isDigitalCard, locations]
+  );
 
   const periodLinkClicks = useMemo(() => {
     if (!hubMultiLink?.clicksByLinkPeriod?.length) return 0;
@@ -257,7 +265,7 @@ const CampaignAnalyticsPage = () => {
           </Link>
           <ChevronRight size={12} className="shrink-0" />
           <Link
-            to={`/dashboard/campaigns/${id}`}
+            to={campaignBackUrl}
             className="block max-w-[12rem] truncate hover:text-brand-400"
           >
             {campaign?.campaignName || 'Campaign'}
@@ -897,68 +905,162 @@ const CampaignAnalyticsPage = () => {
         </>
       )}
 
-      {/* ── Digital Business Card analytics ─────────────────────────────── */}
+      {/* ── Digital Business Card engagement ────────────────────────────── */}
       {isDigitalCard && cardAnalytics && (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mb-2">
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Digital card engagement</h2>
+            <p className="mt-1 text-sm text-[var(--text-muted)]">
+              Contact taps, social, gallery, video, and custom link interactions for this period.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <StatCard
               icon={MousePointerClick}
-              label="Action taps"
-              value={(cardAnalytics.actionTotalPeriod || 0).toLocaleString()}
-              sub="Period"
+              label="Engagement rate"
+              value={cardAnalytics.actionRatePeriod != null ? `${cardAnalytics.actionRatePeriod}%` : '—'}
+              sub="Actions / opens"
               accent={ICON3D_PRESETS.violet}
             />
             <StatCard
-              icon={ScanLine}
-              label="Action rate"
-              value={cardAnalytics.actionRatePeriod != null ? `${cardAnalytics.actionRatePeriod}%` : '—'}
-              sub="Taps / opens"
+              icon={MousePointerClick}
+              label="Contact taps"
+              value={(cardAnalytics.contactTaps || 0).toLocaleString()}
+              sub="Call, email, WhatsApp…"
               accent={ICON3D_PRESETS.cyan}
             />
+            <StatCard
+              icon={Users}
+              label="Social taps"
+              value={(cardAnalytics.socialTaps || 0).toLocaleString()}
+              sub="This period"
+              accent={ICON3D_PRESETS.emerald}
+            />
+            <StatCard
+              icon={Film}
+              label="Content interactions"
+              value={(cardAnalytics.contentInteractions || 0).toLocaleString()}
+              sub="Gallery, video, custom links"
+              accent={ICON3D_PRESETS.amber}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <StatCard
               icon={FileText}
               label="Print downloads"
               value={(cardAnalytics.printDownloads || 0).toLocaleString()}
-              sub="Period"
-              accent={ICON3D_PRESETS.emerald}
+              sub="This period"
+              accent={ICON3D_PRESETS.rose}
             />
             <StatCard
               icon={FileText}
               label="Print downloads (all-time)"
               value={(cardAnalytics.printDownloadsAllTime || 0).toLocaleString()}
-              accent={ICON3D_PRESETS.amber}
+              accent={ICON3D_PRESETS.slate}
+            />
+            <StatCard
+              icon={MousePointerClick}
+              label="Total actions"
+              value={(cardAnalytics.actionTotalPeriod || 0).toLocaleString()}
+              sub="This period"
+              accent={ICON3D_PRESETS.brand}
             />
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="glass-card p-5">
-              <h2 className="mb-4 text-base font-semibold text-[var(--text-primary)]">Top actions</h2>
-              {!cardAnalytics?.actionTotalsPeriod?.length ? (
-                <ChartSkeleton h="h-40" />
+              <h2 className="mb-4 text-base font-semibold text-[var(--text-primary)]">Contact &amp; communication</h2>
+              {!cardAnalytics?.contactBreakdownPeriod?.length ? (
+                <p className="text-sm text-[var(--text-muted)]">No contact taps yet.</p>
               ) : (
-                <ResponsiveContainer width="100%" height={Math.min(360, cardAnalytics.actionTotalsPeriod.length * 36 + 40)}>
-                  <BarChart layout="vertical" data={cardAnalytics.actionTotalsPeriod} margin={chartMargin}>
+                <ResponsiveContainer width="100%" height={Math.min(280, cardAnalytics.contactBreakdownPeriod.length * 36 + 40)}>
+                  <BarChart layout="vertical" data={cardAnalytics.contactBreakdownPeriod} margin={chartMargin}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid-stroke)" />
                     <XAxis type="number" allowDecimals={false} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="action" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} width={120} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} width={120} axisLine={false} tickLine={false} />
                     <Tooltip contentStyle={TOOLTIP_STYLE} />
                     <Bar dataKey="count" fill="#7c3aed" radius={[0, 6, 6, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
             </div>
+
             <div className="glass-card p-5">
-              <h2 className="mb-4 text-base font-semibold text-[var(--text-primary)]">Top social networks</h2>
+              <h2 className="mb-4 text-base font-semibold text-[var(--text-primary)]">Social networks</h2>
               {!cardAnalytics?.socialBreakdownPeriod?.length ? (
                 <p className="text-sm text-[var(--text-muted)]">No social taps yet.</p>
               ) : (
-                <ResponsiveContainer width="100%" height={Math.min(360, cardAnalytics.socialBreakdownPeriod.length * 36 + 40)}>
+                <ResponsiveContainer width="100%" height={Math.min(280, cardAnalytics.socialBreakdownPeriod.length * 36 + 40)}>
                   <BarChart layout="vertical" data={cardAnalytics.socialBreakdownPeriod} margin={chartMargin}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid-stroke)" />
                     <XAxis type="number" allowDecimals={false} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="target" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} width={120} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} width={120} axisLine={false} tickLine={false} />
                     <Tooltip contentStyle={TOOLTIP_STYLE} />
                     <Bar dataKey="count" fill="#06b6d4" radius={[0, 6, 6, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            {cardAnalytics?.galleryBreakdownPeriod?.length > 0 && (
+              <div className="glass-card p-5">
+                <h2 className="mb-4 text-base font-semibold text-[var(--text-primary)]">Gallery views</h2>
+                <ResponsiveContainer width="100%" height={Math.min(280, cardAnalytics.galleryBreakdownPeriod.length * 36 + 40)}>
+                  <BarChart layout="vertical" data={cardAnalytics.galleryBreakdownPeriod} margin={chartMargin}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid-stroke)" />
+                    <XAxis type="number" allowDecimals={false} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} width={140} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} />
+                    <Bar dataKey="count" fill="#10b981" radius={[0, 6, 6, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {cardAnalytics?.videoBreakdownPeriod?.length > 0 && (
+              <div className="glass-card p-5">
+                <h2 className="mb-4 text-base font-semibold text-[var(--text-primary)]">Video plays</h2>
+                <ResponsiveContainer width="100%" height={Math.min(280, cardAnalytics.videoBreakdownPeriod.length * 36 + 40)}>
+                  <BarChart layout="vertical" data={cardAnalytics.videoBreakdownPeriod} margin={chartMargin}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid-stroke)" />
+                    <XAxis type="number" allowDecimals={false} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} width={140} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} />
+                    <Bar dataKey="count" fill="#f59e0b" radius={[0, 6, 6, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {cardAnalytics?.ctaBreakdownPeriod?.length > 0 && (
+              <div className="glass-card p-5">
+                <h2 className="mb-4 text-base font-semibold text-[var(--text-primary)]">Custom links (CTA)</h2>
+                <ResponsiveContainer width="100%" height={Math.min(280, cardAnalytics.ctaBreakdownPeriod.length * 36 + 40)}>
+                  <BarChart layout="vertical" data={cardAnalytics.ctaBreakdownPeriod} margin={chartMargin}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid-stroke)" />
+                    <XAxis type="number" allowDecimals={false} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} width={140} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} />
+                    <Bar dataKey="count" fill="#ef4444" radius={[0, 6, 6, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            <div className="glass-card p-5">
+              <h2 className="mb-4 text-base font-semibold text-[var(--text-primary)]">Top actions</h2>
+              {!cardAnalytics?.actionTotalsPeriod?.length ? (
+                <p className="text-sm text-[var(--text-muted)]">No actions recorded yet.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={Math.min(360, cardAnalytics.actionTotalsPeriod.length * 36 + 40)}>
+                  <BarChart layout="vertical" data={cardAnalytics.actionTotalsPeriod} margin={chartMargin}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid-stroke)" />
+                    <XAxis type="number" allowDecimals={false} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} width={120} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} />
+                    <Bar dataKey="count" fill="#7c3aed" radius={[0, 6, 6, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -1074,32 +1176,56 @@ const CampaignAnalyticsPage = () => {
           <ChartSkeleton h="h-40" />
         ) : !locations.length ? (
           <p className="text-sm text-[var(--text-muted)]">
-            No location data available yet.
+            {typeConfig.locationEmptyHint || 'No location data available yet.'}
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] text-sm">
-              <thead>
-                <tr className="border-b border-[var(--border-color)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
-                  <th className="py-2 pr-3 font-medium">City</th>
-                  <th className="py-2 pr-3 font-medium">Region</th>
-                  <th className="py-2 pr-3 font-medium">Country</th>
-                  <th className="py-2 pr-3 font-medium">Scans</th>
-                  <th className="py-2 font-medium">Unique</th>
-                </tr>
-              </thead>
-              <tbody>
-                {locations.map((row, idx) => (
-                  <tr key={`${row.city}-${row.region}-${row.country}-${idx}`} className="border-b border-[var(--border-color)]/60">
-                    <td className="py-2 pr-3 text-[var(--text-primary)]">{row.city}</td>
-                    <td className="py-2 pr-3 text-[var(--text-secondary)]">{row.region}</td>
-                    <td className="py-2 pr-3 text-[var(--text-secondary)]">{row.country}</td>
-                    <td className="py-2 pr-3 font-semibold text-[var(--text-primary)]">{row.scans}</td>
-                    <td className="py-2 text-[var(--text-secondary)]">{row.uniqueVisitors}</td>
+          <div className="space-y-6">
+            {isDigitalCard && countryBreakdown.length > 0 && (
+              <div>
+                <h3 className="mb-3 text-sm font-medium text-[var(--text-secondary)]">Top countries</h3>
+                <ResponsiveContainer width="100%" height={Math.min(220, countryBreakdown.length * 40 + 24)}>
+                  <BarChart layout="vertical" data={countryBreakdown} margin={chartMargin}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid-stroke)" />
+                    <XAxis type="number" allowDecimals={false} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="country" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} width={100} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={TOOLTIP_STYLE} />
+                    <Bar dataKey="scans" fill="#f43f5e" radius={[0, 6, 6, 0]} name="Opens" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[560px] text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--border-color)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                    <th className="py-2 pr-3 font-medium">City</th>
+                    <th className="py-2 pr-3 font-medium">Region</th>
+                    <th className="py-2 pr-3 font-medium">Country</th>
+                    {isDigitalCard && <th className="py-2 pr-3 font-medium">Source</th>}
+                    <th className="py-2 pr-3 font-medium">{isDigitalCard ? 'Opens' : 'Scans'}</th>
+                    <th className="py-2 font-medium">Unique</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {locations.map((row, idx) => (
+                    <tr key={`${row.city}-${row.region}-${row.country}-${idx}`} className="border-b border-[var(--border-color)]/60">
+                      <td className="py-2 pr-3 text-[var(--text-primary)]">{row.city}</td>
+                      <td className="py-2 pr-3 text-[var(--text-secondary)]">{row.region}</td>
+                      <td className="py-2 pr-3 text-[var(--text-secondary)]">{row.country}</td>
+                      {isDigitalCard && (
+                        <td className="py-2 pr-3">
+                          <span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-xs font-medium text-[var(--text-secondary)]">
+                            {formatGeoSource(row.geoSource)}
+                          </span>
+                        </td>
+                      )}
+                      <td className="py-2 pr-3 font-semibold text-[var(--text-primary)]">{row.scans}</td>
+                      <td className="py-2 text-[var(--text-secondary)]">{row.uniqueVisitors}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
@@ -1107,10 +1233,10 @@ const CampaignAnalyticsPage = () => {
       {/* ── Back links ──────────────────────────────────────────────────── */}
       <div className="flex items-center gap-4 pb-4 text-sm">
         <Link
-          to={`/dashboard/campaigns/${id}`}
+          to={campaignBackUrl}
           className="text-brand-400 hover:text-brand-300 hover:underline"
         >
-          ← Back to Campaign
+          {isDigitalCard ? '← Back to Identity' : '← Back to Campaign'}
         </Link>
         <Link
           to="/dashboard/analytics"

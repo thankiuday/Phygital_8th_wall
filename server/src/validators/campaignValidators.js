@@ -727,7 +727,7 @@ const cardPrintSettingsSchema = z
   .object({
     cardSize: CARD_SIZE_IDS.optional(),
     theme: z.enum(['white', 'black', 'neon']).optional(),
-    qrPosition: z.enum(['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center']).optional(),
+    qrPosition: z.enum(['top-left', 'top-right', 'top-center', 'bottom-left', 'bottom-right', 'bottom-center', 'center']).optional(),
     qrPlacement: z.enum(['front', 'back', 'both']).optional(),
     includeQr: z.boolean().optional(),
     displayFields: z.array(CARD_DISPLAY_FIELDS).max(8).optional(),

@@ -772,7 +772,7 @@ const findCardCampaign = async (rawSlug) => {
   };
   return Campaign.findOne(
     filter,
-    'campaignName cardSlug redirectSlug visibility status cardContent cardDesign cardPrintSettings preciseGeoAnalytics'
+    'campaignName userId cardSlug redirectSlug visibility status cardContent cardDesign cardPrintSettings preciseGeoAnalytics'
   ).lean();
 };
 
@@ -834,6 +834,7 @@ router.get('/card/:slug/meta', cardSlugLimiter, async (req, res) => {
     publicUrl,
     status: campaign.status,
     paused: campaign.status === 'paused',
+    preciseGeoAnalytics: campaign.preciseGeoAnalytics === true,
     cardContent,
     cardDesign: campaign.cardDesign || null,
     /** Required for /print/card Puppeteer + BusinessCardPrintPreview (QR placement, includeQr, etc.). */

@@ -8,6 +8,7 @@ import useCampaignStore from '../../store/useCampaignStore';
 import EditCampaignModal from '../../components/ui/EditCampaignModal';
 import Icon3D, { ICON3D_PRESETS } from '../../components/ui/Icon3D';
 import { CampaignListCard, CampaignListSkeletonCard } from '../../components/campaigns/CampaignListCard';
+import { digitalCardEditUrl } from '../../utils/campaignActions';
 
 const EMPTY_COPY = {
   title: 'No digital business cards yet',
@@ -83,7 +84,7 @@ const PersonalizedIdentityPage = () => {
     const result = await duplicateCampaignInList(campaign._id);
     if (result.success && result.campaign?._id) {
       showToast(`"${result.campaign.campaignName}" created.`);
-      navigate(`/dashboard/identity?focus=${result.campaign._id}`, { replace: true });
+      navigate(digitalCardEditUrl(result.campaign), { replace: true });
     } else {
       showToast(result.message || 'Duplicate failed.');
     }
@@ -92,7 +93,7 @@ const PersonalizedIdentityPage = () => {
   const handleSaveEdit = async (id, updates) => updateCampaignInList(id, updates);
 
   const isFiltered = !!search.trim();
-  const getHref = (c) => `/dashboard/identity?focus=${c._id}`;
+  const getHref = (c) => digitalCardEditUrl(c);
 
   return (
     <div className="mx-auto max-w-7xl space-y-5 p-4 sm:p-6">

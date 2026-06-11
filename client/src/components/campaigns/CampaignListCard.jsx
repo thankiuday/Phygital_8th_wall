@@ -3,10 +3,11 @@ import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ScanLine, Calendar,
-  MoreVertical, Pencil, Copy, Trash2, Play, Pause,
+  MoreVertical, Pencil, PenLine, Copy, Trash2, Play, Pause,
   BarChart3, ExternalLink, Download, Loader2, Sparkles,
 } from 'lucide-react';
 import { downloadCompositedCardImage } from '../../utils/downloadCampaignCardImage';
+import { downloadDigitalCardFaces } from '../../utils/downloadDigitalCardPrint';
 import Icon3D, { ICON3D_PRESETS } from '../ui/Icon3D';
 import CampaignThumbnail from '../ui/CampaignThumbnail';
 import { arEffectLabel } from '../../constants/arEffects';
@@ -17,9 +18,11 @@ import {
   hasPrintAsset,
   hubPublicUrl,
   isArMediaType,
+  isDigitalBusinessCard,
   isDynamicQrType,
   isHubQrType,
   primaryOpenUrl,
+  digitalCardEditUrl,
 } from '../../utils/campaignActions';
 
 const StatusBadge = ({ status }) => {
@@ -43,10 +46,16 @@ const CardMenu = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete, onO
     onOpenChange?.(next);
   };
 
+  const isDigitalCard = isDigitalBusinessCard(campaign);
+
   const handleDownloadPrint = async () => {
     setDownloadBusy(true);
     try {
-      await downloadCompositedCardImage(campaign);
+      if (isDigitalCard) {
+        await downloadDigitalCardFaces(campaign);
+      } else {
+        await downloadCompositedCardImage(campaign);
+      }
       setMenuOpen(false);
     } catch {
       /* retry from detail */
@@ -75,6 +84,16 @@ const CardMenu = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete, onO
               exit={{ opacity: 0, scale: 0.95, y: -4 }}
               className="absolute bottom-full right-0 z-[130] mb-1 w-44 overflow-hidden rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] py-1 shadow-xl sm:bottom-auto sm:top-full sm:mb-0 sm:mt-1"
             >
+              {isDigitalCard && (
+                <Link
+                  to={digitalCardEditUrl(campaign)}
+                  onClick={() => setMenuOpen(false)}
+                  className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-3)]"
+                >
+                  <Icon3D icon={PenLine} size={10} className="h-5 w-5" accent={ICON3D_PRESETS.violet} rounded="rounded-md" />
+                  Edit card
+                </Link>
+              )}
               {[
                 { icon: Pencil, label: 'Quick edit', action: () => { setMenuOpen(false); onEdit(); } },
                 { icon: Copy, label: 'Duplicate', action: () => { setMenuOpen(false); onDuplicate(); } },
@@ -94,7 +113,7 @@ const CardMenu = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete, onO
                   {label}
                 </button>
               ))}
-              {hasPrintAsset(campaign) && (
+              {(hasPrintAsset(campaign) || isDigitalCard) && (
                 <button
                   type="button"
                   onClick={handleDownloadPrint}
@@ -104,7 +123,7 @@ const CardMenu = ({ campaign, onEdit, onDuplicate, onToggleStatus, onDelete, onO
                   {downloadBusy ? <Loader2 size={14} className="animate-spin" /> : (
                     <Icon3D icon={Download} size={10} className="h-5 w-5" accent={ICON3D_PRESETS.emerald} rounded="rounded-md" />
                   )}
-                  Download print card
+                  {isDigitalCard ? 'Download print PNGs' : 'Download print card'}
                 </button>
               )}
               <div className="mx-2 my-1 border-t border-[var(--border-color)]" />

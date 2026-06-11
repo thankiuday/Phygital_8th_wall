@@ -221,7 +221,10 @@ const CampaignDetailPage = () => {
 
   useEffect(() => {
     if (!campaign || campaign.campaignType !== 'digital-business-card') return;
-    navigate(`/dashboard/identity?focus=${id}`, { replace: true });
+    navigate(
+      `/dashboard/campaigns/new/digital-business-card/personalized-identity?edit=${id}`,
+      { replace: true },
+    );
   }, [campaign, id, navigate]);
 
   const toggleStatus = async () => {
@@ -256,7 +259,10 @@ const CampaignDetailPage = () => {
     try {
       const copy = await campaignService.duplicateCampaign(id);
       if (copy.campaignType === 'digital-business-card') {
-        navigate(`/dashboard/identity?focus=${copy._id}`, { replace: true });
+        navigate(
+          `/dashboard/campaigns/new/digital-business-card/personalized-identity?edit=${copy._id}`,
+          { replace: true },
+        );
       } else {
         navigate(`/dashboard/campaigns/${copy._id}`);
       }
@@ -337,7 +343,7 @@ const CampaignDetailPage = () => {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-24">
         <Loader2 className="h-8 w-8 animate-spin text-brand-400" aria-hidden />
-        <p className="text-sm text-[var(--text-muted)]">Opening personalized identity…</p>
+        <p className="text-sm text-[var(--text-muted)]">Opening card editor…</p>
       </div>
     );
   }

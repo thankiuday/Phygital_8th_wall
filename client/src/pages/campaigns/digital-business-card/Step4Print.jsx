@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Download, Loader2, Printer, ExternalLink } from 'lucide-react';
+import { Download, Loader2, Printer } from 'lucide-react';
 
 import { campaignService } from '../../../services/campaignService';
+import { downloadImageBlob } from '../../../utils/compositeQrOnCardImage';
 import { CARD_SIZES, CARD_SIZE_IDS, getCardSize } from '../../../components/card/cardSizes';
 import {
   QR_THEMES,
@@ -154,13 +155,19 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
           : null,
       });
 
-      const autoFrontReady = settled.front?.status === 'ready' && settled.front?.url;
-      const autoBackReady = settled.back?.status === 'ready' && settled.back?.url;
+      const autoFrontReady = settled.front?.status === 'ready';
+      const autoBackReady = settled.back?.status === 'ready';
       if (autoFrontReady && autoBackReady) {
-        triggerDownload(settled.front.url, settled.front.filename || `card-${p.cardSize}-front.png`);
-        setTimeout(() => {
-          triggerDownload(settled.back.url, settled.back.filename || `card-${p.cardSize}-back.png`);
-        }, 350);
+        try {
+          await downloadCardFace('front', settled.front.filename);
+          setTimeout(() => {
+            downloadCardFace('back', settled.back.filename).catch(() => {
+              setError('Back card download failed. Use Download Back to try again.');
+            });
+          }, 350);
+        } catch {
+          setError('Front card download failed. Use Download Card to try again.');
+        }
       }
 
       setBusy(false);
@@ -170,24 +177,27 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
     }
   };
 
-  // Trigger a real `download` by clicking a programmatic anchor. We do front
-  // first then back, with a tiny stagger so the second download isn't
-  // de-duped by the browser when the URL is identical.
-  const triggerDownload = (url, filename) => {
-    if (!url) return;
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename || 'card.png';
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  const downloadCardFace = async (face, filenameOverride) => {
+    if (!draft.savedCampaignId) return;
+    const filename = filenameOverride || `card-${p.cardSize}-${face}.png`;
+    const blob = await campaignService.downloadCardImageFile(draft.savedCampaignId, {
+      face,
+      size: p.cardSize,
+    });
+    downloadImageBlob(blob, filename);
   };
 
-  const downloadBoth = () => {
-    if (front.url) triggerDownload(front.url, front.filename || `card-${p.cardSize}-front.png`);
-    if (back.url)  setTimeout(() => triggerDownload(back.url, back.filename || `card-${p.cardSize}-back.png`), 350);
+  const downloadBoth = async () => {
+    try {
+      await downloadCardFace('front', front.filename || `card-${p.cardSize}-front.png`);
+      setTimeout(() => {
+        downloadCardFace('back', back.filename || `card-${p.cardSize}-back.png`).catch((err) => {
+          setError(err?.response?.data?.message || 'Back card download failed.');
+        });
+      }, 350);
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Front card download failed.');
+    }
   };
 
   const ready = front.status === 'ready' && back.status === 'ready';
@@ -264,6 +274,9 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
               </button>
             ))}
           </div>
+          <p className="mb-2 text-[11px] text-[var(--text-muted)]">
+            Card theme applies to the front and back preview together.
+          </p>
           <div className="grid grid-cols-3 gap-2">
             {QR_POSITIONS.map((q) => (
               <button
@@ -280,7 +293,9 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
 
         <div>
           <h4 className="mb-2 text-sm font-semibold text-[var(--text-primary)]">Display Information</h4>
-          <p className="mb-2 text-xs text-[var(--text-muted)]">Pick which fields print on the physical card.</p>
+          <p className="mb-2 text-xs text-[var(--text-muted)]">
+            Pick which fields print on the front. The back shows your QR code and company name only.
+          </p>
           <div className="grid grid-cols-2 gap-2">
             {DISPLAY_FIELDS.map((f) => (
               <label key={f.id} className="flex items-center gap-2 rounded-md border border-[var(--border-color)] bg-[var(--surface-2)] px-2 py-1.5 text-xs text-[var(--text-secondary)]">
@@ -361,26 +376,28 @@ const Step4Print = ({ draft, store, onBack, onFinish }) => {
         )}
 
         {ready && front.url && (
-          <a
-            href={front.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="wizard-btn-secondary px-4 py-2"
+          <button
+            type="button"
+            onClick={() => downloadCardFace('front', front.filename || `card-${p.cardSize}-front.png`).catch((err) => {
+              setError(err?.response?.data?.message || 'Front card download failed.');
+            })}
+            className="wizard-btn-secondary inline-flex items-center gap-2 px-4 py-2"
           >
-            <ExternalLink size={14} />
-            View Front
-          </a>
+            <Download size={14} />
+            Download Front
+          </button>
         )}
         {ready && back.url && (
-          <a
-            href={back.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="wizard-btn-secondary px-4 py-2"
+          <button
+            type="button"
+            onClick={() => downloadCardFace('back', back.filename || `card-${p.cardSize}-back.png`).catch((err) => {
+              setError(err?.response?.data?.message || 'Back card download failed.');
+            })}
+            className="wizard-btn-secondary inline-flex items-center gap-2 px-4 py-2"
           >
-            <ExternalLink size={14} />
-            View Back
-          </a>
+            <Download size={14} />
+            Download Back
+          </button>
         )}
       </div>
 

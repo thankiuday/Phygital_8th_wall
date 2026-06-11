@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Eye, EyeOff, ChevronLeft } from 'lucide-react';
+import { Eye, EyeOff, ChevronLeft, Loader2 } from 'lucide-react';
+import { campaignService } from '../../services/campaignService';
 import { createPortal } from 'react-dom';
 
 import useAuthStore from '../../store/useAuthStore';
@@ -45,9 +46,8 @@ const DigitalBusinessCardWizard = () => {
   const { user } = useAuthStore();
   const draft = useDigitalCardDraftStore();
   const [previewOpen, setPreviewOpen] = useState(false);
-  // Print-preview face toggle (front | back). Local state — never persisted,
-  // since it's purely a UI affordance for Step 4.
   const [printFace, setPrintFace] = useState('front');
+  const [editLoading, setEditLoading] = useState(false);
   const canGoBack = draft.step > 0;
 
   /**
@@ -77,6 +77,51 @@ const DigitalBusinessCardWizard = () => {
     }
     const t = window.setTimeout(applyFreshDraft, 0);
     return () => window.clearTimeout(t);
+  }, [location.pathname, location.search, navigate]);
+
+  /** Open an existing saved card in the wizard (`?edit=<campaignId>`). */
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const editId = params.get('edit');
+    if (!editId) return undefined;
+
+    let cancelled = false;
+    setEditLoading(true);
+
+    const applyEdit = async () => {
+      try {
+        const campaign = await campaignService.getCampaign(editId);
+        if (cancelled) return;
+        if (campaign.campaignType !== 'digital-business-card') {
+          navigate('/dashboard/campaigns', { replace: true });
+          return;
+        }
+        useDigitalCardDraftStore.getState().loadFromCampaign(campaign);
+        navigate({ pathname: location.pathname, search: '' }, { replace: true });
+      } catch {
+        if (!cancelled) navigate('/dashboard/identity', { replace: true });
+      } finally {
+        if (!cancelled) setEditLoading(false);
+      }
+    };
+
+    const { persist } = useDigitalCardDraftStore;
+    if (persist?.hasHydrated?.()) {
+      applyEdit();
+      return () => { cancelled = true; };
+    }
+    if (typeof persist?.onFinishHydration === 'function') {
+      const unsub = persist.onFinishHydration(() => { applyEdit(); });
+      return () => {
+        cancelled = true;
+        if (typeof unsub === 'function') unsub();
+      };
+    }
+    const t = window.setTimeout(applyEdit, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
   }, [location.pathname, location.search, navigate]);
 
   // First-time visitors get an auto-seeded name. Don't clobber whatever the
@@ -133,7 +178,7 @@ const DigitalBusinessCardWizard = () => {
             redirectSlug={draft.savedRedirectSlug}
           />
           <p className="text-[11px] text-[var(--text-muted)]">
-            300 DPI, full bleed. Front and back render as two separate PNGs on download.
+            Theme applies to front and back — use the buttons above to switch sides. 300 DPI, full bleed.
           </p>
         </div>
       );
@@ -264,6 +309,15 @@ const DigitalBusinessCardWizard = () => {
       document.body
     )
     : null;
+
+  if (editLoading) {
+    return (
+      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-400" aria-hidden />
+        <p className="text-sm text-[var(--text-muted)]">Loading your card…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl min-w-0 overflow-x-hidden pb-24 lg:pb-0">

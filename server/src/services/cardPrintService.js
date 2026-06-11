@@ -22,7 +22,9 @@
  */
 
 const crypto = require('crypto');
-const { uploadBuffer, headObject, publicUrlForKey } = require('./storageService');
+const { GetObjectCommand } = require('@aws-sdk/client-s3');
+const { getS3Client, getBucket } = require('../config/s3');
+const { uploadBuffer, headObject, publicUrlForKey, getPresignedReadUrlForKey } = require('./storageService');
 const logger = require('../config/logger');
 
 const RENDER_TOKEN_TTL_MS = 5 * 60 * 1000;
@@ -48,6 +50,15 @@ const toErrorMeta = (err) => {
 
 const cardStorageKey = ({ userId, renderHash }) =>
   `phygital8thwall/${userId}/cards/${renderHash}.png`;
+
+/** Private S3 objects must use presigned GET URLs for browser downloads. */
+const withSignedDownloadUrl = async (payload) => {
+  if (!payload) return payload;
+  const publicId = payload.public_id || payload.publicId;
+  const signed = publicId ? await getPresignedReadUrlForKey(publicId) : null;
+  if (!signed) return payload;
+  return { ...payload, url: signed };
+};
 
 const uploadPngBuffer = async ({ buffer, userId, renderHash }) => {
   const key = cardStorageKey({ userId, renderHash });
@@ -331,14 +342,14 @@ const renderCardPng = async ({ campaignId, userId, cardSlug, size, face, renderH
 
   const cached = await lookupCachedRender({ userId, renderHash });
   if (cached) {
-    return {
+    return await withSignedDownloadUrl({
       status: 'ready',
       url: cached.url,
       public_id: cached.public_id,
       filename,
       face: requestedFace,
       cached: true,
-    };
+    });
   }
 
   if (queueAdapter) {
@@ -364,14 +375,14 @@ const renderCardPng = async ({ campaignId, userId, cardSlug, size, face, renderH
   }
 
   const direct = await renderDirect({ campaignId, userId, cardSlug, size, face: requestedFace, renderHash });
-  return {
+  return await withSignedDownloadUrl({
     status: 'ready',
     url: direct.url,
     public_id: direct.public_id,
     filename,
     face: requestedFace,
     cached: false,
-  };
+  });
 };
 
 /**
@@ -388,7 +399,7 @@ const getRenderJobStatus = async (jobId) => {
     if (!job) return { status: 'unknown' };
     const state = await job.getState();
     if (state === 'completed') {
-      return { status: 'ready', ...job.returnvalue };
+      return await withSignedDownloadUrl({ status: 'ready', ...job.returnvalue });
     }
     if (state === 'failed') {
       return { status: 'failed', reason: job.failedReason || 'render failed' };
@@ -400,10 +411,65 @@ const getRenderJobStatus = async (jobId) => {
   }
 };
 
+const getCachedCardDownload = async ({ userId, renderHash, filename, face }) => {
+  const cached = await lookupCachedRender({ userId, renderHash });
+  if (!cached) return null;
+  return await withSignedDownloadUrl({
+    status: 'ready',
+    url: cached.url,
+    public_id: cached.public_id,
+    filename,
+    face,
+    cached: true,
+  });
+};
+
+const safeAttachmentFilename = (filename) =>
+  String(filename || 'card.png').replace(/["\r\n]/g, '').replace(/[^\w.-]+/g, '_');
+
+/**
+ * Stream a cached card PNG through the API with Content-Disposition: attachment
+ * so browsers save the file instead of opening a new tab.
+ */
+const streamCachedCardPng = async ({ userId, renderHash, filename }, res) => {
+  const cached = await lookupCachedRender({ userId, renderHash });
+  if (!cached?.public_id) return false;
+
+  const s3 = getS3Client();
+  const obj = await s3.send(new GetObjectCommand({
+    Bucket: getBucket(),
+    Key: cached.public_id,
+  }));
+
+  const safeFilename = safeAttachmentFilename(filename);
+  res.setHeader('Content-Type', obj.ContentType || 'image/png');
+  res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
+  if (typeof obj.ContentLength === 'number') {
+    res.setHeader('Content-Length', String(obj.ContentLength));
+  }
+
+  const body = obj.Body;
+  if (body && typeof body.pipe === 'function') {
+    body.on('error', (err) => {
+      logger.error('cardPrintService.streamCachedCardPng pipe failed', { error: err?.message });
+      if (!res.headersSent) res.status(500).end();
+    });
+    body.pipe(res);
+    return true;
+  }
+
+  const bytes = await body.transformToByteArray();
+  res.send(Buffer.from(bytes));
+  return true;
+};
+
 module.exports = {
   renderCardPng,
   renderCardJob,
   getRenderJobStatus,
+  getCachedCardDownload,
+  streamCachedCardPng,
+  lookupCachedRender,
   mintPrintToken,
   verifyPrintToken,
   CARD_RENDER_QUEUE_NAME,

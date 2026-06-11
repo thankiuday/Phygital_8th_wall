@@ -133,6 +133,7 @@ const publicCardActionSchema = z
       'email',
       'whatsapp',
       'website',
+      'address',
       'social',
       'galleryView',
       'videoPlay',

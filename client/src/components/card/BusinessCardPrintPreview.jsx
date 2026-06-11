@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 
+import { resolveCardImageUrl } from '../../utils/assetUrl';
 import { DEFAULT_CARD_SIZE, getCardSize } from './cardSizes';
 
 /** Merge so Puppeteer / public meta can omit fields without disabling the QR. */
@@ -50,9 +51,31 @@ export const mergeCardPrintSettings = (partial) => {
  * (front / back / both) controls where the code appears on the card.
  */
 const themeColors = (themeId) => {
-  if (themeId === 'black') return { bg: '#0b0b0c', fg: '#ffffff', muted: 'rgba(255,255,255,0.65)' };
-  if (themeId === 'neon')  return { bg: '#020617', fg: '#a3e635', muted: 'rgba(163,230,53,0.65)' };
-  return { bg: '#ffffff', fg: '#0f172a', muted: 'rgba(15,23,42,0.65)' };
+  if (themeId === 'black') {
+    return {
+      bg: '#0b0b0c',
+      fg: '#ffffff',
+      muted: 'rgba(255,255,255,0.65)',
+      qrFrame: '#0b0b0c',
+      wash: 'rgba(255,255,255,0.08)',
+    };
+  }
+  if (themeId === 'neon') {
+    return {
+      bg: '#020617',
+      fg: '#a3e635',
+      muted: 'rgba(163,230,53,0.65)',
+      qrFrame: '#020617',
+      wash: 'rgba(163,230,53,0.14)',
+    };
+  }
+  return {
+    bg: '#ffffff',
+    fg: '#0f172a',
+    muted: 'rgba(15,23,42,0.65)',
+    qrFrame: '#ffffff',
+    wash: 'rgba(15,23,42,0.06)',
+  };
 };
 
 const fmt = {
@@ -61,7 +84,150 @@ const fmt = {
   url:   (s) => (s ? String(s).replace(/^https?:\/\//, '') : ''),
 };
 
-/** Stable identity: avoids remounting QR mounts on parent state churn and keeps styles live. */
+const CONTACT_FIELD_DEFS = [
+  {
+    key: 'tagline',
+    label: 'Tagline',
+    faces: ['front'],
+    check: (content, display) => display('tagline') && !!content.tagline,
+    value: (content) => String(content.tagline).trim(),
+  },
+  {
+    key: 'phone',
+    label: 'Phone',
+    faces: ['front'],
+    check: (content, display) => display('phone') && !!content.contact?.phone,
+    value: (content) => fmt.phone(content.contact.phone),
+  },
+  {
+    key: 'email',
+    label: 'Email',
+    faces: ['front'],
+    check: (content, display) => display('email') && !!content.contact?.email,
+    value: (content) => fmt.email(content.contact.email),
+  },
+  {
+    key: 'address',
+    label: 'Address',
+    faces: ['front'],
+    check: (content, display) => display('address') && !!(content.contact?.address || content.address),
+    value: (content) => String(content.contact?.address || content.address).trim(),
+  },
+  {
+    key: 'website',
+    label: 'Website',
+    faces: ['front'],
+    check: (content, display) => display('website') && !!content.contact?.website,
+    value: (content) => fmt.url(content.contact.website),
+  },
+];
+
+const contactRowsForFace = (content, display, face) =>
+  CONTACT_FIELD_DEFS
+    .filter((def) => def.faces.includes(face) && def.check(content, display))
+    .map((def) => ({ key: def.key, label: def.label, value: def.value(content) }));
+
+function PrintAccentRule({ accent, heightPx, width = '100%' }) {
+  return (
+    <div
+      style={{
+        width,
+        height: Math.max(2, Math.round(heightPx * 0.006)),
+        background: `linear-gradient(90deg, ${accent} 0%, transparent 100%)`,
+        opacity: 0.55,
+        margin: `${heightPx * 0.018}px 0`,
+      }}
+    />
+  );
+}
+
+function PrintContactList({ rows, colors, accent, heightPx }) {
+  if (!rows.length) return null;
+  const labelSize = heightPx * 0.028;
+  const valueSize = heightPx * 0.036;
+  const labelCol = Math.round(heightPx * 0.2);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: heightPx * 0.012, width: '100%' }}>
+      {rows.map((row) => (
+        <div
+          key={row.key}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: `${labelCol}px 1fr`,
+            gap: heightPx * 0.01,
+            alignItems: 'start',
+          }}
+        >
+          <div
+            style={{
+              fontSize: labelSize,
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: 0.6,
+              color: accent,
+              lineHeight: 1.3,
+              paddingTop: 1,
+            }}
+          >
+            {row.label}
+          </div>
+          <div
+            style={{
+              fontSize: valueSize,
+              color: colors.muted,
+              lineHeight: 1.35,
+              wordBreak: 'break-word',
+              fontStyle: row.key === 'tagline' ? 'italic' : 'normal',
+            }}
+          >
+            {row.value}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PrintProfilePhoto({
+  profileImageSrc,
+  profileCropX,
+  profileCropY,
+  profileZoom,
+  sizePx,
+  accent,
+}) {
+  if (!profileImageSrc) return null;
+  const profileTransform = `translate(-50%, -50%) scale(${profileZoom || 1})`;
+  return (
+    <div
+      style={{
+        width: sizePx,
+        height: sizePx,
+        borderRadius: '50%',
+        overflow: 'hidden',
+        border: `${Math.max(2, Math.round(sizePx * 0.022))}px solid ${accent}`,
+        boxShadow: '0 6px 18px rgba(0,0,0,0.18)',
+        flexShrink: 0,
+        position: 'relative',
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          left: '50%',
+          top: '50%',
+          width: '160%',
+          height: '160%',
+          backgroundImage: `url(${profileImageSrc})`,
+          backgroundSize: 'cover',
+          backgroundPosition: `${profileCropX ?? 50}% ${profileCropY ?? 50}%`,
+          transform: profileTransform,
+        }}
+      />
+    </div>
+  );
+}
+
 function PrintCardFrontFace({
   qrFrontRef,
   content,
@@ -76,102 +242,119 @@ function PrintCardFrontFace({
   display,
   frontQrOuter,
   qrPositionStyle,
-  printTheme,
-  qrLight,
   showFrontQr,
 }) {
-  const profileTransform = `translate(-50%, -50%) scale(${profileZoom || 1})`;
+  const profileImageSrc = resolveCardImageUrl(content.profileImagePreview, content.profileImageUrl);
+  const contactRows = contactRowsForFace(content, display, 'front');
+  const hasIdentity = (display('name') && content.fullName)
+    || (display('jobTitle') && content.jobTitle)
+    || (display('company') && content.company);
+  const photoSize = heightPx * (contactRows.length > 2 ? 0.46 : 0.52);
+  const textMaxWidth = profileImageSrc ? '56%' : '100%';
+
   return (
     <>
+      <div style={{ position: 'absolute', inset: 0, background: colors.bg }} />
       <div
         style={{
           position: 'absolute',
-          right: -widthPx * 0.18,
-          top: -heightPx * 0.4,
-          width: widthPx * 0.7,
-          height: heightPx * 1.2,
-          background: `linear-gradient(135deg, ${accent} 0%, transparent 60%)`,
-          opacity: 0.18,
-          transform: 'rotate(15deg)',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: Math.max(4, Math.round(widthPx * 0.012)),
+          background: accent,
+          opacity: 0.85,
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          right: -widthPx * 0.12,
+          top: -heightPx * 0.35,
+          width: widthPx * 0.55,
+          height: heightPx,
+          background: `linear-gradient(135deg, ${accent} 0%, transparent 70%)`,
+          opacity: 0.1,
+          transform: 'rotate(12deg)',
           pointerEvents: 'none',
         }}
       />
-
-      {content.profileImageUrl && (
-        <div
-          style={{
-            position: 'absolute',
-            right: safeInset,
-            bottom: safeInset,
-            width: heightPx * 0.55,
-            height: heightPx * 0.55,
-            borderRadius: '50%',
-            overflow: 'hidden',
-            border: `${Math.round(heightPx * 0.012)}px solid ${accent}`,
-            boxShadow: '0 6px 18px rgba(0,0,0,0.18)',
-          }}
-        >
-          <div
-            style={{
-              position: 'absolute',
-              left: '50%',
-              top: '50%',
-              width: '160%',
-              height: '160%',
-              backgroundImage: `url(${content.profileImagePreview || content.profileImageUrl})`,
-              backgroundSize: 'cover',
-              backgroundPosition: `${profileCropX ?? 50}% ${profileCropY ?? 50}%`,
-              transform: profileTransform,
-            }}
-          />
-        </div>
-      )}
 
       <div
         style={{
           position: 'absolute',
           inset: `${safeInset}px`,
           display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          maxWidth: '62%',
+          alignItems: 'stretch',
+          gap: heightPx * 0.03,
         }}
       >
-        <div>
-          {display('name') && content.fullName && (
-            <div style={{ fontSize: heightPx * 0.11, fontWeight: 800, lineHeight: 1.05, letterSpacing: -0.5 }}>
-              {content.fullName}
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            maxWidth: textMaxWidth,
+            paddingLeft: Math.round(widthPx * 0.02),
+          }}
+        >
+          {hasIdentity && (
+            <div>
+              {display('name') && content.fullName && (
+                <div style={{
+                  fontSize: heightPx * 0.1,
+                  fontWeight: 800,
+                  lineHeight: 1.05,
+                  letterSpacing: -0.4,
+                  color: colors.fg,
+                }}
+                >
+                  {content.fullName}
+                </div>
+              )}
+              {display('jobTitle') && content.jobTitle && (
+                <div style={{ fontSize: heightPx * 0.048, marginTop: heightPx * 0.008, color: colors.muted }}>
+                  {content.jobTitle}
+                </div>
+              )}
+              {display('company') && content.company && (
+                <div style={{
+                  fontSize: heightPx * 0.04,
+                  marginTop: heightPx * 0.006,
+                  color: accent,
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: 1.2,
+                }}
+                >
+                  {content.company}
+                </div>
+              )}
             </div>
           )}
-          {display('jobTitle') && content.jobTitle && (
-            <div style={{ fontSize: heightPx * 0.055, marginTop: 4, opacity: 0.85 }}>
-              {content.jobTitle}
-            </div>
-          )}
-          {display('company') && content.company && (
-            <div style={{
-              fontSize: heightPx * 0.045,
-              marginTop: 2,
-              color: accent,
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: 1.5,
-            }}
-            >
-              {content.company}
+
+          {contactRows.length > 0 && (
+            <div style={{ marginTop: 'auto', paddingTop: heightPx * 0.02 }}>
+              {hasIdentity && <PrintAccentRule accent={accent} heightPx={heightPx} />}
+              <PrintContactList rows={contactRows} colors={colors} accent={accent} heightPx={heightPx} />
             </div>
           )}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: heightPx * 0.012, fontSize: heightPx * 0.04, color: colors.muted }}>
-          {display('tagline') && content.tagline && (
-            <div style={{ color: colors.fg, fontStyle: 'italic' }}>{content.tagline}</div>
-          )}
-          {display('phone')   && content.contact?.phone   && <div>{fmt.phone(content.contact.phone)}</div>}
-          {display('email')   && content.contact?.email   && <div>{fmt.email(content.contact.email)}</div>}
-          {display('website') && content.contact?.website && <div>{fmt.url(content.contact.website)}</div>}
-          {display('address') && content.contact?.address && <div>{content.contact.address}</div>}
-        </div>
+        {profileImageSrc && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+            <PrintProfilePhoto
+              profileImageSrc={profileImageSrc}
+              profileCropX={profileCropX}
+              profileCropY={profileCropY}
+              profileZoom={profileZoom}
+              sizePx={photoSize}
+              accent={accent}
+            />
+          </div>
+        )}
       </div>
 
       {showFrontQr && (
@@ -184,7 +367,7 @@ function PrintCardFrontFace({
             padding: 6,
             boxSizing: 'border-box',
             borderRadius: 10,
-            backgroundColor: printTheme === 'white' ? '#ffffff' : qrLight,
+            backgroundColor: colors.qrFrame,
             overflow: 'hidden',
             display: 'flex',
             alignItems: 'center',
@@ -198,31 +381,36 @@ function PrintCardFrontFace({
   );
 }
 
+/** Back face — minimal: company (optional), QR, scan prompt. All contact details live on the front. */
 function PrintCardBackFace({
   qrBackRef,
   content,
   accent,
   designSecondary,
   colors,
+  widthPx,
   heightPx,
   safeInset,
   showBackQr,
   backQrOuter,
-  qrPositionStyle,
-  qrLight,
+  printTheme,
+  display,
 }) {
-  const backInitial = (content.company || content.fullName || 'C').trim().charAt(0).toUpperCase();
   const secondary = designSecondary || accent;
+  const showCompany = display('company') && content.company;
+
   return (
     <>
+      <div style={{ position: 'absolute', inset: 0, background: colors.bg }} />
       <div
         style={{
           position: 'absolute',
           inset: 0,
           background: `linear-gradient(135deg, ${accent} 0%, ${secondary} 100%)`,
-          opacity: 0.18,
+          opacity: printTheme === 'white' ? 0.1 : 0.18,
         }}
       />
+      <div style={{ position: 'absolute', inset: 0, background: colors.wash }} />
 
       <div
         style={{
@@ -233,75 +421,61 @@ function PrintCardBackFace({
           alignItems: 'center',
           justifyContent: 'center',
           textAlign: 'center',
-          gap: heightPx * 0.04,
+          gap: heightPx * 0.02,
+          paddingLeft: Math.round(widthPx * 0.06),
+          paddingRight: Math.round(widthPx * 0.06),
         }}
       >
-        <div
-          style={{
-            width: heightPx * 0.4,
-            height: heightPx * 0.4,
-            borderRadius: '50%',
-            background: accent,
-            color: '#ffffff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: heightPx * 0.22,
-            fontWeight: 800,
-            boxShadow: '0 8px 18px rgba(0,0,0,0.18)',
-          }}
-        >
-          {backInitial}
-        </div>
-
-        {content.company && (
-          <div style={{
-            fontSize: heightPx * 0.085,
-            fontWeight: 800,
-            letterSpacing: 2,
-            textTransform: 'uppercase',
-            lineHeight: 1.1,
-            color: colors.fg,
-          }}
+        {showCompany && (
+          <div
+            style={{
+              fontSize: heightPx * 0.052,
+              fontWeight: 700,
+              letterSpacing: 1.3,
+              textTransform: 'uppercase',
+              color: accent,
+              lineHeight: 1.2,
+              maxWidth: '100%',
+              wordBreak: 'break-word',
+            }}
           >
             {content.company}
           </div>
         )}
 
-        {(content.tagline || content.bio) && (
-          <div style={{
-            fontSize: heightPx * 0.04,
-            maxWidth: '80%',
-            opacity: 0.85,
-            fontStyle: 'italic',
-            color: colors.fg,
-          }}
-          >
-            {content.tagline || (content.bio?.length > 100 ? `${content.bio.slice(0, 100)}…` : content.bio)}
-          </div>
+        {showBackQr && (
+          <>
+            <div
+              ref={qrBackRef}
+              style={{
+                width: backQrOuter,
+                height: backQrOuter,
+                padding: 6,
+                boxSizing: 'border-box',
+                borderRadius: 10,
+                backgroundColor: colors.qrFrame,
+                overflow: 'hidden',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            />
+            <div
+              style={{
+                fontSize: heightPx * 0.032,
+                letterSpacing: 1,
+                textTransform: 'uppercase',
+                fontWeight: 600,
+                color: colors.muted,
+                lineHeight: 1.3,
+              }}
+            >
+              Scan here
+            </div>
+          </>
         )}
       </div>
-
-      {showBackQr && (
-        <div
-          ref={qrBackRef}
-          style={{
-            position: 'absolute',
-            width: backQrOuter,
-            height: backQrOuter,
-            padding: 4,
-            boxSizing: 'border-box',
-            borderRadius: 8,
-            backgroundColor: qrLight,
-            overflow: 'hidden',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 3,
-            ...qrPositionStyle,
-          }}
-        />
-      )}
     </>
   );
 }
@@ -358,7 +532,7 @@ const BusinessCardPrintPreview = ({
   /** Outer box for the QR mount (inner drawable = outer − padding, see effect). */
   const baseQrSize = Math.round(Math.min(widthPx, heightPx) * 0.28);
   const frontQrOuter = baseQrSize;
-  const backQrOuter = Math.round(baseQrSize * 0.7);
+  const backQrOuter = Math.round(Math.min(widthPx, heightPx) * 0.34);
 
   // Paint after refs attach (useEffect + rAF retries). Do not set data-qr-ready from
   // a timer without a real canvas — that caused empty QR in Puppeteer PNGs.
@@ -502,6 +676,7 @@ const BusinessCardPrintPreview = ({
           style={{
             position: 'absolute',
             inset: 0,
+            background: colors.bg,
             visibility: face === 'front' ? 'visible' : 'hidden',
             pointerEvents: face === 'front' ? 'auto' : 'none',
           }}
@@ -520,8 +695,6 @@ const BusinessCardPrintPreview = ({
             display={display}
             frontQrOuter={frontQrOuter}
             qrPositionStyle={qrPositionStyle}
-            printTheme={printMerged.theme}
-            qrLight={qrColors.light}
             showFrontQr={showFrontQr}
           />
         </div>
@@ -529,6 +702,7 @@ const BusinessCardPrintPreview = ({
           style={{
             position: 'absolute',
             inset: 0,
+            background: colors.bg,
             visibility: face === 'back' ? 'visible' : 'hidden',
             pointerEvents: face === 'back' ? 'auto' : 'none',
           }}
@@ -539,12 +713,13 @@ const BusinessCardPrintPreview = ({
             accent={accent}
             designSecondary={design?.colors?.secondary}
             colors={colors}
+            widthPx={widthPx}
             heightPx={heightPx}
             safeInset={safeInset}
             showBackQr={showBackQr}
             backQrOuter={backQrOuter}
-            qrPositionStyle={qrPositionStyle}
-            qrLight={qrColors.light}
+            printTheme={printMerged.theme}
+            display={display}
           />
         </div>
       </div>

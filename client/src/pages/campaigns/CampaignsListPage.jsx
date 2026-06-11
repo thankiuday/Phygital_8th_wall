@@ -9,6 +9,7 @@ import useCampaignStore from '../../store/useCampaignStore';
 import EditCampaignModal from '../../components/ui/EditCampaignModal';
 import Icon3D, { ICON3D_PRESETS } from '../../components/ui/Icon3D';
 import { CampaignListCard, CampaignListSkeletonCard } from '../../components/campaigns/CampaignListCard';
+import { digitalCardEditUrl } from '../../utils/campaignActions';
 import ArServiceRequestsPanel from '../../components/campaigns/ArServiceRequestsPanel';
 
 // ---------------------------------------------------------------------------
@@ -251,7 +252,7 @@ const CampaignsListPage = () => {
                 campaign={campaign}
                 getCampaignHref={(c) =>
                   c.campaignType === 'digital-business-card'
-                    ? `/dashboard/identity?focus=${c._id}`
+                    ? digitalCardEditUrl(c)
                     : `/dashboard/campaigns/${c._id}`
                 }
                 onEdit={() => setEditTarget(campaign)}

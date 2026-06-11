@@ -46,9 +46,70 @@ const CARD_TYPES = new Set(['digital-business-card']);
 
 /** Recognized card-action keys; should mirror `cardActionQueue.ALLOWED_ACTIONS`. */
 const CARD_ACTION_KEYS = [
-  'call', 'email', 'whatsapp', 'website', 'social',
+  'call', 'email', 'whatsapp', 'website', 'address', 'social',
   'galleryView', 'videoPlay', 'docOpen', 'cta', 'print-download',
 ];
+
+const CONTACT_ACTION_KEYS = ['call', 'email', 'whatsapp', 'website', 'address'];
+const CONTACT_ACTION_KEY_SET = new Set(CONTACT_ACTION_KEYS);
+
+/** Human labels for card action targets using campaign.cardContent. */
+const buildCardActionLabelResolver = (cardContent = {}) => {
+  const sections = Array.isArray(cardContent.sections) ? cardContent.sections : [];
+  const sectionById = new Map(sections.map((s) => [String(s.id), s]));
+  const socialLabels = {
+    instagram: 'Instagram',
+    linkedin: 'LinkedIn',
+    x: 'X (Twitter)',
+    twitter: 'X (Twitter)',
+    facebook: 'Facebook',
+    youtube: 'YouTube',
+    github: 'GitHub',
+    telegram: 'Telegram',
+    tiktok: 'TikTok',
+  };
+
+  return (action, target) => {
+    if (action === 'social' && target) {
+      return socialLabels[String(target).toLowerCase()] || String(target);
+    }
+    if (action === 'galleryView' && target != null) {
+      const idx = Number.parseInt(String(target), 10);
+      const gallerySec = sections.find((s) => s.type === 'imageGallery');
+      const title = gallerySec?.title || 'Gallery';
+      if (Number.isFinite(idx)) return `${title} — Image ${idx + 1}`;
+      return title;
+    }
+    if (action === 'videoPlay' && target) {
+      const sec = sectionById.get(String(target));
+      return sec?.title || sec?.text || 'Video';
+    }
+    if (action === 'cta' && target) return String(target);
+    if (action === 'call') return 'Phone call';
+    if (action === 'email') return 'Email';
+    if (action === 'whatsapp') return 'WhatsApp';
+    if (action === 'website') return 'Website';
+    if (action === 'address') return 'Address';
+    if (action === 'galleryView') return 'Gallery view';
+    if (action === 'videoPlay') return 'Video play';
+    if (action === 'docOpen') return 'Document open';
+    if (action === 'cta') return 'Custom link';
+    if (action === 'print-download') return 'Print download';
+    return action;
+  };
+};
+
+const labelBreakdown = (rows, resolveLabel) =>
+  (rows || []).map(({ target, count }) => ({
+    target,
+    label: resolveLabel(target),
+    count,
+  }));
+
+const sumActionCounts = (actions, keys) =>
+  (actions || [])
+    .filter((r) => keys.has(r.action))
+    .reduce((sum, r) => sum + (r.count || 0), 0);
 
 const DEFAULT_ANALYTICS_TZ = process.env.ANALYTICS_TIMEZONE || 'UTC';
 const normalizeTimeZone = (tz) => {
@@ -1014,7 +1075,39 @@ exports.getCampaignAnalytics = async (req, res) => {
     const periodGroup = groupRows(actionRowsPeriod);
     const allTimeGroup = groupRows(actionRowsAllTime);
 
+    const resolveLabel = buildCardActionLabelResolver(campaign.cardContent);
+
+    const labelActions = (actions) =>
+      (actions || []).map((row) => ({
+        ...row,
+        label: resolveLabel(row.action, null),
+      }));
+
+    const contactBreakdownPeriod = CONTACT_ACTION_KEYS
+      .map((key) => ({
+        action: key,
+        label: resolveLabel(key, null),
+        count: periodGroup.actions.find((r) => r.action === key)?.count || 0,
+      }))
+      .filter((r) => r.count > 0)
+      .sort((a, b) => b.count - a.count);
+
+    const contactBreakdownAllTime = CONTACT_ACTION_KEYS
+      .map((key) => ({
+        action: key,
+        label: resolveLabel(key, null),
+        count: allTimeGroup.actions.find((r) => r.action === key)?.count || 0,
+      }))
+      .filter((r) => r.count > 0)
+      .sort((a, b) => b.count - a.count);
+
     const actionTotalPeriod = periodGroup.actions.reduce((sum, r) => sum + r.count, 0);
+    const contactTaps = sumActionCounts(periodGroup.actions, CONTACT_ACTION_KEY_SET);
+    const socialTaps = periodGroup.actions.find((r) => r.action === 'social')?.count || 0;
+    const galleryViews = periodGroup.actions.find((r) => r.action === 'galleryView')?.count || 0;
+    const videoPlays = periodGroup.actions.find((r) => r.action === 'videoPlay')?.count || 0;
+    const ctaClicks = periodGroup.actions.find((r) => r.action === 'cta')?.count || 0;
+    const contentInteractions = galleryViews + videoPlays + ctaClicks;
     const printDownloads =
       periodGroup.actions.find((r) => r.action === 'print-download')?.count || 0;
     const printDownloadsAllTime =
@@ -1026,13 +1119,51 @@ exports.getCampaignAnalytics = async (req, res) => {
       : null;
 
     cardAnalytics = {
-      actionTotalsPeriod: periodGroup.actions,
-      actionTotalsAllTime: allTimeGroup.actions,
-      socialBreakdownPeriod: periodGroup.targets.social || [],
-      ctaBreakdownPeriod: periodGroup.targets.cta || [],
+      actionTotalsPeriod: labelActions(periodGroup.actions),
+      actionTotalsAllTime: labelActions(allTimeGroup.actions),
+      contactBreakdownPeriod,
+      contactBreakdownAllTime,
+      socialBreakdownPeriod: labelBreakdown(
+        periodGroup.targets.social,
+        (t) => resolveLabel('social', t)
+      ),
+      socialBreakdownAllTime: labelBreakdown(
+        allTimeGroup.targets.social,
+        (t) => resolveLabel('social', t)
+      ),
+      galleryBreakdownPeriod: labelBreakdown(
+        periodGroup.targets.galleryView,
+        (t) => resolveLabel('galleryView', t)
+      ),
+      galleryBreakdownAllTime: labelBreakdown(
+        allTimeGroup.targets.galleryView,
+        (t) => resolveLabel('galleryView', t)
+      ),
+      videoBreakdownPeriod: labelBreakdown(
+        periodGroup.targets.videoPlay,
+        (t) => resolveLabel('videoPlay', t)
+      ),
+      videoBreakdownAllTime: labelBreakdown(
+        allTimeGroup.targets.videoPlay,
+        (t) => resolveLabel('videoPlay', t)
+      ),
+      ctaBreakdownPeriod: labelBreakdown(
+        periodGroup.targets.cta,
+        (t) => resolveLabel('cta', t)
+      ),
+      ctaBreakdownAllTime: labelBreakdown(
+        allTimeGroup.targets.cta,
+        (t) => resolveLabel('cta', t)
+      ),
       actionTrend: fillDailySeries(actionTrend, since, timeZone, ['count']),
       actionTotalPeriod,
       actionRatePeriod,
+      contactTaps,
+      socialTaps,
+      galleryViews,
+      videoPlays,
+      ctaClicks,
+      contentInteractions,
       printDownloads,
       printDownloadsAllTime,
     };

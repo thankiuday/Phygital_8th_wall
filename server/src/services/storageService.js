@@ -124,21 +124,31 @@ const needsPresignedGetUrl = (url) => {
  * Time-limited HTTPS URL for browser playback (hub, AR, public pages).
  * CloudFront URLs are returned unchanged.
  */
-const getPresignedReadUrl = async (url) => {
-  if (!url || !needsPresignedGetUrl(url)) return url;
-  const key = keyFromManagedAssetUrl(url);
-  if (!key) return url;
+const getPresignedReadUrlForKey = async (key) => {
+  const normalized = String(key || '').trim();
+  if (!normalized.startsWith(MANAGED_KEY_PREFIX)) return null;
   try {
     const s3 = getS3Client();
     return await getSignedUrl(
       s3,
-      new GetObjectCommand({ Bucket: getBucket(), Key: key }),
+      new GetObjectCommand({ Bucket: getBucket(), Key: normalized }),
       { expiresIn: GET_EXPIRES_SEC }
     );
   } catch (err) {
-    logger.warn('S3 presigned GET failed', { key, error: err?.message });
-    return url;
+    logger.warn('S3 presigned GET failed', { key: normalized, error: err?.message });
+    return null;
   }
+};
+
+const getPresignedReadUrl = async (url) => {
+  if (!url) return url;
+  const key = keyFromManagedAssetUrl(url);
+  if (key) {
+    const signed = await getPresignedReadUrlForKey(key);
+    if (signed) return signed;
+  }
+  if (!needsPresignedGetUrl(url)) return url;
+  return url;
 };
 
 /**
@@ -350,6 +360,7 @@ module.exports = {
   keyFromManagedAssetUrl,
   needsPresignedGetUrl,
   getPresignedReadUrl,
+  getPresignedReadUrlForKey,
   generateUploadSignature,
   uploadBuffer,
   headObject,

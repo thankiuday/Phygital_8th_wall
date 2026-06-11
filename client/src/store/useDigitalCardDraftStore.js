@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { TEMPLATE_BY_ID } from '../components/card/cardTemplates';
 import { DEFAULT_CARD_SIZE } from '../components/card/cardSizes';
+import { resolveClientAppBase } from '../utils/clientAppBase';
 
 /**
  * useDigitalCardDraftStore — local-only draft for the Digital Business Card
@@ -29,6 +30,7 @@ const emptyDraft = () => ({
   cardSlug: '',
   cardSlugAvailability: { state: 'idle', available: null, lastChecked: '' },
   visibility: 'public',
+  preciseGeoAnalytics: false,
   qrDesign: null,
   // Content
   cardContent: {
@@ -42,7 +44,7 @@ const emptyDraft = () => ({
     bannerImageUrl: null,
     bannerImagePublicId: null,
     bannerImagePreview: null,
-    contact: { phone: '', email: '', whatsapp: '', website: '' },
+    contact: { phone: '', email: '', whatsapp: '', website: '', address: '' },
     social: {},
     sections: [],
   },
@@ -95,6 +97,8 @@ const useDigitalCardDraftStore = create(
       setSlugAvailability: (payload) => set({ cardSlugAvailability: payload }),
 
       setVisibility: (visibility) => set({ visibility }),
+
+      setPreciseGeoAnalytics: (preciseGeoAnalytics) => set({ preciseGeoAnalytics: !!preciseGeoAnalytics }),
 
       setQrDesign: (qrDesign) => set({ qrDesign }),
 
@@ -178,6 +182,46 @@ const useDigitalCardDraftStore = create(
 
       setLastRender: (render) => set({ lastRender: render }),
 
+      /** Hydrate wizard from a saved digital-business-card campaign (edit flow). */
+      loadFromCampaign: (campaign) => {
+        if (!campaign || campaign.campaignType !== 'digital-business-card') return;
+        const base = emptyDraft();
+        const content = campaign.cardContent || {};
+        const design = campaign.cardDesign || {};
+        const print = campaign.cardPrintSettings || {};
+        const cardSlug = campaign.cardSlug || '';
+        const publicBase = resolveClientAppBase();
+        set({
+          ...base,
+          step: 1,
+          campaignName: campaign.campaignName || '',
+          cardSlug,
+          visibility: campaign.visibility || 'public',
+          preciseGeoAnalytics: !!campaign.preciseGeoAnalytics,
+          qrDesign: campaign.qrDesign || null,
+          cardContent: {
+            ...base.cardContent,
+            ...content,
+            contact: { ...base.cardContent.contact, ...(content.contact || {}) },
+            social: { ...base.cardContent.social, ...(content.social || {}) },
+            sections: Array.isArray(content.sections) ? content.sections : [],
+            profileImagePreview: null,
+            bannerImagePreview: null,
+          },
+          cardDesign: {
+            ...base.cardDesign,
+            ...design,
+            colors: { ...base.cardDesign.colors, ...(design.colors || {}) },
+          },
+          cardPrintSettings: { ...base.cardPrintSettings, ...print },
+          savedCampaignId: campaign._id,
+          savedCardSlug: cardSlug || null,
+          savedRedirectSlug: campaign.redirectSlug || null,
+          publicUrl: cardSlug && publicBase ? `${publicBase}/card/${cardSlug}` : null,
+          lastRender: null,
+        });
+      },
+
       reset: () => set(emptyDraft()),
     }),
     {
@@ -189,6 +233,7 @@ const useDigitalCardDraftStore = create(
         campaignName: state.campaignName,
         cardSlug: state.cardSlug,
         visibility: state.visibility,
+        preciseGeoAnalytics: state.preciseGeoAnalytics,
         qrDesign: state.qrDesign,
         cardContent: {
           ...state.cardContent,
