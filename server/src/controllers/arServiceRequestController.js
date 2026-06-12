@@ -42,8 +42,15 @@ exports.createRequest = async (req, res) => {
     requestKind,
     status: { $in: OPEN_STATUSES },
   });
-  if (open) {
-    throw new AppError(openRequestMessageForKind(requestKind), 409);
+  if (open && !req.body.replaceOpen) {
+    const err = new AppError(openRequestMessageForKind(requestKind), 409);
+    err.code = 'OPEN_REQUEST_EXISTS';
+    err.existingRequestId = String(open._id);
+    throw err;
+  }
+  if (open && req.body.replaceOpen) {
+    open.status = 'cancelled';
+    await open.save();
   }
 
   const {
@@ -124,6 +131,20 @@ exports.getMyRequest = async (req, res) => {
     request,
     slaMessage: slaMessageForKind(request.requestKind || 'ar-card'),
   });
+};
+
+exports.cancelMyRequest = async (req, res) => {
+  const request = await ArCardServiceRequest.findOne({
+    _id: req.params.id,
+    userId: req.user._id,
+    status: { $in: OPEN_STATUSES },
+  });
+  if (!request) {
+    throw new AppError('Request not found or cannot be cancelled', 404);
+  }
+  request.status = 'cancelled';
+  await request.save();
+  return success(res, { request }, 'Request cancelled');
 };
 
 // ─── Admin ───────────────────────────────────────────────────────────────────

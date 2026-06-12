@@ -6,8 +6,16 @@ export const SLA_MESSAGE =
 export const SLA_SUBTEXT = 'Processing — up to 24 hours';
 
 export const arServiceRequestService = {
-  createRequest: async (payload) => {
-    const { data } = await api.post('/ar-service-requests', payload);
+  createRequest: async (payload, { replaceOpen = false } = {}) => {
+    const { data } = await api.post('/ar-service-requests', {
+      ...payload,
+      ...(replaceOpen ? { replaceOpen: true } : {}),
+    });
+    return data.data;
+  },
+
+  cancelRequest: async (id) => {
+    const { data } = await api.post(`/ar-service-requests/${id}/cancel`);
     return data.data;
   },
 

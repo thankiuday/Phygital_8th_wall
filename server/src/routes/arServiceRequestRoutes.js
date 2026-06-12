@@ -9,12 +9,14 @@ const {
   createRequest,
   listMyRequests,
   getMyRequest,
+  cancelMyRequest,
 } = require('../controllers/arServiceRequestController');
 
 router.use(protect);
 
 router.post('/', validate(createArServiceRequestSchema), createRequest);
 router.get('/', listMyRequests);
+router.post('/:id/cancel', cancelMyRequest);
 router.get('/:id', getMyRequest);
 
 module.exports = router;

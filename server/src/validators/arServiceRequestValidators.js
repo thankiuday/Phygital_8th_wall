@@ -71,6 +71,8 @@ const createArServiceRequestSchema = z
     greenscreenVideoPublicId: z.string().min(1).max(512).optional(),
     linkItems: linkItemsOptionalField.optional(),
     userNotes: z.string().trim().max(500).optional(),
+    /** Cancel the user's in-progress request of the same kind and submit this one. */
+    replaceOpen: z.boolean().optional(),
   })
   .strict();
 

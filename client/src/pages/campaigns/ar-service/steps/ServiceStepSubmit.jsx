@@ -15,6 +15,7 @@ const ServiceStepSubmit = ({ onDone, product }) => {
     submitRequest,
     isSubmitting,
     wizardError,
+    openRequestConflictId,
     submittedRequest,
   } = useArServiceRequestStore();
 
@@ -60,8 +61,8 @@ const ServiceStepSubmit = ({ onDone, product }) => {
     );
   }
 
-  const handleSubmit = async () => {
-    await submitRequest();
+  const handleSubmit = async (options = {}) => {
+    await submitRequest(options);
   };
 
   return (
@@ -107,9 +108,28 @@ const ServiceStepSubmit = ({ onDone, product }) => {
       </div>
 
       {wizardError && (
-        <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-          {wizardError}
-        </p>
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          <p>{wizardError}</p>
+          {openRequestConflictId && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Link
+                to="/dashboard/campaigns"
+                state={{ tab: 'ar-requests' }}
+                className="rounded-lg border border-red-400/40 px-3 py-1.5 text-xs font-semibold text-red-200 hover:bg-red-500/10"
+              >
+                View my request
+              </Link>
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => handleSubmit({ replaceOpen: true })}
+                className="rounded-lg bg-red-600/80 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-600 disabled:opacity-50"
+              >
+                Cancel previous &amp; submit again
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
@@ -118,7 +138,7 @@ const ServiceStepSubmit = ({ onDone, product }) => {
         </button>
         <button
           type="button"
-          onClick={handleSubmit}
+          onClick={() => handleSubmit()}
           disabled={isSubmitting}
           className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-brand-600 px-6 py-2.5 text-sm font-bold text-white disabled:opacity-50"
         >

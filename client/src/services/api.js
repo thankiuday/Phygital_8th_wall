@@ -102,6 +102,10 @@ api.interceptors.response.use(
     return res;
   },
   async (error) => {
+    if (error.response?.data != null) {
+      error.response.data = normalizeResponseData(error.response.data);
+    }
+
     const orig = error.config;
 
     if (error.response?.status === 401 && isFailedAuthRefreshRequest(orig)) {

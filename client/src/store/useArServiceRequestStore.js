@@ -37,6 +37,7 @@ const useArServiceRequestStore = create((set, get) => ({
   isUploading: false,
   isSubmitting: false,
   wizardError: null,
+  openRequestConflictId: null,
   submittedRequest: null,
 
   setRequestKind: (requestKind) => set({ requestKind: requestKind || 'ar-card' }),
@@ -78,6 +79,7 @@ const useArServiceRequestStore = create((set, get) => ({
       isUploading: false,
       isSubmitting: false,
       wizardError: null,
+      openRequestConflictId: null,
       submittedRequest: null,
     });
   },
@@ -128,9 +130,9 @@ const useArServiceRequestStore = create((set, get) => ({
     }
   },
 
-  submitRequest: async () => {
+  submitRequest: async ({ replaceOpen = false } = {}) => {
     const { wizardData } = get();
-    set({ isSubmitting: true, wizardError: null });
+    set({ isSubmitting: true, wizardError: null, openRequestConflictId: null });
     try {
       const linkItems = wizardData.linkRows?.length
         ? rowsToApiLinkItems(wizardData.linkRows)
@@ -147,15 +149,17 @@ const useArServiceRequestStore = create((set, get) => ({
         greenscreenVideoPublicId: wizardData.greenscreenVideoPublicId,
         linkItems,
         userNotes: wizardData.userNotes?.trim() || undefined,
-      });
+      }, { replaceOpen });
 
-      set({ isSubmitting: false, submittedRequest: result.request });
+      set({ isSubmitting: false, submittedRequest: result.request, openRequestConflictId: null });
       return { success: true, ...result };
     } catch (err) {
-      const message =
-        err?.response?.data?.message || err?.message || 'Failed to submit request';
-      set({ isSubmitting: false, wizardError: message });
-      return { success: false, message };
+      const body = err?.response?.data;
+      const message = body?.message || err?.message || 'Failed to submit request';
+      const openRequestConflictId =
+        body?.code === 'OPEN_REQUEST_EXISTS' ? body?.existingRequestId || null : null;
+      set({ isSubmitting: false, wizardError: message, openRequestConflictId });
+      return { success: false, message, openRequestConflictId };
     }
   },
 }));

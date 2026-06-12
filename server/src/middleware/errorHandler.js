@@ -82,6 +82,7 @@ const errorHandler = (err, req, res, _next) => {
     message,
     ...(validationErrors?.length && { errors: validationErrors }),
     ...(err.code && !validationErrors && { code: String(err.code) }),
+    ...(err.existingRequestId && { existingRequestId: String(err.existingRequestId) }),
     ...(isDev && { stack: err.stack }),
   });
 };
