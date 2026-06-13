@@ -23,6 +23,7 @@ const {
   publicCardSessionSchema,
 } = require('../validators/publicScanValidators');
 const { buildDynamicQrMetaPayload } = require('../utils/dynamicQrMetaPayload');
+const { toPublicLinkList } = require('../utils/linkItemResolver');
 const { enrichPublicAssetUrls } = require('../utils/publicAssetUrls');
 const { SLUG_RE } = require('../constants/singleLinkSlug');
 const { USER_HANDLE_RE } = require('../utils/userHandle');
@@ -150,7 +151,7 @@ router.use('/media', mediaLimiter, async (req, res, next) => {
 router.get('/campaigns/:id', publicLimiter, async (req, res) => {
   const campaign = await Campaign.findOne(
     { _id: req.params.id, status: 'active' },
-    'campaignName targetImageUrl videoUrl videoUrlIos thumbnailUrl status analytics ownerHandle hubSlug redirectSlug arEffect'
+    'campaignName targetImageUrl videoUrl videoUrlIos thumbnailUrl status analytics ownerHandle hubSlug redirectSlug arEffect linkItems'
   ).lean();
 
   if (!campaign) {
@@ -158,7 +159,21 @@ router.get('/campaigns/:id', publicLimiter, async (req, res) => {
   }
 
   const enriched = await enrichPublicAssetUrls(campaign);
-  return success(res, { campaign: enriched });
+  const clientBase = (process.env.CLIENT_URL || '').replace(/\/$/, '');
+  const { linkItems, ...publicCampaign } = enriched;
+  const hubPageUrl = clientBase && publicCampaign.redirectSlug
+    ? (publicCampaign.ownerHandle && publicCampaign.hubSlug
+        ? `${clientBase}/open/${publicCampaign.ownerHandle}/${publicCampaign.hubSlug}`
+        : `${clientBase}/l/${publicCampaign.redirectSlug}`)
+    : null;
+
+  return success(res, {
+    campaign: {
+      ...publicCampaign,
+      links: toPublicLinkList(linkItems || []),
+      hubPageUrl,
+    },
+  });
 });
 
 /* ─────────────────────────────────────────

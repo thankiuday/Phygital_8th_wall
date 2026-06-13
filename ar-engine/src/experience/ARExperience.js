@@ -54,6 +54,8 @@ import { updateLoadingProgress, showError, hideLoading } from '../utils/loadingS
 import { updateSession } from '../services/campaignLoader.js';
 import { isApplePlaybackEngine } from '../utils/platform.js';
 import { initGravityTracker, getUpVector } from '../utils/gravity.js';
+import { buildLinkOverlay } from './buildLinkOverlay.js';
+import { buildHubToggle } from './buildHubToggle.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Scene constants
@@ -133,6 +135,8 @@ export class ARExperience {
       btnFs:       null,
       buffer:      null,
       watermark:   null,
+      linkOverlay: null,
+      hubToggle:   null,
       _videoListeners: null,
     };
 
@@ -563,6 +567,13 @@ export class ARExperience {
     this._videoEl.addEventListener('volumechange', () => this._refreshMuteIcon());
 
     this._ui._videoListeners = { onWaiting, onPlaying, onCanPlay, onStalled };
+
+    this._ui.hubToggle = buildHubToggle(this._campaign.hubPageUrl);
+    this._ui.linkOverlay = buildLinkOverlay({
+      links: this._campaign.links,
+      redirectSlug: this._campaign.redirectSlug,
+      videoEl: this._videoEl,
+    });
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -795,6 +806,8 @@ export class ARExperience {
     this._effect?.dispose();
 
     // Remove DOM overlays
+    this._ui.linkOverlay?.destroy();
+    this._ui.hubToggle?.destroy();
     this._ui.controls?.remove();
     this._ui.buffer?.remove();
     this._ui.watermark?.remove();

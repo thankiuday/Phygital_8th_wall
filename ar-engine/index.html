@@ -419,6 +419,93 @@
         70%  { opacity: 1; }
         100% { opacity: 0.4; }
       }
+
+      /* ------------------------------------------------------------------ */
+      /* Link rails (left/right) — visible only while video plays            */
+      /* ------------------------------------------------------------------ */
+      .ar-link-rail {
+        position: fixed;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 50;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.35s ease;
+      }
+      #ar-link-rail-left {
+        left: max(12px, env(safe-area-inset-left, 12px));
+      }
+      #ar-link-rail-right {
+        right: max(12px, env(safe-area-inset-right, 12px));
+      }
+      .ar-link-rail.visible {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .ar-link-btn {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(10px) saturate(160%);
+        -webkit-backdrop-filter: blur(10px) saturate(160%);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 0;
+        transition: transform 0.12s ease, box-shadow 0.15s ease;
+      }
+      .ar-link-btn:active {
+        transform: scale(0.92);
+      }
+      .ar-link-btn:focus-visible {
+        outline: 2px solid rgba(167, 139, 250, 0.9);
+        outline-offset: 2px;
+      }
+
+      /* Hub switch — mirror of hub "Launch hologram" CTA */
+      #ar-hub-toggle {
+        position: fixed;
+        top: max(12px, env(safe-area-inset-top, 12px));
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 51;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 44px;
+        padding: 10px 16px;
+        border-radius: 16px;
+        border: 1px solid rgba(124, 58, 237, 0.45);
+        background: rgba(124, 58, 237, 0.18);
+        color: #c4b5fd;
+        font-size: 14px;
+        font-weight: 600;
+        text-decoration: none;
+        backdrop-filter: blur(12px) saturate(160%);
+        -webkit-backdrop-filter: blur(12px) saturate(160%);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        cursor: pointer;
+        transition: background-color 0.15s ease, transform 0.1s ease;
+      }
+      #ar-hub-toggle:hover,
+      #ar-hub-toggle:focus-visible {
+        background: rgba(124, 58, 237, 0.28);
+        outline: none;
+      }
+      #ar-hub-toggle:active {
+        transform: translateX(-50%) scale(0.97);
+      }
+      #ar-hub-toggle.visible {
+        opacity: 1;
+        pointer-events: auto;
+      }
     </style>
   </head>
 

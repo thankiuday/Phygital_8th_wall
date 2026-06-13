@@ -90,6 +90,27 @@ export const updateSession = (campaignId, sessionDurationMs, videoWatchPercent, 
   }).catch(() => {});
 };
 
+/**
+ * recordLinkClick — hub-style outbound link analytics from the AR overlay.
+ * Non-blocking — fire and forget.
+ *
+ * @param {string} redirectSlug
+ * @param {string} linkId
+ */
+export const recordLinkClick = (redirectSlug, linkId) => {
+  if (!redirectSlug || !linkId) return;
+  fetch(`${API_BASE}/public/multi-link/${encodeURIComponent(redirectSlug)}/click`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      linkId,
+      kind: 'link',
+      visitorHash: getVisitorHash(redirectSlug),
+    }),
+    keepalive: true,
+  }).catch(() => {});
+};
+
 /** Shared with hub bridge — keyed by campaign redirectSlug when available. */
 const getVisitorHash = (redirectSlug) => {
   if (redirectSlug) {
