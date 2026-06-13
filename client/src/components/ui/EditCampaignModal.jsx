@@ -21,6 +21,7 @@ import VideoItemsEditor from './VideoItemsEditor';
 import ArEffectPicker from '../campaigns/ArEffectPicker';
 import { campaignService } from '../../services/campaignService';
 import { isArMediaType } from '../../constants/arMediaProducts';
+import { AR_VIDEO_MAX_DURATION_SEC } from '../../constants/arVideoLimits';
 
 const ACCEPTED_VIDEO_TYPES = 'video/*,.mp4,.webm,.mov,.m4v';
 const ACCEPTED_WEBM_TYPES = 'video/webm,.webm';
@@ -69,8 +70,8 @@ const validateMovSideBySideFile = (file) =>
     video.preload = 'metadata';
     video.onloadedmetadata = () => {
       URL.revokeObjectURL(video.src);
-      if (video.duration > MAX_VIDEO_DURATION_SEC) {
-        resolve(`Video is too long (${Math.round(video.duration)}s). Max ${MAX_VIDEO_DURATION_SEC}s.`);
+      if (video.duration > AR_VIDEO_MAX_DURATION_SEC) {
+        resolve(`Video is too long (${Math.round(video.duration)}s). Max ${AR_VIDEO_MAX_DURATION_SEC}s.`);
       } else if (video.duration < 1) {
         resolve('Video appears to be empty.');
       } else if (
@@ -101,8 +102,8 @@ const validateWebmFile = (file) =>
     video.preload = 'metadata';
     video.onloadedmetadata = () => {
       URL.revokeObjectURL(video.src);
-      if (video.duration > MAX_VIDEO_DURATION_SEC) {
-        resolve(`Video is too long (${Math.round(video.duration)}s). Max ${MAX_VIDEO_DURATION_SEC}s.`);
+      if (video.duration > AR_VIDEO_MAX_DURATION_SEC) {
+        resolve(`Video is too long (${Math.round(video.duration)}s). Max ${AR_VIDEO_MAX_DURATION_SEC}s.`);
       } else if (video.duration < 1) {
         resolve('Video appears to be empty.');
       } else {
@@ -748,7 +749,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
                           onClear={handleHeroReplaceClear}
                           error={videoError}
                           icon={VideoIcon}
-                          hint="Drop the transparent .webm export here"
+                          hint="Drop the transparent .webm export here · max 2 minutes"
                         />
                       ) : (
                         <UploadProgress
@@ -834,7 +835,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
                             onClear={discardIosReplaceDraft}
                             error={videoIosError}
                             icon={VideoIcon}
-                            hint="Drop the side-by-side .mov export here"
+                            hint="Drop the side-by-side .mov export here · max 2 minutes"
                           />
                         ) : (
                           <UploadProgress

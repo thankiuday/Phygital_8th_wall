@@ -10,6 +10,7 @@ import {
 import FileDropZone from '../../../components/ui/FileDropZone';
 import UploadProgress from '../../../components/ui/UploadProgress';
 import useCampaignStore from '../../../store/useCampaignStore';
+import { AR_VIDEO_MAX_DURATION_SEC, arVideoDurationHint } from '../../../constants/arVideoLimits';
 
 /**
  * Step 3 — Hologram video upload.
@@ -34,7 +35,7 @@ import useCampaignStore from '../../../store/useCampaignStore';
 const ACCEPTED_WEBM_TYPES = 'video/webm,.webm';
 const ACCEPTED_MOV_TYPES = 'video/quicktime,.mov';
 
-const MAX_DURATION_SEC = 60;
+const MAX_DURATION_SEC = AR_VIDEO_MAX_DURATION_SEC;
 
 const WEBM_EXT = /\.webm(\?|$)/i;
 const MOV_EXT = /\.mov(\?|$)/i;
@@ -271,7 +272,7 @@ const Step3Video = ({ fulfillMode = false }) => {
         </p>
         <div className="flex flex-wrap gap-2">
           <AspectBadge label="9:16 Vertical" recommended />
-          <AspectBadge label={`Max ${MAX_DURATION_SEC} seconds`} />
+          <AspectBadge label={arVideoDurationHint()} />
           <AspectBadge label="Transparent background" />
         </div>
         <p className="text-xs text-[var(--text-muted)]">
@@ -307,7 +308,7 @@ const Step3Video = ({ fulfillMode = false }) => {
             onClear={handleWebmClear}
             error={webmError || (wizardError && !movError ? wizardError : '')}
             icon={VideoIcon}
-            hint="Drop the .webm export here"
+            hint={`Drop the .webm export here · ${arVideoDurationHint()}`}
           />
         )}
 
@@ -343,7 +344,7 @@ const Step3Video = ({ fulfillMode = false }) => {
             onClear={handleMovClear}
             error={movError || (wizardError && !webmError ? wizardError : '')}
             icon={VideoIcon}
-            hint="Drop the side-by-side .mov export here"
+            hint={`Drop the side-by-side .mov export here · ${arVideoDurationHint()}`}
           />
         )}
 

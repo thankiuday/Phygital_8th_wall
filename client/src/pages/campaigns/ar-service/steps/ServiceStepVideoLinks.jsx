@@ -5,9 +5,10 @@ import UploadProgress from '../../../../components/ui/UploadProgress';
 import MultiLinksEditor from '../../multiple-links/MultiLinksEditor';
 import { validateLinkRows } from '../../multiple-links/multiLinkFormUtils';
 import useArServiceRequestStore from '../../../../store/useArServiceRequestStore';
+import { AR_VIDEO_MAX_DURATION_SEC, arVideoDurationHint } from '../../../../constants/arVideoLimits';
 
 const ACCEPTED_MP4 = 'video/mp4,.mp4';
-const MAX_DURATION_SEC = 120;
+const MAX_DURATION_SEC = AR_VIDEO_MAX_DURATION_SEC;
 
 const validateMp4 = (file) =>
   new Promise((resolve) => {
@@ -102,7 +103,7 @@ const ServiceStepVideoLinks = () => {
         previewUrl={wizardData.greenscreenVideoPreview}
         previewType="video"
         label="Drop green-screen MP4 here"
-        hint="MP4 only · max 2 minutes"
+        hint={`MP4 only · ${arVideoDurationHint()}`}
         icon={Video}
       />
       {isUploading && <UploadProgress label="Uploading video…" progress={uploadProgress.video} />}
