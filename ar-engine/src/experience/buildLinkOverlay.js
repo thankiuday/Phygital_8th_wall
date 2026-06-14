@@ -18,8 +18,7 @@ const openLinkHref = (href) => {
 
 const layoutClassForCount = (count) => {
   if (count === 1) return 'layout-single';
-  if (count === 2) return 'layout-double';
-  if (count === 3) return 'layout-triple';
+  if (count >= 2 && count <= 4) return 'layout-even';
   return 'layout-many';
 };
 

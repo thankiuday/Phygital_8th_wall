@@ -56,6 +56,10 @@ import { isApplePlaybackEngine } from '../utils/platform.js';
 import { initGravityTracker, getUpVector } from '../utils/gravity.js';
 import { buildLinkOverlay } from './buildLinkOverlay.js';
 import { buildHubToggle } from './buildHubToggle.js';
+import {
+  getScanHintPrefix,
+  getScanImageAlt,
+} from '../utils/arTargetCopy.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Scene constants
@@ -148,15 +152,21 @@ export class ARExperience {
   _setupScanningOverlay() {
     const img = document.getElementById('ar-scan-target-img');
     const nameEl = document.getElementById('ar-scan-campaign-name');
+    const hintPrefixEl = document.getElementById('ar-scan-hint-prefix');
+    const campaignType = this._campaign.campaignType;
     const url = this._campaign.targetImageUrl || this._campaign.targetImageOriginalUrl;
     if (img && url) {
       img.src = url;
-      img.alt = this._campaign.campaignName
-        ? `Point your camera at ${this._campaign.campaignName}`
-        : 'Point your camera at this card';
+      img.alt = getScanImageAlt(campaignType, this._campaign.campaignName);
     }
-    if (nameEl && this._campaign.campaignName) {
-      nameEl.textContent = this._campaign.campaignName;
+    if (hintPrefixEl && nameEl) {
+      if (this._campaign.campaignName) {
+        hintPrefixEl.textContent = 'Point your camera at ';
+        nameEl.textContent = this._campaign.campaignName;
+      } else {
+        hintPrefixEl.textContent = getScanHintPrefix(campaignType);
+        nameEl.textContent = '';
+      }
     }
   }
 
@@ -520,7 +530,8 @@ export class ARExperience {
       </button>
       <button class="ar-ctrl" data-action="fullscreen" aria-label="Fullscreen">
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-          <path fill="currentColor" d="M5 5h5V3H3v7h2zm9-2v2h5v5h2V3zM5 19v-5H3v7h7v-2zm14 0h-5v2h7v-7h-2z"/>
+          <path class="icon-expand" fill="currentColor" d="M5 5h5V3H3v7h2zm9-2v2h5v5h2V3zM5 19v-5H3v7h7v-2zm14 0h-5v2h7v-7h-2z"/>
+          <path class="icon-compress" fill="currentColor" d="M8 3v3H5V3zm8 0h3v3h-3zM8 21v-3H5v3zm8 0h3v-3h-3z" style="display:none"/>
         </svg>
       </button>
     `;
@@ -567,6 +578,13 @@ export class ARExperience {
     this._videoEl.addEventListener('volumechange', () => this._refreshMuteIcon());
 
     this._ui._videoListeners = { onWaiting, onPlaying, onCanPlay, onStalled };
+
+    const onFullscreenChange = () => this._refreshFsIcon();
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+    this._ui._fsListeners = { onFullscreenChange };
+
+    this._refreshFsIcon();
 
     this._ui.hubToggle = buildHubToggle(this._campaign.hubPageUrl);
     this._ui.linkOverlay = buildLinkOverlay({
@@ -742,14 +760,29 @@ export class ARExperience {
   }
 
   _toggleFullscreen() {
-    const root = this._container || document.documentElement;
-    if (document.fullscreenElement) {
-      document.exitFullscreen?.();
+    const root = document.documentElement;
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    if (fsEl) {
+      document.exitFullscreen?.() || document.webkitExitFullscreen?.();
     } else if (root.requestFullscreen) {
       root.requestFullscreen().catch(() => {});
     } else if (root.webkitRequestFullscreen) {
       root.webkitRequestFullscreen();
     }
+    this._refreshFsIcon();
+  }
+
+  _isFullscreenActive() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+
+  _refreshFsIcon() {
+    const btn = this._ui.btnFs;
+    if (!btn) return;
+    const active = this._isFullscreenActive();
+    btn.querySelector('.icon-expand').style.display = active ? 'none' : '';
+    btn.querySelector('.icon-compress').style.display = active ? '' : 'none';
+    btn.setAttribute('aria-label', active ? 'Exit fullscreen' : 'Fullscreen');
   }
 
   _refreshPlayIcon() {
@@ -800,6 +833,12 @@ export class ARExperience {
     if (v) {
       v.pause();
       v.remove();
+    }
+
+    const fs = this._ui._fsListeners;
+    if (fs) {
+      document.removeEventListener('fullscreenchange', fs.onFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', fs.onFullscreenChange);
     }
 
     this._videoTexture?.dispose();

@@ -20,6 +20,7 @@ import CampaignThumbnail from '../components/ui/CampaignThumbnail';
 import PublicQuickLinksMenu from '../components/hub/PublicQuickLinksMenu';
 import PoweredByPhygitalFooter from '../components/hub/PoweredByPhygitalFooter';
 import ArExperienceLinkDock from '../components/ar/ArExperienceLinkDock';
+import { getArMediaProduct } from '../constants/arMediaProducts';
 
 const getDeviceType = () => {
   const ua = navigator.userAgent;
@@ -28,9 +29,9 @@ const getDeviceType = () => {
   return 'desktop';
 };
 
-const HOW_TO_STEPS = [
-  { icon: ScanLine, text: 'Keep your business card flat on a surface' },
-  { icon: Camera, text: 'Point your phone camera directly at the card' },
+const buildHowToSteps = (assetNoun) => [
+  { icon: ScanLine, text: `Keep your ${assetNoun} flat on a surface` },
+  { icon: Camera, text: `Point your phone camera directly at the ${assetNoun}` },
   { icon: Zap, text: 'Hold still — the hologram will appear in seconds' },
 ];
 
@@ -103,6 +104,10 @@ const ARExperiencePage = () => {
       ? `/open/${campaign.ownerHandle}/${campaign.hubSlug}`
       : null);
 
+  const arProduct = getArMediaProduct(campaign?.campaignType);
+  const assetNoun = arProduct.assetNoun;
+  const howToSteps = buildHowToSteps(assetNoun);
+
   if (loading) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#020617]">
@@ -146,7 +151,7 @@ const ARExperiencePage = () => {
     >
       <SEOHead
         title={campaign?.campaignName ? `${campaign.campaignName} — AR Experience` : 'AR Experience'}
-        description="Point your camera at the business card to launch the AR hologram experience."
+        description={`Point your camera at the ${assetNoun} to launch the AR hologram experience.`}
         noIndex={true}
       />
 
@@ -206,12 +211,12 @@ const ARExperiencePage = () => {
             {campaign?.campaignName}
           </h1>
           <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-white/55">
-            Point your camera at the card to unlock the hologram and interactive links.
+            Point your camera at the {assetNoun} to unlock the hologram and interactive links.
           </p>
         </div>
 
         <div className="flex w-full flex-col gap-2 px-1">
-          {HOW_TO_STEPS.map(({ icon: Icon, text }, i) => (
+          {howToSteps.map(({ icon: Icon, text }, i) => (
             <motion.div
               key={text}
               custom={i}

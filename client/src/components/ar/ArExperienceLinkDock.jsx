@@ -22,7 +22,7 @@ const KIND_ACCENT = {
 
 const layoutClassForCount = (count) => {
   if (count === 1) return 'justify-center';
-  if (count === 2 || count === 3) return 'justify-evenly';
+  if (count >= 2 && count <= 4) return 'justify-center';
   return 'justify-start overflow-x-auto scrollbar-none';
 };
 
@@ -65,7 +65,7 @@ const ArExperienceLinkDock = ({ links = [], redirectSlug, className = '' }) => {
         Quick links
       </p>
       <div
-        className={`flex items-center gap-2.5 rounded-full border border-violet-500/25 bg-[rgba(12,8,24,0.75)] px-3 py-2 shadow-[0_8px_28px_rgba(0,0,0,0.35)] backdrop-blur-md ${layoutClassForCount(count)}`}
+        className={`mx-auto flex w-fit max-w-full items-center gap-2.5 rounded-full border border-violet-500/25 bg-[rgba(12,8,24,0.75)] px-3 py-2 shadow-[0_8px_28px_rgba(0,0,0,0.35)] backdrop-blur-md ${layoutClassForCount(count)}`}
       >
         {links.map((link, index) => {
           const kind = link.kind || 'custom';

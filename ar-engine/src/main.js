@@ -12,6 +12,7 @@ import gsap from 'gsap';
 import { loadCampaign, recordScan } from './services/campaignLoader.js';
 import { ARExperience } from './experience/ARExperience.js';
 import { updateLoadingProgress, showError } from './utils/loadingScreen.js';
+import { getLoadingHint } from './utils/arTargetCopy.js';
 
 window.gsap = gsap;
 
@@ -46,6 +47,11 @@ const init = async () => {
   if (!campaign.targetImageUrl || !campaign.videoUrl) {
     showError('Campaign is incomplete.', 'Target image or video is missing.');
     return;
+  }
+
+  const loadingHint = document.getElementById('ar-loading-hint');
+  if (loadingHint) {
+    loadingHint.textContent = getLoadingHint(campaign.campaignType);
   }
 
   // Fire-and-forget scan recording
