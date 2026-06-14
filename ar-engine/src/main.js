@@ -13,16 +13,12 @@ import { loadCampaign, recordScan } from './services/campaignLoader.js';
 import { ARExperience } from './experience/ARExperience.js';
 import { updateLoadingProgress, showError } from './utils/loadingScreen.js';
 import { getLoadingHint } from './utils/arTargetCopy.js';
+import {
+  createArSessionId,
+  registerReturnReloadHandlers,
+} from './utils/arReturnReload.js';
 
 window.gsap = gsap;
-
-// WebAR camera streams die when the page is frozen in bfcache (back from hub,
-// home button, etc.). A hard reload is the most reliable recovery on mobile.
-window.addEventListener('pageshow', (event) => {
-  if (event.persisted) {
-    window.location.reload();
-  }
-});
 
 const init = async () => {
   // Parse campaign ID from the last path segment: /ar/CAMPAIGN_ID
@@ -33,6 +29,9 @@ const init = async () => {
     showError('Invalid AR link.', 'No campaign ID found in the URL.');
     return;
   }
+
+  const sessionId = createArSessionId();
+  registerReturnReloadHandlers(campaignId, sessionId);
 
   updateLoadingProgress(2, 'Loading campaign…');
 
@@ -70,7 +69,7 @@ const init = async () => {
 
   // Boot the AR experience
   const container = document.getElementById('ar-root');
-  const experience = new ARExperience({ container, campaign });
+  const experience = new ARExperience({ container, campaign, sessionId });
 
   // Cleanup on page unload
   window.addEventListener('beforeunload', () => experience.destroy());

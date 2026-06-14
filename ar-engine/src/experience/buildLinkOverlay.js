@@ -38,7 +38,8 @@ const createLinkButton = (link, redirectSlug, onBeforeLeave) => {
       recordLinkClick(redirectSlug, link.linkId);
     }
     onBeforeLeave?.();
-    openLinkHref(link.href);
+    // Defer navigation so sessionStorage is committed before the tab switches.
+    setTimeout(() => openLinkHref(link.href), 0);
   });
   return btn;
 };

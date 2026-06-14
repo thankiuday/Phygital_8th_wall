@@ -141,6 +141,15 @@ export const createArEffect = (effectName, THREE) => {
       });
     },
 
+    /** Instant hide — no tween; used when pausing/reloading the AR session. */
+    forceHide() {
+      window.gsap?.killTweensOf([master, group.scale]);
+      master.v = 0;
+      applyMaster();
+      group.scale.z = MIN_Z_SCALE;
+      group.visible = false;
+    },
+
     update(nowMs) {
       if (!group.visible) return;
       if (!startTs) startTs = nowMs;

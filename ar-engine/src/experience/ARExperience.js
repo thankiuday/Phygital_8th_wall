@@ -60,6 +60,11 @@ import {
   getScanHintPrefix,
   getScanImageAlt,
 } from '../utils/arTargetCopy.js';
+import {
+  markReturnReload,
+  hasPendingReturnReload,
+  consumeReturnReload,
+} from '../utils/arReturnReload.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Scene constants
@@ -98,9 +103,10 @@ const SURFACE_CHECK_INTERVAL = 10;   // frames between checks
 const SCAN_OVERLAY_ID = 'ar-scanning-overlay';
 
 export class ARExperience {
-  constructor({ container, campaign }) {
+  constructor({ container, campaign, sessionId }) {
     this._container = container;
     this._campaign  = campaign;
+    this._sessionId = sessionId;
     this._setupScanningOverlay();
 
     // Three.js / MindAR objects
@@ -155,7 +161,6 @@ export class ARExperience {
     this._resumeTimer     = null;
     this._resumeInFlight  = null;
     this._pauseTask       = Promise.resolve();
-    this._reloadOnVisible = false;
     this._cameraWatchdog  = null;
   }
 
@@ -196,6 +201,10 @@ export class ARExperience {
     if (!window.MINDAR?.IMAGE?.MindARThree) {
       throw new Error('MindARThree not found. Check CDN scripts in index.html.');
     }
+
+    // Lifecycle must be live before the async compile/start pipeline so a
+    // return from a social tab during startup still triggers a full reload.
+    this._bindLifecycle();
 
     updateLoadingProgress(5, 'Preparing AR experience…');
 
@@ -334,7 +343,6 @@ export class ARExperience {
     };
 
     renderer.setAnimationLoop(this._renderLoop);
-    this._bindLifecycle();
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -597,17 +605,16 @@ export class ARExperience {
 
     this._refreshFsIcon();
 
-    const pauseForLeave = () => {
-      this._reloadOnVisible = true;
-      this._pauseSession();
+    const markForReturnReload = () => {
+      markReturnReload(this._campaign._id, this._sessionId);
     };
 
-    this._ui.hubToggle = buildHubToggle(this._campaign.hubPageUrl, pauseForLeave);
+    this._ui.hubToggle = buildHubToggle(this._campaign.hubPageUrl, markForReturnReload);
     this._ui.linkOverlay = buildLinkOverlay({
       links: this._campaign.links,
       redirectSlug: this._campaign.redirectSlug,
       videoEl: this._videoEl,
-      onBeforeLeave: pauseForLeave,
+      onBeforeLeave: markForReturnReload,
     });
   }
 
@@ -761,12 +768,27 @@ export class ARExperience {
     forceHidePlane(this._plane);
     this._targetVisible = false;
     if (this._effect) {
-      this._effect.hide();
+      this._effect.forceHide();
       this._effectShown = false;
     }
     this._ui.controls?.classList.remove('visible');
     this._ui.linkOverlay?.hide();
     this._ui.buffer?.classList.remove('visible');
+  }
+
+  _markForReturnReload() {
+    markReturnReload(this._campaign._id, this._sessionId);
+  }
+
+  _hasPendingReturnReload() {
+    return hasPendingReturnReload(this._campaign._id, this._sessionId);
+  }
+
+  /** Full page reload when the user returns from a social/hub link. */
+  _tryReturnReload() {
+    if (this._destroyed || !this._hasPendingReturnReload()) return false;
+    this._forceHideScene();
+    return consumeReturnReload(this._campaign._id, this._sessionId);
   }
 
   _isCameraFeedActive() {
@@ -792,9 +814,7 @@ export class ARExperience {
   }
 
   _reloadIfPendingReturn() {
-    if (!this._reloadOnVisible) return false;
-    window.location.reload();
-    return true;
+    return this._tryReturnReload();
   }
 
   /**
@@ -803,6 +823,9 @@ export class ARExperience {
    */
   _pauseSession() {
     if (this._destroyed || !this._mindarThree || this._sessionPaused) return;
+    // If the user opened an external link, never resume into a dead camera —
+    // a full reload will run when they come back.
+    if (this._hasPendingReturnReload()) return;
 
     this._sessionPaused = true;
     this._clearCameraWatchdog();
@@ -829,7 +852,8 @@ export class ARExperience {
 
   _scheduleResume() {
     if (this._destroyed || !this._sessionPaused) return;
-    if (this._reloadIfPendingReturn()) return;
+    if (this._tryReturnReload()) return;
+    if (this._hasPendingReturnReload()) return;
     if (this._resumeTimer) clearTimeout(this._resumeTimer);
     // Brief delay lets mobile browsers restore the camera after tab focus.
     this._resumeTimer = setTimeout(() => {
@@ -844,7 +868,8 @@ export class ARExperience {
   async _resumeSession() {
     if (this._destroyed || !this._sessionPaused || !this._mindarThree) return;
     if (document.visibilityState === 'hidden') return;
-    if (this._reloadIfPendingReturn()) return;
+    if (this._tryReturnReload()) return;
+    if (this._hasPendingReturnReload()) return;
     if (this._resumeInFlight) return this._resumeInFlight;
 
     this._resumeInFlight = (async () => {
@@ -852,7 +877,8 @@ export class ARExperience {
         await this._pauseTask;
         if (this._destroyed || !this._sessionPaused) return;
         if (document.visibilityState === 'hidden') return;
-        if (this._reloadIfPendingReturn()) return;
+        if (this._tryReturnReload()) return;
+        if (this._hasPendingReturnReload()) return;
 
         this._prepareForRescan();
 
@@ -883,9 +909,7 @@ export class ARExperience {
     this._onVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         this._pauseSession();
-      } else if (this._reloadIfPendingReturn()) {
-        // reload handled above
-      } else {
+      } else if (!this._tryReturnReload()) {
         this._scheduleResume();
       }
     };
@@ -895,7 +919,7 @@ export class ARExperience {
         window.location.reload();
         return;
       }
-      if (this._reloadIfPendingReturn()) return;
+      if (this._tryReturnReload()) return;
       if (this._sessionPaused) {
         this._scheduleResume();
       }
@@ -906,7 +930,7 @@ export class ARExperience {
     };
 
     this._onWindowFocus = () => {
-      if (this._reloadIfPendingReturn()) return;
+      if (this._tryReturnReload()) return;
       if (this._sessionPaused) {
         this._scheduleResume();
       }
