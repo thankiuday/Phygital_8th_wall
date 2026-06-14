@@ -31,12 +31,15 @@ const getDeviceType = () => {
   return 'desktop';
 };
 
+const hubButtonClass =
+  'flex w-full min-h-[48px] items-center justify-center gap-2 rounded-xl border border-violet-500/35 bg-violet-500/10 px-4 py-3 text-sm font-semibold text-violet-100 transition hover:border-violet-400/50 hover:bg-violet-500/16 active:scale-[0.98]';
+
 const stepVariants = {
   hidden: { opacity: 0, y: 8 },
   show: (i) => ({
     opacity: 1,
     y: 0,
-    transition: { delay: 0.1 + i * 0.06, duration: 0.3, ease: 'easeOut' },
+    transition: { delay: 0.08 + i * 0.05, duration: 0.28, ease: 'easeOut' },
   }),
 };
 
@@ -106,7 +109,21 @@ const ARExperiencePage = () => {
     text,
   }));
 
-  const launchButton = isMobile ? (
+  const hubButton = hubHref ? (
+    hubHref.startsWith('http') ? (
+      <a href={hubHref} className={hubButtonClass}>
+        <ExternalLink size={16} aria-hidden />
+        View profile hub
+      </a>
+    ) : (
+      <Link to={hubHref} className={hubButtonClass}>
+        <ExternalLink size={16} aria-hidden />
+        View profile hub
+      </Link>
+    )
+  ) : null;
+
+  const launchButton = (
     <motion.button
       type="button"
       whileTap={{ scale: 0.97 }}
@@ -120,7 +137,9 @@ const ARExperiencePage = () => {
         <><Camera size={18} /> Launch AR Experience</>
       )}
     </motion.button>
-  ) : (
+  );
+
+  const desktopQrPanel = (
     <div className="flex w-full flex-col items-center gap-2.5 rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm">
       <Smartphone size={22} className="text-brand-400" />
       <p className="text-sm font-semibold text-white">Open on your phone</p>
@@ -142,6 +161,14 @@ const ARExperiencePage = () => {
       >
         <ExternalLink size={12} /> Copy link to open on phone
       </a>
+    </div>
+  );
+
+  /** Hub first, Launch AR second */
+  const actionStack = (
+    <div className="flex w-full flex-col gap-2.5">
+      {hubButton}
+      {isMobile ? launchButton : desktopQrPanel}
     </div>
   );
 
@@ -180,6 +207,8 @@ const ARExperiencePage = () => {
     );
   }
 
+  const mobileActionBarHeight = hubHref ? '9.75rem' : '5.5rem';
+
   return (
     <div
       className="flex min-h-[100dvh] flex-col bg-[#020617] text-white"
@@ -195,11 +224,10 @@ const ARExperiencePage = () => {
       />
 
       <div className="pointer-events-none fixed inset-0 -z-10" aria-hidden>
-        <div className="absolute left-1/2 top-[22%] h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-700/18 blur-[120px]" />
-        <div className="absolute bottom-0 right-0 h-[240px] w-[240px] rounded-full bg-violet-900/20 blur-[90px]" />
+        <div className="absolute left-1/2 top-[18%] h-[380px] w-[380px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-700/16 blur-[100px]" />
+        <div className="absolute bottom-24 right-0 h-[200px] w-[200px] rounded-full bg-violet-900/18 blur-[80px]" />
       </div>
 
-      {/* Navbar — flush to top, no extra margin */}
       <header
         className="mx-auto flex w-full max-w-md shrink-0 items-center justify-between"
         style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}
@@ -208,103 +236,110 @@ const ARExperiencePage = () => {
         <PublicQuickLinksMenu theme="dark" />
       </header>
 
-      {/* Above-the-fold: preview + title + primary CTA */}
       <motion.main
-        initial={{ opacity: 0, y: 12 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: 'easeOut' }}
-        className="mx-auto flex w-full max-w-md flex-1 flex-col items-center gap-4 pt-3 text-center sm:gap-5 sm:pt-4"
+        transition={{ duration: 0.35, ease: 'easeOut' }}
+        className="mx-auto flex w-full max-w-md flex-1 flex-col overflow-y-auto"
+        style={{
+          paddingBottom: isMobile
+            ? `calc(${mobileActionBarHeight} + max(0.5rem, env(safe-area-inset-bottom)))`
+            : 'max(1rem, env(safe-area-inset-bottom))',
+        }}
       >
-        <div className="relative w-full">
-          <div className="relative mx-auto w-fit max-w-[min(100%,13rem)]">
-            <div className="relative overflow-hidden rounded-2xl border border-violet-500/25 bg-white/[0.03] p-1 shadow-[0_0_32px_rgba(124,58,237,0.12)]">
+        {/* Hero preview */}
+        <section className="pt-2 text-center">
+          <div className="relative mx-auto w-fit max-w-[min(100%,12.5rem)]">
+            <div className="overflow-hidden rounded-2xl border border-violet-500/20 bg-white/[0.03] p-1 shadow-[0_0_28px_rgba(124,58,237,0.1)]">
               <CampaignThumbnail
                 campaign={campaign}
                 alt={campaign?.campaignName || experienceCopy.target}
-                className="mx-auto max-h-[11rem] w-auto max-w-full rounded-xl object-contain sm:max-h-[12rem]"
-                placeholderClassName="flex h-36 w-28 items-center justify-center rounded-xl bg-brand-900/50 sm:h-40 sm:w-32"
+                className="mx-auto max-h-[10.5rem] w-auto max-w-full rounded-xl object-contain"
+                placeholderClassName="flex h-32 w-28 items-center justify-center rounded-xl bg-brand-900/50"
               />
             </div>
-            <motion.div
-              animate={{ y: [0, -4, 0] }}
-              transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
-              className="absolute -top-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-brand-500/45 bg-brand-500/15 px-3 py-0.5 text-[10px] font-semibold tracking-wide text-brand-200 backdrop-blur-md sm:text-[11px]"
-            >
+            <span className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-brand-500/40 bg-brand-500/15 px-2.5 py-0.5 text-[10px] font-semibold text-brand-200 backdrop-blur-md">
               AR Hologram Ready
-            </motion.div>
+            </span>
           </div>
+        </section>
 
-          {Array.isArray(campaign?.links) && campaign.links.length > 0 && (
-            <div className="mt-3 px-1">
-              <ArExperienceLinkDock
-                links={campaign.links}
-                redirectSlug={campaign.redirectSlug}
-              />
-            </div>
-          )}
-        </div>
-
-        <div className="w-full px-1">
-          <h1 className="break-words text-balance text-xl font-extrabold tracking-tight text-white sm:text-2xl">
+        {/* Title block */}
+        <section className="mt-4 px-0.5 text-center">
+          <h1 className="break-words text-balance text-xl font-extrabold tracking-tight text-white">
             {campaign?.campaignName}
           </h1>
-          <p className="mx-auto mt-1.5 max-w-sm text-sm leading-snug text-white/55">
+          <p className="mx-auto mt-1.5 max-w-[18rem] text-sm leading-snug text-white/55">
             {experienceCopy.subtitle}
           </p>
-        </div>
+        </section>
 
-        {/* Primary CTA — visible without scrolling on typical phones */}
-        <div className="w-full px-1">
-          {launchButton}
-        </div>
-
-        {hubHref && (
-          hubHref.startsWith('http') ? (
-            <a
-              href={hubHref}
-              className="flex w-full min-h-[40px] items-center justify-center gap-2 rounded-xl border border-violet-500/30 bg-violet-500/8 px-3 py-2.5 text-sm font-medium text-violet-200 transition hover:border-violet-400/45 hover:bg-violet-500/14 active:scale-[0.98]"
-            >
-              <ExternalLink size={15} />
-              View profile hub
-            </a>
-          ) : (
-            <Link
-              to={hubHref}
-              className="flex w-full min-h-[40px] items-center justify-center gap-2 rounded-xl border border-violet-500/30 bg-violet-500/8 px-3 py-2.5 text-sm font-medium text-violet-200 transition hover:border-violet-400/45 hover:bg-violet-500/14 active:scale-[0.98]"
-            >
-              <ExternalLink size={15} />
-              View profile hub
-            </Link>
-          )
+        {/* Quick links */}
+        {Array.isArray(campaign?.links) && campaign.links.length > 0 && (
+          <section className="mt-4 px-0.5">
+            <ArExperienceLinkDock
+              links={campaign.links}
+              redirectSlug={campaign.redirectSlug}
+            />
+          </section>
         )}
 
-        {/* How-to steps — compact, below CTA */}
-        <div className="flex w-full flex-col gap-1.5 px-1 pb-2">
-          {howToSteps.map(({ icon: Icon, text }, i) => (
-            <motion.div
-              key={text}
-              custom={i}
-              variants={stepVariants}
-              initial="hidden"
-              animate="show"
-              className="flex items-center gap-2.5 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2.5 text-left"
-            >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brand-500/20 ring-1 ring-brand-500/20">
-                <Icon size={15} className="text-brand-300" />
-              </div>
-              <p className="text-xs leading-snug text-white/70 sm:text-sm">{text}</p>
-            </motion.div>
-          ))}
-        </div>
+        {/* How it works */}
+        <section className="mt-4 px-0.5">
+          <p className="mb-2 text-left text-[10px] font-semibold uppercase tracking-[0.14em] text-white/35">
+            How it works
+          </p>
+          <div className="flex flex-col gap-1.5 rounded-xl border border-white/[0.06] bg-white/[0.02] p-2">
+            {howToSteps.map(({ icon: Icon, text }, i) => (
+              <motion.div
+                key={text}
+                custom={i}
+                variants={stepVariants}
+                initial="hidden"
+                animate="show"
+                className="flex items-center gap-2.5 rounded-lg px-2 py-2 text-left"
+              >
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-500/18 ring-1 ring-brand-500/20">
+                  <Icon size={15} className="text-brand-300" aria-hidden />
+                </div>
+                <p className="text-xs leading-snug text-white/72">{text}</p>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+
+        {/* Desktop: actions inline; mobile uses fixed bar */}
+        {!isMobile && (
+          <section className="mt-5 pb-2">
+            {actionStack}
+          </section>
+        )}
+
+        {!isMobile && (
+          <footer className="mt-auto pb-2 pt-4">
+            <PoweredByPhygitalFooter theme="dark" />
+            <span className="mt-1 block text-center text-[10px] text-white/20">Immersive WebAR</span>
+          </footer>
+        )}
       </motion.main>
 
-      <footer
-        className="mx-auto w-full max-w-md shrink-0 pb-2 pt-1"
-        style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
-      >
-        <PoweredByPhygitalFooter theme="dark" />
-        <span className="mt-1 block text-center text-[10px] text-white/20">Immersive WebAR</span>
-      </footer>
+      {/* Mobile: sticky bottom actions — always thumb-reachable */}
+      {isMobile && (
+        <div
+          className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.06] bg-[#020617]/92 backdrop-blur-xl"
+          style={{
+            paddingLeft: 'max(1rem, env(safe-area-inset-left))',
+            paddingRight: 'max(1rem, env(safe-area-inset-right))',
+            paddingTop: '0.75rem',
+            paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+          }}
+        >
+          <div className="mx-auto w-full max-w-md">
+            {actionStack}
+            <p className="mt-2 text-center text-[10px] text-white/25">Powered by Phygital · WebAR</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
