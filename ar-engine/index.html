@@ -257,11 +257,11 @@
         display: none !important;
       }
       .ar-scan-title {
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 600;
-        letter-spacing: 0.06em;
+        letter-spacing: 0.08em;
         text-transform: uppercase;
-        color: rgba(255, 255, 255, 0.75);
+        color: rgba(255, 255, 255, 0.7);
         text-align: center;
       }
       .ar-scan-target-frame {
@@ -269,11 +269,12 @@
         width: min(78vw, 320px);
         max-height: min(52vh, 420px);
         aspect-ratio: 1.6;
-        border-radius: 12px;
+        border-radius: 16px;
         overflow: hidden;
         box-shadow:
-          0 0 0 2px rgba(255, 255, 255, 0.9),
-          0 12px 40px rgba(0, 0, 0, 0.55);
+          0 0 0 1px rgba(167, 139, 250, 0.35),
+          0 0 0 2px rgba(255, 255, 255, 0.85),
+          0 16px 48px rgba(0, 0, 0, 0.55);
         background: #111;
       }
       #ar-scan-target-img {
@@ -309,12 +310,12 @@
         50% { top: 82%; opacity: 1; }
       }
       .ar-scan-hint {
-        max-width: 280px;
+        max-width: 300px;
         text-align: center;
-        font-size: 14px;
-        line-height: 1.45;
-        color: rgba(255, 255, 255, 0.88);
-        text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+        font-size: 13px;
+        line-height: 1.5;
+        color: rgba(255, 255, 255, 0.82);
+        text-shadow: 0 1px 8px rgba(0, 0, 0, 0.65);
       }
       .ar-scan-campaign {
         font-weight: 700;
@@ -335,14 +336,16 @@
         z-index: 50;
         display: flex;
         align-items: center;
-        gap: 6px;
-        padding: 8px;
+        gap: 4px;
+        padding: 6px 8px;
         border-radius: 999px;
-        background: rgba(15, 10, 30, 0.55);
-        backdrop-filter: blur(14px) saturate(180%);
-        -webkit-backdrop-filter: blur(14px) saturate(180%);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+        background: rgba(12, 8, 24, 0.72);
+        backdrop-filter: blur(16px) saturate(180%);
+        -webkit-backdrop-filter: blur(16px) saturate(180%);
+        border: 1px solid rgba(167, 139, 250, 0.2);
+        box-shadow:
+          0 8px 32px rgba(0, 0, 0, 0.45),
+          inset 0 1px 0 rgba(255, 255, 255, 0.06);
         opacity: 0;
         pointer-events: none;
         transition: opacity 0.35s ease, transform 0.35s ease;
@@ -421,44 +424,74 @@
       }
 
       /* ------------------------------------------------------------------ */
-      /* Link rails (left/right) — visible only while video plays            */
+      /* Bottom link dock — visible only while video plays                   */
       /* ------------------------------------------------------------------ */
-      .ar-link-rail {
+      #ar-link-dock {
         position: fixed;
-        top: 50%;
-        transform: translateY(-50%);
+        left: 50%;
+        bottom: calc(max(28px, env(safe-area-inset-bottom, 12px) + 16px) + 72px);
+        transform: translateX(-50%);
         z-index: 50;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
+        width: min(92vw, 360px);
+        padding: 0 max(8px, env(safe-area-inset-left, 8px));
         opacity: 0;
         pointer-events: none;
-        transition: opacity 0.35s ease;
+        transition: opacity 0.3s ease;
       }
-      #ar-link-rail-left {
-        left: max(12px, env(safe-area-inset-left, 12px));
-      }
-      #ar-link-rail-right {
-        right: max(12px, env(safe-area-inset-right, 12px));
-      }
-      .ar-link-rail.visible {
+      #ar-link-dock.visible {
         opacity: 1;
         pointer-events: auto;
       }
+      #ar-link-dock-inner {
+        display: flex;
+        align-items: center;
+        flex-wrap: nowrap;
+        gap: 10px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(12, 8, 24, 0.78);
+        backdrop-filter: blur(16px) saturate(180%);
+        -webkit-backdrop-filter: blur(16px) saturate(180%);
+        border: 1px solid rgba(167, 139, 250, 0.22);
+        box-shadow:
+          0 8px 28px rgba(0, 0, 0, 0.4),
+          inset 0 1px 0 rgba(255, 255, 255, 0.07);
+      }
+      #ar-link-dock-inner.layout-single {
+        justify-content: center;
+      }
+      #ar-link-dock-inner.layout-double,
+      #ar-link-dock-inner.layout-triple {
+        justify-content: space-evenly;
+      }
+      #ar-link-dock-inner.layout-many {
+        justify-content: flex-start;
+        overflow-x: auto;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        border-radius: 20px;
+      }
+      #ar-link-dock-inner.layout-many::-webkit-scrollbar {
+        display: none;
+      }
       .ar-link-btn {
-        width: 44px;
-        height: 44px;
+        flex-shrink: 0;
+        width: 42px;
+        height: 42px;
         border-radius: 50%;
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        backdrop-filter: blur(10px) saturate(160%);
-        -webkit-backdrop-filter: blur(10px) saturate(160%);
-        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        box-shadow:
+          0 4px 14px rgba(0, 0, 0, 0.35),
+          inset 0 1px 0 rgba(255, 255, 255, 0.12);
         display: inline-flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
         padding: 0;
-        transition: transform 0.12s ease, box-shadow 0.15s ease;
+        opacity: 0;
+        transition: box-shadow 0.15s ease;
       }
       .ar-link-btn:active {
         transform: scale(0.92);
@@ -468,31 +501,39 @@
         outline-offset: 2px;
       }
 
-      /* Hub switch — mirror of hub "Launch hologram" CTA */
+      /* Hub switch — compact top-right pill */
       #ar-hub-toggle {
         position: fixed;
         top: max(12px, env(safe-area-inset-top, 12px));
-        left: 50%;
-        transform: translateX(-50%);
+        right: max(12px, env(safe-area-inset-right, 12px));
+        left: auto;
+        transform: none;
         z-index: 51;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: 8px;
-        min-height: 44px;
-        padding: 10px 16px;
-        border-radius: 16px;
-        border: 1px solid rgba(124, 58, 237, 0.45);
-        background: rgba(124, 58, 237, 0.18);
-        color: #c4b5fd;
-        font-size: 14px;
+        gap: 6px;
+        min-height: 40px;
+        max-width: calc(100vw - 24px);
+        padding: 8px 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(124, 58, 237, 0.5);
+        background: rgba(12, 8, 24, 0.75);
+        color: #ddd6fe;
+        font-size: 13px;
         font-weight: 600;
         text-decoration: none;
-        backdrop-filter: blur(12px) saturate(160%);
-        -webkit-backdrop-filter: blur(12px) saturate(160%);
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(14px) saturate(160%);
+        -webkit-backdrop-filter: blur(14px) saturate(160%);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
         cursor: pointer;
         transition: background-color 0.15s ease, transform 0.1s ease;
+      }
+      #ar-hub-toggle span {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 160px;
       }
       #ar-hub-toggle:hover,
       #ar-hub-toggle:focus-visible {
@@ -500,7 +541,7 @@
         outline: none;
       }
       #ar-hub-toggle:active {
-        transform: translateX(-50%) scale(0.97);
+        transform: scale(0.97);
       }
       #ar-hub-toggle.visible {
         opacity: 1;

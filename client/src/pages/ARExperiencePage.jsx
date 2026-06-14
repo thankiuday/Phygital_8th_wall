@@ -19,8 +19,8 @@ import BrandLockup from '../components/ui/BrandLockup';
 import CampaignThumbnail from '../components/ui/CampaignThumbnail';
 import PublicQuickLinksMenu from '../components/hub/PublicQuickLinksMenu';
 import PoweredByPhygitalFooter from '../components/hub/PoweredByPhygitalFooter';
+import ArExperienceLinkDock from '../components/ar/ArExperienceLinkDock';
 
-/* ── Detect device type for analytics ───────────────────────────── */
 const getDeviceType = () => {
   const ua = navigator.userAgent;
   if (/tablet|ipad|playbook|silk/i.test(ua)) return 'tablet';
@@ -28,14 +28,21 @@ const getDeviceType = () => {
   return 'desktop';
 };
 
-/* ── Steps shown on the page ─────────────────────────────────────── */
 const HOW_TO_STEPS = [
   { icon: ScanLine, text: 'Keep your business card flat on a surface' },
   { icon: Camera, text: 'Point your phone camera directly at the card' },
   { icon: Zap, text: 'Hold still — the hologram will appear in seconds' },
 ];
 
-/* ── Main page ───────────────────────────────────────────────────── */
+const stepVariants = {
+  hidden: { opacity: 0, y: 10 },
+  show: (i) => ({
+    opacity: 1,
+    y: 0,
+    transition: { delay: 0.15 + i * 0.08, duration: 0.35, ease: 'easeOut' },
+  }),
+};
+
 const ARExperiencePage = () => {
   const { campaignId } = useParams();
   const { theme } = useThemeStore();
@@ -46,10 +53,9 @@ const ARExperiencePage = () => {
   const [launching, setLaunching] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
-  // Force dark theme for the AR page — immersive look
   useEffect(() => {
     applyThemeClass('dark');
-    return () => applyThemeClass(theme); // restore on unmount
+    return () => applyThemeClass(theme);
   }, [theme]);
 
   useEffect(() => {
@@ -60,12 +66,11 @@ const ARExperiencePage = () => {
         const data = await publicService.getCampaign(campaignId);
         setCampaign(data);
 
-        // Record scan event
         publicService.recordScan(campaignId, {
           deviceType: getDeviceType(),
           browser: navigator.userAgent.slice(0, 100),
           visitorHash: getVisitorHashForCampaign(data?.redirectSlug),
-        }).catch(() => {}); // non-blocking
+        }).catch(() => {});
       } catch (err) {
         if (err.response?.status === 404) {
           setError(
@@ -82,7 +87,6 @@ const ARExperiencePage = () => {
     load();
   }, [campaignId]);
 
-  /* ── Launch AR engine ──────────────────────────────────────── */
   const handleLaunchAR = () => {
     setLaunching(true);
     const arEngineUrl =
@@ -93,7 +97,12 @@ const ARExperiencePage = () => {
     window.location.href = `${arEngineUrl}/ar/${campaignId}`;
   };
 
-  /* ── Loading state ─────────────────────────────────────────── */
+  const hubHref =
+    campaign?.hubPageUrl
+    || (campaign?.ownerHandle && campaign?.hubSlug
+      ? `/open/${campaign.ownerHandle}/${campaign.hubSlug}`
+      : null);
+
   if (loading) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#020617]">
@@ -109,7 +118,6 @@ const ARExperiencePage = () => {
     );
   }
 
-  /* ── Error state ───────────────────────────────────────────── */
   if (error) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-5 bg-[#020617] px-[max(1.5rem,env(safe-area-inset-left))] py-[max(2rem,env(safe-area-inset-top))] text-center">
@@ -127,10 +135,9 @@ const ARExperiencePage = () => {
     );
   }
 
-  /* ── Main page ─────────────────────────────────────────────── */
   return (
     <div
-      className="flex min-h-screen flex-col items-center justify-between bg-[#020617] py-10 text-white"
+      className="flex min-h-screen flex-col items-center justify-between bg-[#020617] py-8 text-white sm:py-10"
       style={{
         paddingLeft: 'max(1.25rem, env(safe-area-inset-left))',
         paddingRight: 'max(1.25rem, env(safe-area-inset-right))',
@@ -142,85 +149,111 @@ const ARExperiencePage = () => {
         description="Point your camera at the business card to launch the AR hologram experience."
         noIndex={true}
       />
-      {/* Background glow */}
+
       <div className="pointer-events-none fixed inset-0 -z-10" aria-hidden>
-        <div className="absolute left-1/2 top-1/3 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-700/20 blur-[120px]" />
-        <div className="absolute bottom-0 right-0 h-[300px] w-[300px] rounded-full bg-accent-700/15 blur-[80px]" />
+        <div className="absolute left-1/2 top-[28%] h-[480px] w-[480px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-700/18 blur-[120px]" />
+        <div className="absolute bottom-0 right-0 h-[280px] w-[280px] rounded-full bg-violet-900/20 blur-[90px]" />
       </div>
 
-      {/* Header */}
-      <div className="flex w-full items-center justify-between">
+      <div className="flex w-full max-w-md items-center justify-between">
         <BrandLockup variant="header" className="min-h-11 py-1 [&_.brand-word]:brightness-110" />
         <PublicQuickLinksMenu theme="dark" />
       </div>
 
-      {/* Main content */}
       <motion.div
-        initial={{ opacity: 0, y: 24 }}
+        initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="flex w-full max-w-sm flex-col items-center gap-8 text-center"
+        transition={{ duration: 0.45, ease: 'easeOut' }}
+        className="flex w-full max-w-md flex-col items-center gap-6 text-center sm:gap-7"
       >
-        {/* Thumbnail / card preview */}
-        <div className="relative">
-          <div className="relative overflow-hidden rounded-2xl border border-white/10 shadow-glow">
-            <CampaignThumbnail
-              campaign={campaign}
-              alt={campaign?.campaignName}
-              className="h-48 w-48 object-cover"
-              placeholderClassName="flex h-48 w-48 items-center justify-center bg-brand-900/50"
-            />
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, delay: 0.05 }}
+          className="relative w-full"
+        >
+          <div className="relative mx-auto w-fit">
+            <div className="relative overflow-hidden rounded-2xl border border-violet-500/25 bg-white/[0.03] p-1.5 shadow-[0_0_40px_rgba(124,58,237,0.15)]">
+              <CampaignThumbnail
+                campaign={campaign}
+                alt={campaign?.campaignName}
+                className="h-44 w-44 rounded-xl object-cover sm:h-48 sm:w-48"
+                placeholderClassName="flex h-44 w-44 items-center justify-center rounded-xl bg-brand-900/50 sm:h-48 sm:w-48"
+              />
+            </div>
+
+            <motion.div
+              animate={{ y: [0, -5, 0] }}
+              transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
+              className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-brand-500/45 bg-brand-500/15 px-3.5 py-1 text-[11px] font-semibold tracking-wide text-brand-200 backdrop-blur-md"
+            >
+              AR Hologram Ready
+            </motion.div>
           </div>
 
-          {/* Floating hologram hint badge */}
-          <motion.div
-            animate={{ y: [0, -6, 0] }}
-            transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-            className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full border border-brand-500/40 bg-brand-500/20 px-3 py-1 text-xs font-semibold text-brand-300 backdrop-blur-sm"
-          >
-            ✦ AR Hologram Ready
-          </motion.div>
-        </div>
+          {Array.isArray(campaign?.links) && campaign.links.length > 0 && (
+            <div className="mt-5 px-1">
+              <ArExperienceLinkDock
+                links={campaign.links}
+                redirectSlug={campaign.redirectSlug}
+              />
+            </div>
+          )}
+        </motion.div>
 
-        {/* Campaign info */}
-        <div>
-          <h1 className="break-words text-balance text-2xl font-extrabold text-white">
+        <div className="w-full px-1">
+          <h1 className="break-words text-balance text-2xl font-extrabold tracking-tight text-white sm:text-[1.65rem]">
             {campaign?.campaignName}
           </h1>
-          <p className="mt-2 text-sm leading-relaxed text-white/50">
-            Point your camera at the business card to see the augmented reality experience.
+          <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-white/55">
+            Point your camera at the card to unlock the hologram and interactive links.
           </p>
         </div>
 
-        {/* How-to steps */}
-        <div className="flex w-full flex-col gap-2">
+        <div className="flex w-full flex-col gap-2 px-1">
           {HOW_TO_STEPS.map(({ icon: Icon, text }, i) => (
-            <div key={i} className="flex items-center gap-3 rounded-xl border border-white/8 bg-white/5 px-4 py-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-500/20">
-                <Icon size={18} className="text-brand-400" />
+            <motion.div
+              key={text}
+              custom={i}
+              variants={stepVariants}
+              initial="hidden"
+              animate="show"
+              className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.04] px-4 py-3 backdrop-blur-sm"
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-500/20 ring-1 ring-brand-500/25">
+                <Icon size={17} className="text-brand-300" />
               </div>
-              <p className="text-left text-sm text-white/70">{text}</p>
-            </div>
+              <p className="text-left text-sm text-white/75">{text}</p>
+            </motion.div>
           ))}
         </div>
 
-        {campaign?.ownerHandle && campaign?.hubSlug && (
-          <Link
-            to={`/open/${campaign.ownerHandle}/${campaign.hubSlug}`}
-            className="flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white/80 transition hover:border-brand-500/40 hover:text-white"
-          >
-            <ExternalLink size={16} />
-            View profile hub
-          </Link>
+        {hubHref && (
+          hubHref.startsWith('http') ? (
+            <a
+              href={hubHref}
+              className="flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-violet-500/35 bg-violet-500/10 px-4 py-3 text-sm font-semibold text-violet-200 transition hover:border-violet-400/50 hover:bg-violet-500/18 active:scale-[0.98]"
+            >
+              <ExternalLink size={16} />
+              View profile hub
+            </a>
+          ) : (
+            <Link
+              to={hubHref}
+              className="flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-violet-500/35 bg-violet-500/10 px-4 py-3 text-sm font-semibold text-violet-200 transition hover:border-violet-400/50 hover:bg-violet-500/18 active:scale-[0.98]"
+            >
+              <ExternalLink size={16} />
+              View profile hub
+            </Link>
+          )
         )}
 
-        {/* CTA button */}
         {isMobile ? (
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={handleLaunchAR}
             disabled={launching}
-            className="flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-brand py-4 text-base font-bold text-white shadow-glow-lg transition-all hover:shadow-glow disabled:opacity-60 animate-pulse-glow"
+            className="flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-brand py-4 text-base font-bold text-white shadow-glow-lg transition-all hover:shadow-glow disabled:opacity-60"
           >
             {launching ? (
               <><Loader2 size={18} className="animate-spin" /> Opening camera…</>
@@ -229,8 +262,7 @@ const ARExperiencePage = () => {
             )}
           </motion.button>
         ) : (
-          /* Desktop — show QR to scan with phone */
-          <div className="flex w-full flex-col items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-5">
+          <div className="flex w-full flex-col items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-5 backdrop-blur-sm">
             <Smartphone size={24} className="text-brand-400" />
             <p className="text-sm font-semibold text-white">Open on your phone</p>
             <p className="text-xs text-white/50">
@@ -255,10 +287,9 @@ const ARExperiencePage = () => {
         )}
       </motion.div>
 
-      {/* Footer */}
-      <div className="flex flex-col items-center gap-1">
+      <div className="flex flex-col items-center gap-1 pt-4">
         <PoweredByPhygitalFooter theme="dark" />
-        <span className="text-[11px] text-white/20">· Immersive WebAR</span>
+        <span className="text-[11px] text-white/20">Immersive WebAR</span>
       </div>
     </div>
   );

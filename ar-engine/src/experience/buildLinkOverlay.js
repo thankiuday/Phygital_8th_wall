@@ -1,9 +1,11 @@
 /**
- * buildLinkOverlay — left/right circular link buttons during video playback.
+ * buildLinkOverlay — bottom icon dock during video playback.
  */
 
 import { getLinkIconSvg, getLinkAccent } from '../utils/hubLinkIcons.js';
 import { recordLinkClick } from '../services/campaignLoader.js';
+
+const STAGGER_SEC = 0.3;
 
 const openLinkHref = (href) => {
   const h = String(href || '');
@@ -12,6 +14,13 @@ const openLinkHref = (href) => {
     return;
   }
   window.open(h, '_blank', 'noopener,noreferrer');
+};
+
+const layoutClassForCount = (count) => {
+  if (count === 1) return 'layout-single';
+  if (count === 2) return 'layout-double';
+  if (count === 3) return 'layout-triple';
+  return 'layout-many';
 };
 
 const createLinkButton = (link, redirectSlug) => {
@@ -34,13 +43,7 @@ const createLinkButton = (link, redirectSlug) => {
   return btn;
 };
 
-const createRail = (id) => {
-  const rail = document.createElement('div');
-  rail.id = id;
-  rail.className = 'ar-link-rail';
-  document.body.appendChild(rail);
-  return rail;
-};
+const gsap = () => window.gsap;
 
 /**
  * @param {{ links: Array, redirectSlug: string, videoEl: HTMLVideoElement }} opts
@@ -50,25 +53,66 @@ export const buildLinkOverlay = ({ links, redirectSlug, videoEl }) => {
     return null;
   }
 
-  const leftRail = createRail('ar-link-rail-left');
-  const rightRail = createRail('ar-link-rail-right');
+  const dock = document.createElement('div');
+  dock.id = 'ar-link-dock';
 
-  links.forEach((link, index) => {
+  const inner = document.createElement('div');
+  inner.id = 'ar-link-dock-inner';
+  inner.className = layoutClassForCount(links.length);
+
+  const buttons = links.map((link) => {
     const btn = createLinkButton(link, redirectSlug);
-    (index % 2 === 0 ? leftRail : rightRail).appendChild(btn);
+    inner.appendChild(btn);
+    return btn;
   });
 
-  if (!leftRail.childElementCount) leftRail.remove();
-  if (!rightRail.childElementCount) rightRail.remove();
+  dock.appendChild(inner);
+  document.body.appendChild(dock);
 
-  const rails = [leftRail, rightRail].filter((r) => r.parentElement);
-  if (rails.length === 0) return null;
+  let isVisible = false;
+
+  const animateIn = () => {
+    const g = gsap();
+    if (!g) {
+      buttons.forEach((btn) => {
+        btn.style.opacity = '1';
+        btn.style.transform = 'none';
+      });
+      return;
+    }
+    g.killTweensOf(buttons);
+    g.set(buttons, { opacity: 0, y: 14, scale: 0.82 });
+    g.to(buttons, {
+      opacity: 1,
+      y: 0,
+      scale: 1,
+      duration: 0.35,
+      stagger: STAGGER_SEC,
+      ease: 'back.out(1.4)',
+    });
+  };
+
+  const resetButtons = () => {
+    const g = gsap();
+    if (g) g.killTweensOf(buttons);
+    buttons.forEach((btn) => {
+      btn.style.opacity = '';
+      btn.style.transform = '';
+    });
+  };
 
   const show = () => {
-    rails.forEach((r) => r.classList.add('visible'));
+    if (isVisible) return;
+    isVisible = true;
+    dock.classList.add('visible');
+    animateIn();
   };
+
   const hide = () => {
-    rails.forEach((r) => r.classList.remove('visible'));
+    if (!isVisible) return;
+    isVisible = false;
+    resetButtons();
+    dock.classList.remove('visible');
   };
 
   const onPlay = () => show();
@@ -86,13 +130,13 @@ export const buildLinkOverlay = ({ links, redirectSlug, videoEl }) => {
   }
 
   const destroy = () => {
+    resetButtons();
     videoEl.removeEventListener('play', onPlay);
     videoEl.removeEventListener('playing', onPlaying);
     videoEl.removeEventListener('pause', onPause);
     videoEl.removeEventListener('ended', onEnded);
-    leftRail.remove();
-    rightRail.remove();
+    dock.remove();
   };
 
-  return { leftRail, rightRail, show, hide, destroy };
+  return { dock, inner, show, hide, destroy };
 };
