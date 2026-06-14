@@ -7,7 +7,7 @@ export const AR_MEDIA_PRODUCTS = {
     wizardRoute: '/dashboard/campaigns/new/digital-business-card/ar',
     imageStepLabel: 'Card Image',
     qrStepLabel: 'Place QR',
-    assetNoun: 'card',
+    assetNoun: 'business card',
     printAssetLabel: 'print-ready card',
     slaTitle: 'AR Digital Business Card',
     slaDescription:
