@@ -48,7 +48,7 @@
  */
 
 import { compileMindTarget } from './targetCompiler.js';
-import { animateTargetFound, animateTargetLost } from './animations.js';
+import { animateTargetFound, animateTargetLost, forceHidePlane } from './animations.js';
 import { createArEffect } from './effects/index.js';
 import { updateLoadingProgress, showError, hideLoading } from '../utils/loadingScreen.js';
 import { updateSession } from '../services/campaignLoader.js';
@@ -155,6 +155,8 @@ export class ARExperience {
     this._resumeTimer     = null;
     this._resumeInFlight  = null;
     this._pauseTask       = Promise.resolve();
+    this._reloadOnVisible = false;
+    this._cameraWatchdog  = null;
   }
 
   _setupScanningOverlay() {
@@ -595,7 +597,10 @@ export class ARExperience {
 
     this._refreshFsIcon();
 
-    const pauseForLeave = () => { this._pauseSession(); };
+    const pauseForLeave = () => {
+      this._reloadOnVisible = true;
+      this._pauseSession();
+    };
 
     this._ui.hubToggle = buildHubToggle(this._campaign.hubPageUrl, pauseForLeave);
     this._ui.linkOverlay = buildLinkOverlay({
@@ -749,6 +754,50 @@ export class ARExperience {
   }
 
   /**
+   * Hard-reset the 3D scene when pausing — prevents a floating effect on a
+   * black screen while the camera stream is dead.
+   */
+  _forceHideScene() {
+    forceHidePlane(this._plane);
+    this._targetVisible = false;
+    if (this._effect) {
+      this._effect.hide();
+      this._effectShown = false;
+    }
+    this._ui.controls?.classList.remove('visible');
+    this._ui.linkOverlay?.hide();
+    this._ui.buffer?.classList.remove('visible');
+  }
+
+  _isCameraFeedActive() {
+    const video = this._container?.querySelector('video');
+    return !!(video && video.readyState >= 2 && video.videoWidth > 0);
+  }
+
+  _clearCameraWatchdog() {
+    if (this._cameraWatchdog) {
+      clearTimeout(this._cameraWatchdog);
+      this._cameraWatchdog = null;
+    }
+  }
+
+  _watchCameraRecovery() {
+    this._clearCameraWatchdog();
+    this._cameraWatchdog = setTimeout(() => {
+      this._cameraWatchdog = null;
+      if (!this._destroyed && !this._isCameraFeedActive()) {
+        window.location.reload();
+      }
+    }, 2500);
+  }
+
+  _reloadIfPendingReturn() {
+    if (!this._reloadOnVisible) return false;
+    window.location.reload();
+    return true;
+  }
+
+  /**
    * Stop MindAR and release the camera when the page is hidden or the user
    * navigates away (link tap, hub, home button).
    */
@@ -756,12 +805,16 @@ export class ARExperience {
     if (this._destroyed || !this._mindarThree || this._sessionPaused) return;
 
     this._sessionPaused = true;
+    this._clearCameraWatchdog();
     if (this._resumeTimer) {
       clearTimeout(this._resumeTimer);
       this._resumeTimer = null;
     }
 
-    this._prepareForRescan();
+    this._setScanningOverlayVisible(true);
+    this._forceHideScene();
+    this._videoEl?.pause();
+    this._refreshPlayIcon();
 
     this._pauseTask = (async () => {
       if (!this._started || !this._mindarThree) return;
@@ -776,6 +829,7 @@ export class ARExperience {
 
   _scheduleResume() {
     if (this._destroyed || !this._sessionPaused) return;
+    if (this._reloadIfPendingReturn()) return;
     if (this._resumeTimer) clearTimeout(this._resumeTimer);
     // Brief delay lets mobile browsers restore the camera after tab focus.
     this._resumeTimer = setTimeout(() => {
@@ -790,6 +844,7 @@ export class ARExperience {
   async _resumeSession() {
     if (this._destroyed || !this._sessionPaused || !this._mindarThree) return;
     if (document.visibilityState === 'hidden') return;
+    if (this._reloadIfPendingReturn()) return;
     if (this._resumeInFlight) return this._resumeInFlight;
 
     this._resumeInFlight = (async () => {
@@ -797,6 +852,7 @@ export class ARExperience {
         await this._pauseTask;
         if (this._destroyed || !this._sessionPaused) return;
         if (document.visibilityState === 'hidden') return;
+        if (this._reloadIfPendingReturn()) return;
 
         this._prepareForRescan();
 
@@ -807,6 +863,8 @@ export class ARExperience {
         if (this._renderLoop && this._mindarThree.renderer) {
           this._mindarThree.renderer.setAnimationLoop(this._renderLoop);
         }
+
+        this._watchCameraRecovery();
       } catch {
         // Camera failed to restart — full reload is the reliable fallback.
         window.location.reload();
@@ -825,6 +883,8 @@ export class ARExperience {
     this._onVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         this._pauseSession();
+      } else if (this._reloadIfPendingReturn()) {
+        // reload handled above
       } else {
         this._scheduleResume();
       }
@@ -835,6 +895,7 @@ export class ARExperience {
         window.location.reload();
         return;
       }
+      if (this._reloadIfPendingReturn()) return;
       if (this._sessionPaused) {
         this._scheduleResume();
       }
@@ -844,15 +905,24 @@ export class ARExperience {
       this._pauseSession();
     };
 
+    this._onWindowFocus = () => {
+      if (this._reloadIfPendingReturn()) return;
+      if (this._sessionPaused) {
+        this._scheduleResume();
+      }
+    };
+
     document.addEventListener('visibilitychange', this._onVisibilityChange);
     window.addEventListener('pageshow', this._onPageShow);
     window.addEventListener('pagehide', this._onPageHide);
+    window.addEventListener('focus', this._onWindowFocus);
   }
 
   _unbindLifecycle() {
     if (!this._lifecycleBound) return;
     this._lifecycleBound = false;
 
+    this._clearCameraWatchdog();
     if (this._resumeTimer) {
       clearTimeout(this._resumeTimer);
       this._resumeTimer = null;
@@ -861,6 +931,7 @@ export class ARExperience {
     document.removeEventListener('visibilitychange', this._onVisibilityChange);
     window.removeEventListener('pageshow', this._onPageShow);
     window.removeEventListener('pagehide', this._onPageHide);
+    window.removeEventListener('focus', this._onWindowFocus);
   }
 
   /**

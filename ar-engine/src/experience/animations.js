@@ -145,3 +145,20 @@ const _startFloat = (plane) => {
 const _stopFloat = () => {
   if (_active.scale) { _active.scale.kill(); _active.scale = null; }
 };
+
+/**
+ * Immediately hide the plane without animation — used when pausing the session
+ * so a dead camera feed never leaves a floating hologram on a black screen.
+ *
+ * @param {THREE.Mesh} plane
+ */
+export const forceHidePlane = (plane) => {
+  const gsap = g();
+  if (!plane) return;
+  gsap?.killTweensOf([plane.scale, plane.material]);
+  _stopFloat();
+  plane.visible = false;
+  plane.material.opacity = 0;
+  plane.scale.set(1, 0, 1);
+  plane.position.set(0, 0, 0);
+};

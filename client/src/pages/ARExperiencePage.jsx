@@ -61,6 +61,14 @@ const ARExperiencePage = () => {
   useEffect(() => {
     setIsMobile(getDeviceType() !== 'desktop');
 
+    const resetLaunching = () => {
+      if (document.visibilityState !== 'hidden') {
+        setLaunching(false);
+      }
+    };
+    window.addEventListener('pageshow', resetLaunching);
+    document.addEventListener('visibilitychange', resetLaunching);
+
     const load = async () => {
       try {
         const data = await publicService.getCampaign(campaignId);
@@ -85,6 +93,11 @@ const ARExperiencePage = () => {
     };
 
     load();
+
+    return () => {
+      window.removeEventListener('pageshow', resetLaunching);
+      document.removeEventListener('visibilitychange', resetLaunching);
+    };
   }, [campaignId]);
 
   const handleLaunchAR = () => {
