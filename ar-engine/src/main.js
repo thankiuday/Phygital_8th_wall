@@ -16,6 +16,14 @@ import { getLoadingHint } from './utils/arTargetCopy.js';
 
 window.gsap = gsap;
 
+// WebAR camera streams die when the page is frozen in bfcache (back from hub,
+// home button, etc.). A hard reload is the most reliable recovery on mobile.
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) {
+    window.location.reload();
+  }
+});
+
 const init = async () => {
   // Parse campaign ID from the last path segment: /ar/CAMPAIGN_ID
   const pathParts = window.location.pathname.split('/').filter(Boolean);

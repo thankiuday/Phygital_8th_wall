@@ -147,6 +147,14 @@ export class ARExperience {
     this._started      = false;
     this._sessionStart = null;
     this._renderLoop   = null;
+
+    // Session pause/resume when tab is hidden or user leaves via links
+    this._destroyed       = false;
+    this._sessionPaused   = false;
+    this._lifecycleBound  = false;
+    this._resumeTimer     = null;
+    this._resumeInFlight  = null;
+    this._pauseTask       = Promise.resolve();
   }
 
   _setupScanningOverlay() {
@@ -324,6 +332,7 @@ export class ARExperience {
     };
 
     renderer.setAnimationLoop(this._renderLoop);
+    this._bindLifecycle();
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -586,11 +595,14 @@ export class ARExperience {
 
     this._refreshFsIcon();
 
-    this._ui.hubToggle = buildHubToggle(this._campaign.hubPageUrl);
+    const pauseForLeave = () => { this._pauseSession(); };
+
+    this._ui.hubToggle = buildHubToggle(this._campaign.hubPageUrl, pauseForLeave);
     this._ui.linkOverlay = buildLinkOverlay({
       links: this._campaign.links,
       redirectSlug: this._campaign.redirectSlug,
       videoEl: this._videoEl,
+      onBeforeLeave: pauseForLeave,
     });
   }
 
@@ -714,14 +726,141 @@ export class ARExperience {
   }
 
   _onTargetLost() {
+    this._prepareForRescan();
+    // Keep controls visible — user may want to keep using them; spinner hides
+    this._ui.buffer?.classList.remove('visible');
+  }
+
+  /**
+   * Reset UI/video to scanning state so MindAR can re-acquire the target.
+   */
+  _prepareForRescan() {
     this._setScanningOverlayVisible(true);
 
-    animateTargetLost(this._plane);
+    if (this._plane?.visible) {
+      animateTargetLost(this._plane);
+    }
     this._targetVisible = false;
     this._syncEffectVisibility();
     this._videoEl?.pause();
-    // Keep controls visible — user may want to keep using them; spinner hides
     this._ui.buffer?.classList.remove('visible');
+    this._ui.linkOverlay?.hide();
+    this._refreshPlayIcon();
+  }
+
+  /**
+   * Stop MindAR and release the camera when the page is hidden or the user
+   * navigates away (link tap, hub, home button).
+   */
+  _pauseSession() {
+    if (this._destroyed || !this._mindarThree || this._sessionPaused) return;
+
+    this._sessionPaused = true;
+    if (this._resumeTimer) {
+      clearTimeout(this._resumeTimer);
+      this._resumeTimer = null;
+    }
+
+    this._prepareForRescan();
+
+    this._pauseTask = (async () => {
+      if (!this._started || !this._mindarThree) return;
+      try {
+        await this._mindarThree.stop();
+      } catch {
+        // ignore — camera may already be stopped by the OS
+      }
+      this._started = false;
+    })();
+  }
+
+  _scheduleResume() {
+    if (this._destroyed || !this._sessionPaused) return;
+    if (this._resumeTimer) clearTimeout(this._resumeTimer);
+    // Brief delay lets mobile browsers restore the camera after tab focus.
+    this._resumeTimer = setTimeout(() => {
+      this._resumeTimer = null;
+      this._resumeSession();
+    }, 300);
+  }
+
+  /**
+   * Restart MindAR tracking after the tab becomes visible again.
+   */
+  async _resumeSession() {
+    if (this._destroyed || !this._sessionPaused || !this._mindarThree) return;
+    if (document.visibilityState === 'hidden') return;
+    if (this._resumeInFlight) return this._resumeInFlight;
+
+    this._resumeInFlight = (async () => {
+      try {
+        await this._pauseTask;
+        if (this._destroyed || !this._sessionPaused) return;
+        if (document.visibilityState === 'hidden') return;
+
+        this._prepareForRescan();
+
+        await this._mindarThree.start();
+        this._started = true;
+        this._sessionPaused = false;
+
+        if (this._renderLoop && this._mindarThree.renderer) {
+          this._mindarThree.renderer.setAnimationLoop(this._renderLoop);
+        }
+      } catch {
+        // Camera failed to restart — full reload is the reliable fallback.
+        window.location.reload();
+      } finally {
+        this._resumeInFlight = null;
+      }
+    })();
+
+    return this._resumeInFlight;
+  }
+
+  _bindLifecycle() {
+    if (this._lifecycleBound) return;
+    this._lifecycleBound = true;
+
+    this._onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        this._pauseSession();
+      } else {
+        this._scheduleResume();
+      }
+    };
+
+    this._onPageShow = (event) => {
+      if (event.persisted) {
+        window.location.reload();
+        return;
+      }
+      if (this._sessionPaused) {
+        this._scheduleResume();
+      }
+    };
+
+    this._onPageHide = () => {
+      this._pauseSession();
+    };
+
+    document.addEventListener('visibilitychange', this._onVisibilityChange);
+    window.addEventListener('pageshow', this._onPageShow);
+    window.addEventListener('pagehide', this._onPageHide);
+  }
+
+  _unbindLifecycle() {
+    if (!this._lifecycleBound) return;
+    this._lifecycleBound = false;
+
+    if (this._resumeTimer) {
+      clearTimeout(this._resumeTimer);
+      this._resumeTimer = null;
+    }
+
+    document.removeEventListener('visibilitychange', this._onVisibilityChange);
+    window.removeEventListener('pageshow', this._onPageShow);
+    window.removeEventListener('pagehide', this._onPageHide);
   }
 
   /**
@@ -806,6 +945,9 @@ export class ARExperience {
   // destroy
   // ───────────────────────────────────────────────────────────────────────────
   async destroy() {
+    this._destroyed = true;
+    this._unbindLifecycle();
+
     if (this._sessionStart) {
       updateSession(
         this._campaign._id,

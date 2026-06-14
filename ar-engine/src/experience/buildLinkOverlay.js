@@ -22,7 +22,7 @@ const layoutClassForCount = (count) => {
   return 'layout-many';
 };
 
-const createLinkButton = (link, redirectSlug) => {
+const createLinkButton = (link, redirectSlug, onBeforeLeave) => {
   const kind = link.kind || 'custom';
   const accent = getLinkAccent(kind);
   const btn = document.createElement('button');
@@ -37,6 +37,7 @@ const createLinkButton = (link, redirectSlug) => {
     if (redirectSlug && link.linkId) {
       recordLinkClick(redirectSlug, link.linkId);
     }
+    onBeforeLeave?.();
     openLinkHref(link.href);
   });
   return btn;
@@ -45,9 +46,9 @@ const createLinkButton = (link, redirectSlug) => {
 const gsap = () => window.gsap;
 
 /**
- * @param {{ links: Array, redirectSlug: string, videoEl: HTMLVideoElement }} opts
+ * @param {{ links: Array, redirectSlug: string, videoEl: HTMLVideoElement, onBeforeLeave?: () => void }} opts
  */
-export const buildLinkOverlay = ({ links, redirectSlug, videoEl }) => {
+export const buildLinkOverlay = ({ links, redirectSlug, videoEl, onBeforeLeave }) => {
   if (!Array.isArray(links) || links.length === 0 || !videoEl) {
     return null;
   }
@@ -60,7 +61,7 @@ export const buildLinkOverlay = ({ links, redirectSlug, videoEl }) => {
   inner.className = layoutClassForCount(links.length);
 
   const buttons = links.map((link) => {
-    const btn = createLinkButton(link, redirectSlug);
+    const btn = createLinkButton(link, redirectSlug, onBeforeLeave);
     inner.appendChild(btn);
     return btn;
   });
