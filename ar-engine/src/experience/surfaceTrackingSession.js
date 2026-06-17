@@ -101,7 +101,7 @@ export class SurfaceTrackingSession {
     return this._hitVisible;
   }
 
-  async start() {
+  async start({ sessionPromise } = {}) {
     const sessionInit = {
       requiredFeatures: ['hit-test'],
       optionalFeatures: ['local-floor'],
@@ -112,7 +112,9 @@ export class SurfaceTrackingSession {
       sessionInit.domOverlay = { root: this._domOverlayRoot };
     }
 
-    this._session = await navigator.xr.requestSession('immersive-ar', sessionInit);
+    this._session = sessionPromise
+      ? await sessionPromise
+      : await navigator.xr.requestSession('immersive-ar', sessionInit);
 
     if (this._renderer.xr.setReferenceSpaceType) {
       this._renderer.xr.setReferenceSpaceType('local-floor');

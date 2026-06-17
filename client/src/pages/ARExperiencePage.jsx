@@ -21,9 +21,13 @@ import CampaignThumbnail from '../components/ui/CampaignThumbnail';
 import PublicQuickLinksMenu from '../components/hub/PublicQuickLinksMenu';
 import PoweredByPhygitalFooter from '../components/hub/PoweredByPhygitalFooter';
 import ArExperienceLinkDock from '../components/ar/ArExperienceLinkDock';
+import SurfaceArHost from '../components/ar/SurfaceArHost';
 import { getArExperienceCopy } from '../constants/arExperienceCopy';
+import { createSurfaceArShell, removeSurfaceArShell } from '../ar/surfaceArShell.js';
+import { requestSurfaceSession, checkWebXrArSupported } from '@ar-engine/utils/webxr.js';
+import { createArSessionId } from '@ar-engine/utils/arReturnReload.js';
 
-const STEP_ICONS = [ScanLine, Camera, Zap];
+const STEP_ICONS_SURFACE = [ScanLine, Zap];
 
 const getDeviceType = () => {
   const ua = navigator.userAgent;
@@ -53,6 +57,9 @@ const ARExperiencePage = () => {
   const [error, setError] = useState('');
   const [launching, setLaunching] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [webXrSupported, setWebXrSupported] = useState(null);
+  const [surfaceAr, setSurfaceAr] = useState(null);
+  const [surfaceArError, setSurfaceArError] = useState('');
 
   useEffect(() => {
     applyThemeClass('dark');
@@ -101,7 +108,44 @@ const ARExperiencePage = () => {
     };
   }, [campaignId]);
 
+  const imageTargetOn = campaign?.requiresImageTarget !== false;
+
+  useEffect(() => {
+    if (!campaign || imageTargetOn) {
+      setWebXrSupported(null);
+      return;
+    }
+    checkWebXrArSupported().then(setWebXrSupported);
+  }, [campaign, imageTargetOn]);
+
   const handleLaunchAR = () => {
+    if (!imageTargetOn) {
+      setSurfaceArError('');
+      setLaunching(true);
+      try {
+        const shell = createSurfaceArShell();
+        const sessionPromise = requestSurfaceSession(shell.domOverlay);
+        sessionPromise.catch(() => {
+          removeSurfaceArShell();
+          setLaunching(false);
+          setSurfaceAr(null);
+          setSurfaceArError(
+            'Could not start surface AR. Use Chrome on Android and allow camera access.'
+          );
+        });
+        setSurfaceAr({
+          campaign,
+          sessionId: createArSessionId(),
+          sessionPromise,
+        });
+      } catch {
+        removeSurfaceArShell();
+        setLaunching(false);
+        setSurfaceArError('Surface AR is not supported on this device.');
+      }
+      return;
+    }
+
     setLaunching(true);
     const arEngineUrl =
       import.meta.env.VITE_AR_ENGINE_URL ||
@@ -111,18 +155,25 @@ const ARExperiencePage = () => {
     window.location.href = `${arEngineUrl}/ar/${campaignId}`;
   };
 
+  const handleCloseSurfaceAr = () => {
+    setSurfaceAr(null);
+    setLaunching(false);
+  };
+
   const hubHref =
     campaign?.hubPageUrl
     || (campaign?.ownerHandle && campaign?.hubSlug
       ? `/open/${campaign.ownerHandle}/${campaign.hubSlug}`
       : null);
 
-  const imageTargetOn = campaign?.requiresImageTarget !== false;
   const experienceCopy = getArExperienceCopy(campaign?.campaignType, imageTargetOn);
+  const stepIcons = imageTargetOn ? [ScanLine, Camera, Zap] : STEP_ICONS_SURFACE;
   const howToSteps = experienceCopy.steps.map((text, i) => ({
-    icon: STEP_ICONS[i] || Zap,
+    icon: stepIcons[i] || Zap,
     text,
   }));
+
+  const surfaceLaunchBlocked = !imageTargetOn && webXrSupported === false;
 
   const hubButton = hubHref ? (
     hubHref.startsWith('http') ? (
@@ -143,7 +194,7 @@ const ARExperiencePage = () => {
       type="button"
       whileTap={{ scale: 0.97 }}
       onClick={handleLaunchAR}
-      disabled={launching}
+      disabled={launching || surfaceLaunchBlocked}
       className="flex w-full min-h-[52px] items-center justify-center gap-2.5 rounded-2xl bg-gradient-brand py-3.5 text-base font-bold text-white shadow-glow-lg transition-all hover:shadow-glow disabled:opacity-60"
     >
       {launching ? (
@@ -335,6 +386,14 @@ const ARExperiencePage = () => {
         {/* Desktop: actions inline; mobile uses fixed bar */}
         {!isMobile && (
           <section className="mt-5 pb-2">
+            {surfaceArError && (
+              <p className="mb-2 text-center text-xs text-red-300/90">{surfaceArError}</p>
+            )}
+            {surfaceLaunchBlocked && (
+              <p className="mb-2 text-center text-xs text-amber-200/80">
+                Surface AR needs Chrome on Android. Turn Image target on in your dashboard for other devices.
+              </p>
+            )}
             {actionStack}
           </section>
         )}
@@ -359,10 +418,32 @@ const ARExperiencePage = () => {
           }}
         >
           <div className="mx-auto w-full max-w-md">
+            {surfaceArError && (
+              <p className="mb-2 text-center text-xs text-red-300/90">{surfaceArError}</p>
+            )}
+            {surfaceLaunchBlocked && (
+              <p className="mb-2 text-center text-xs text-amber-200/80">
+                Surface AR needs Chrome on Android. Turn Image target on in your dashboard for other devices.
+              </p>
+            )}
             {actionStack}
             <p className="mt-2 text-center text-[10px] text-white/25">Powered by Phygital · WebAR</p>
           </div>
         </div>
+      )}
+      {surfaceAr && (
+        <SurfaceArHost
+          campaign={surfaceAr.campaign}
+          sessionId={surfaceAr.sessionId}
+          sessionPromise={surfaceAr.sessionPromise}
+          onClose={handleCloseSurfaceAr}
+          onError={(msg) => {
+            setSurfaceArError(msg);
+            setSurfaceAr(null);
+            setLaunching(false);
+          }}
+          onReady={() => setLaunching(false)}
+        />
       )}
     </div>
   );

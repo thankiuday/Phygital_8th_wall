@@ -1,0 +1,277 @@
+/* Embedded surface AR — styles ported from ar-engine for in-page WebXR */
+
+.surface-ar-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #000;
+  overflow: hidden;
+}
+
+.surface-ar-shell #ar-root {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.surface-ar-shell #ar-root canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.surface-ar-close {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top, 8px));
+  right: max(12px, env(safe-area-inset-right, 8px));
+  z-index: 10001;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(12, 8, 24, 0.65);
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+#ar-dom-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+}
+
+#ar-dom-overlay #ar-controls,
+#ar-dom-overlay #ar-hub-toggle,
+#ar-dom-overlay #ar-link-dock,
+#ar-dom-overlay .ar-surface-coaching.state-starting {
+  pointer-events: auto;
+}
+
+.ar-surface-coaching {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+
+.ar-surface-coaching.state-hidden,
+.ar-surface-coaching.state-placed {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ar-surface-coaching.state-starting {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.ar-surface-coaching.state-scanning,
+.ar-surface-coaching.state-ready {
+  opacity: 1;
+}
+
+.ar-surface-coaching.state-ready {
+  opacity: 0.55;
+}
+
+.ar-surface-coaching-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(2, 6, 23, 0.08) 0%,
+    rgba(2, 6, 23, 0.22) 100%
+  );
+}
+
+.ar-surface-coaching-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: min(88vw, 300px);
+  text-align: center;
+  padding: 20px;
+}
+
+.ar-surface-coaching-mark {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  opacity: 0.65;
+  animation: ar-coaching-float 2.8s ease-in-out infinite;
+}
+
+@keyframes ar-coaching-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.ar-surface-coaching-brand {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.ar-surface-coaching-scan {
+  position: relative;
+  width: 120px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(167, 139, 250, 0.15);
+  overflow: hidden;
+}
+
+.ar-surface-coaching-scan-line {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(196, 181, 253, 0.9), transparent);
+  animation: ar-coaching-sweep 2s ease-in-out infinite;
+}
+
+@keyframes ar-coaching-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.ar-surface-coaching-message {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.88);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
+}
+
+.ar-surface-coaching-tap {
+  font-size: 12px;
+  color: rgba(196, 181, 253, 0.85);
+  font-weight: 600;
+}
+
+#ar-surface-place-hint {
+  position: fixed;
+  left: 50%;
+  bottom: max(96px, env(safe-area-inset-bottom, 12px) + 80px);
+  transform: translateX(-50%) translateY(8px);
+  z-index: 55;
+  max-width: min(92vw, 320px);
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(167, 139, 250, 0.45);
+  background: rgba(12, 8, 24, 0.78);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+#ar-surface-place-hint.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+#ar-controls {
+  position: fixed;
+  left: 50%;
+  bottom: max(28px, env(safe-area-inset-bottom, 12px) + 16px);
+  transform: translate(-50%, 8px);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: rgba(12, 8, 24, 0.72);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(167, 139, 250, 0.2);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+#ar-controls.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+
+#ar-controls .ar-ctrl {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+#ar-buffer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#ar-buffer.visible {
+  opacity: 1;
+}
+
+.ar-buffer-ring {
+  width: 44px;
+  height: 44px;
+  border: 3px solid rgba(167, 139, 250, 0.25);
+  border-top-color: #a78bfa;
+  border-radius: 50%;
+  animation: ar-buffer-spin 0.8s linear infinite;
+}
+
+@keyframes ar-buffer-spin {
+  to { transform: rotate(360deg); }
+}
+
+#ar-watermark {
+  position: fixed;
+  right: 14px;
+  bottom: max(12px, env(safe-area-inset-bottom, 6px));
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+.ar-watermark-mark {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}

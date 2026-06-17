@@ -317,63 +317,107 @@
         font-weight: 700;
         color: #c4b5fd;
       }
-      #ar-scanning-overlay.mode-hidden,
-      #ar-surface-overlay.mode-hidden {
+      #ar-scanning-overlay.mode-hidden {
         display: none !important;
       }
 
-      /* Surface placement overlay — no printed marker */
-      #ar-surface-overlay {
+      /* Surface coaching overlay — translucent guide over live camera */
+      .ar-surface-coaching {
         position: fixed;
         inset: 0;
-        z-index: 15;
+        z-index: 45;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        transition: opacity 0.35s ease;
+      }
+      .ar-surface-coaching.state-hidden,
+      .ar-surface-coaching.state-placed {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .ar-surface-coaching.state-starting {
+        pointer-events: auto;
+        cursor: pointer;
+      }
+      .ar-surface-coaching.state-scanning,
+      .ar-surface-coaching.state-ready {
+        opacity: 1;
+        pointer-events: none;
+      }
+      .ar-surface-coaching.state-ready {
+        opacity: 0.55;
+      }
+      .ar-surface-coaching-vignette {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(
+          ellipse at center,
+          rgba(2, 6, 23, 0.08) 0%,
+          rgba(2, 6, 23, 0.22) 100%
+        );
+        pointer-events: none;
+      }
+      .ar-surface-coaching-content {
+        position: relative;
+        z-index: 1;
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: center;
-        gap: 16px;
-        padding: max(16px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
-        background: rgba(0, 0, 0, 0.42);
-        pointer-events: auto;
-      }
-      #ar-surface-overlay.hidden {
-        display: none !important;
-      }
-      .ar-surface-reticle-preview {
-        width: 88px;
-        height: 88px;
-        border-radius: 50%;
-        border: 2px solid rgba(167, 139, 250, 0.55);
-        box-shadow:
-          0 0 0 6px rgba(124, 58, 237, 0.12),
-          0 0 32px rgba(124, 58, 237, 0.35);
-        animation: ar-surface-pulse 2s ease-in-out infinite;
-      }
-      @keyframes ar-surface-pulse {
-        0%, 100% { transform: scale(1); opacity: 0.85; }
-        50% { transform: scale(1.06); opacity: 1; }
-      }
-      .ar-surface-tap-hint {
-        font-size: 12px;
-        color: rgba(255, 255, 255, 0.55);
+        gap: 10px;
+        max-width: min(88vw, 300px);
         text-align: center;
+        padding: 20px;
       }
-      #ar-surface-start-btn {
-        margin-top: 4px;
-        min-height: 48px;
-        padding: 0 24px;
-        border-radius: 999px;
-        border: 1px solid rgba(167, 139, 250, 0.45);
-        background: linear-gradient(135deg, rgba(124, 58, 237, 0.9), rgba(99, 102, 241, 0.85));
-        color: #fff;
-        font-size: 14px;
+      .ar-surface-coaching-mark {
+        width: 48px;
+        height: 48px;
+        object-fit: contain;
+        opacity: 0.65;
+        animation: ar-coaching-float 2.8s ease-in-out infinite;
+        filter: drop-shadow(0 4px 12px rgba(124, 58, 237, 0.35));
+      }
+      @keyframes ar-coaching-float {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-6px); }
+      }
+      .ar-surface-coaching-brand {
+        font-size: 11px;
         font-weight: 700;
-        letter-spacing: 0.02em;
-        cursor: pointer;
-        box-shadow: 0 8px 28px rgba(124, 58, 237, 0.35);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.6);
       }
-      #ar-surface-start-btn:active {
-        transform: scale(0.97);
+      .ar-surface-coaching-scan {
+        position: relative;
+        width: 120px;
+        height: 4px;
+        border-radius: 999px;
+        background: rgba(167, 139, 250, 0.15);
+        overflow: hidden;
+      }
+      .ar-surface-coaching-scan-line {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, transparent, rgba(196, 181, 253, 0.9), transparent);
+        animation: ar-coaching-sweep 2s ease-in-out infinite;
+      }
+      @keyframes ar-coaching-sweep {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+      }
+      .ar-surface-coaching-message {
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 1.45;
+        color: rgba(255, 255, 255, 0.88);
+        text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
+      }
+      .ar-surface-coaching-tap {
+        font-size: 12px;
+        color: rgba(196, 181, 253, 0.85);
+        font-weight: 600;
       }
 
       /* In-AR hint when hit-test reticle is visible */
@@ -673,20 +717,7 @@
       </p>
     </div>
 
-    <!-- Surface placement overlay — WebXR hit-test, no printed marker -->
-    <div id="ar-surface-overlay" class="hidden mode-hidden" aria-hidden="true">
-      <p class="ar-scan-title">Find a flat surface</p>
-      <div class="ar-surface-reticle-preview" aria-hidden="true"></div>
-      <p class="ar-scan-hint" id="ar-surface-hint">
-        Slowly move your phone over a flat empty surface
-      </p>
-      <p class="ar-surface-tap-hint" id="ar-surface-tap-hint">
-        Tap the indicator to place the hologram
-      </p>
-      <button type="button" id="ar-surface-start-btn">Start surface AR</button>
-    </div>
-
-    <!-- WebXR dom-overlay — watermark, controls, place hint during immersive AR -->
+    <!-- WebXR dom-overlay — watermark, controls, coaching, place hint during immersive AR -->
     <div id="ar-dom-overlay">
       <p id="ar-surface-place-hint" aria-hidden="true">
         Tap the purple ring to place the hologram

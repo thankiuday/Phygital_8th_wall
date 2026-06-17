@@ -1,0 +1,58 @@
+import { useEffect, useRef } from 'react';
+import { bootEmbeddedSurfaceAr, teardownEmbeddedSurfaceAr } from '../../ar/launchSurfaceAr.js';
+import '../../ar/surfaceArStyles.css';
+
+/**
+ * Fullscreen host for embedded surface WebXR launched from the landing page.
+ */
+const SurfaceArHost = ({
+  campaign,
+  sessionId,
+  sessionPromise,
+  onClose,
+  onError,
+  onReady,
+}) => {
+  const bootedRef = useRef(false);
+
+  useEffect(() => {
+    if (!campaign || !sessionPromise || bootedRef.current) return undefined;
+    bootedRef.current = true;
+
+    let cancelled = false;
+
+    (async () => {
+      const experience = await bootEmbeddedSurfaceAr({
+        campaign,
+        sessionId,
+        sessionPromise,
+        onError: (msg) => {
+          if (!cancelled) onError?.(msg);
+        },
+      });
+      if (!cancelled && experience) {
+        onReady?.();
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [campaign, sessionId, sessionPromise, onError, onReady]);
+
+  useEffect(() => {
+    const closeBtn = document.getElementById('surface-ar-close');
+    const onCloseClick = () => onClose?.();
+    closeBtn?.addEventListener('click', onCloseClick);
+    return () => closeBtn?.removeEventListener('click', onCloseClick);
+  }, [onClose]);
+
+  useEffect(() => () => {
+    teardownEmbeddedSurfaceAr();
+    bootedRef.current = false;
+  }, []);
+
+  return null;
+};
+
+export default SurfaceArHost;

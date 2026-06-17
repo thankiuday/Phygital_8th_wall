@@ -38,13 +38,19 @@ export const getScanTitle = (requiresImageTarget = true) =>
   (requiresImageTarget === false ? 'Find a flat surface' : 'Scan this image');
 
 export const getSurfaceTapHint = () =>
-  'Tap the indicator to place the hologram';
+  'Tap the purple ring to place the hologram';
 
-export const checkWebXrArSupported = async () => {
-  if (!navigator.xr?.isSessionSupported) return false;
-  try {
-    return await navigator.xr.isSessionSupported('immersive-ar');
-  } catch {
-    return false;
+export const getSurfaceCoachingCopy = (phase) => {
+  switch (phase) {
+    case 'starting':
+      return 'Tap anywhere to start the camera';
+    case 'scanning':
+      return 'Slowly move your phone over a flat empty surface';
+    case 'ready':
+      return 'Tap the purple ring to place the hologram';
+    default:
+      return 'Find a flat surface to place your hologram';
   }
 };
+
+export { checkWebXrArSupported } from './webxr.js';

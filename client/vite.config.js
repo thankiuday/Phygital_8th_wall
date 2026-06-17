@@ -7,16 +7,20 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@ar-engine': path.resolve(__dirname, '../ar-engine/src'),
     },
     // Deduplicate React so only one copy is bundled (monorepo safety)
     dedupe: ['react', 'react-dom', 'react-router-dom'],
   },
   // Force pre-bundle packages hoisted to root node_modules
   optimizeDeps: {
-    include: ['react', 'react-dom', 'react-dom/client', 'react-is'],
+    include: ['react', 'react-dom', 'react-dom/client', 'react-is', 'gsap', 'three-ar'],
   },
   server: {
     port: 5173,
+    fs: {
+      allow: ['..'],
+    },
     // Proxy API calls to backend during local dev — no CORS issues
     proxy: {
       '/api': {
@@ -33,6 +37,8 @@ export default defineConfig({
       output: {
         // Split heavy vendor chunks for better caching (must be a function in Vite 8+)
         manualChunks: (id) => {
+          if (id.includes('ar-engine/src')) return 'surface-ar';
+          if (id.includes('node_modules/three-ar') || id.includes('three-ar')) return 'surface-ar';
           if (id.includes('node_modules/react') || id.includes('node_modules/react-dom') || id.includes('node_modules/react-router-dom')) {
             return 'vendor';
           }

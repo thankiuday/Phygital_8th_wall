@@ -61,10 +61,14 @@ import {
   getScanHintPrefix,
   getScanImageAlt,
   getScanTitle,
-  getSurfaceTapHint,
   usesImageTarget,
-  checkWebXrArSupported,
 } from '../utils/arTargetCopy.js';
+import {
+  checkWebXrArSupported,
+  requestSurfaceSession,
+} from '../utils/webxr.js';
+import { createSurfaceCoachingOverlay } from './surfaceCoachingOverlay.js';
+import { createSurfaceCoachingBillboard } from './surfaceCoachingBillboard.js';
 import {
   markReturnReload,
   hasPendingReturnReload,
@@ -106,13 +110,16 @@ const SURFACE_CHECK_INTERVAL = 10;   // frames between checks
 
 // ─────────────────────────────────────────────────────────────────────────────
 const SCAN_OVERLAY_ID = 'ar-scanning-overlay';
-const SURFACE_OVERLAY_ID = 'ar-surface-overlay';
 
 export class ARExperience {
-  constructor({ container, campaign, sessionId }) {
+  constructor({ container, campaign, sessionId, embedMode = false }) {
     this._container = container;
     this._campaign  = campaign;
     this._sessionId = sessionId;
+    this._embedMode = embedMode;
+    this._preSessionPromise = null;
+    this._coaching = null;
+    this._coachingBillboard = null;
     this._setupScanningOverlay();
 
     // Three.js / MindAR objects
@@ -197,13 +204,36 @@ export class ARExperience {
     return this._mindarThree?.camera;
   }
 
-  _bindSurfaceStartButton() {
-    const btn = document.getElementById('ar-surface-start-btn');
-    if (!btn) return;
-    btn.onclick = () => { this._startSurfaceSession(); };
+  _initSurfaceCoaching() {
+    const domRoot = document.getElementById('ar-dom-overlay');
+    if (!domRoot || this._coaching) return;
+
+    this._coaching = createSurfaceCoachingOverlay({
+      domRoot,
+      onStartTap: () => this._onCoachingStartTap(),
+    });
   }
 
-  async _startSurfaceSession() {
+  _onCoachingStartTap() {
+    if (this._surfaceSession || this._surfaceStarting) return;
+
+    const domOverlay = document.getElementById('ar-dom-overlay');
+    const sessionPromise = requestSurfaceSession(domOverlay);
+    this._showSurfaceCoaching('scanning');
+    this._startSurfaceSession({ sessionPromise });
+  }
+
+  _showSurfaceCoaching(state) {
+    this._initSurfaceCoaching();
+    this._coaching?.setState(state);
+
+    if (this._coachingBillboard) {
+      const showBillboard = state === 'scanning' || state === 'ready';
+      this._coachingBillboard.setVisible(showBillboard);
+    }
+  }
+
+  async _startSurfaceSession({ sessionPromise } = {}) {
     if (this._surfaceStarting) return;
     if (this._surfaceSession) return;
 
@@ -212,8 +242,10 @@ export class ARExperience {
     const camera = this._surfaceCamera;
     if (!renderer || !scene || !camera) return;
 
+    const promise = sessionPromise || this._preSessionPromise;
+    this._preSessionPromise = null;
+
     this._surfaceStarting = true;
-    this._setSurfaceOverlayVisible(false);
 
     try {
       this._surfaceSession = new SurfaceTrackingSession({
@@ -227,16 +259,17 @@ export class ARExperience {
         onPlaced: () => this._onSurfacePlaced(),
         onRescan: () => this._onSurfaceRescan(),
         onAnimate: (now) => this._animateSurfaceFrame(now, renderer),
-        onHitVisibilityChange: (visible) => this._setSurfacePlaceHintVisible(visible),
+        onHitVisibilityChange: (visible) => this._onSurfaceHitVisibilityChange(visible),
       });
-      await this._surfaceSession.start();
+      await this._surfaceSession.start({ sessionPromise: promise });
       this._started = true;
       if (!this._sessionStart) {
         this._sessionStart = Date.now();
       }
+      this._showSurfaceCoaching('scanning');
     } catch {
       this._surfaceSession = null;
-      this._setSurfaceOverlayVisible(true);
+      this._showSurfaceCoaching('starting');
       showError(
         'Could not start surface AR',
         'Allow camera permissions and try again, or switch to Image target mode in your dashboard.'
@@ -246,12 +279,16 @@ export class ARExperience {
     }
   }
 
+  _onSurfaceHitVisibilityChange(visible) {
+    this._setSurfacePlaceHintVisible(visible);
+    if (this._surfaceSession?.placed) return;
+    this._showSurfaceCoaching(visible ? 'ready' : 'scanning');
+  }
+
   _setupScanningOverlay() {
     const imageMode = this._usesImageTarget();
     const scanEl = document.getElementById(SCAN_OVERLAY_ID);
-    const surfaceEl = document.getElementById(SURFACE_OVERLAY_ID);
     if (scanEl) scanEl.classList.toggle('mode-hidden', !imageMode);
-    if (surfaceEl) surfaceEl.classList.toggle('mode-hidden', imageMode);
 
     const campaignType = this._campaign.campaignType;
     const titleEl = document.getElementById('ar-scan-title');
@@ -260,8 +297,6 @@ export class ARExperience {
     const img = document.getElementById('ar-scan-target-img');
     const nameEl = document.getElementById('ar-scan-campaign-name');
     const hintPrefixEl = document.getElementById('ar-scan-hint-prefix');
-    const surfaceHintEl = document.getElementById('ar-surface-hint');
-    const surfaceTapEl = document.getElementById('ar-surface-tap-hint');
     const url = this._campaign.targetImageUrl || this._campaign.targetImageOriginalUrl;
 
     if (imageMode && img && url) {
@@ -278,20 +313,6 @@ export class ARExperience {
         nameEl.textContent = '';
       }
     }
-
-    if (surfaceHintEl) {
-      surfaceHintEl.textContent = getScanHintPrefix(campaignType, false);
-    }
-    if (surfaceTapEl) {
-      surfaceTapEl.textContent = getSurfaceTapHint();
-    }
-  }
-
-  _setSurfaceOverlayVisible(visible) {
-    const el = document.getElementById(SURFACE_OVERLAY_ID);
-    if (!el) return;
-    el.classList.toggle('hidden', !visible);
-    el.setAttribute('aria-hidden', visible ? 'false' : 'true');
   }
 
   _setScanningOverlayVisible(visible) {
@@ -304,9 +325,13 @@ export class ARExperience {
   // ───────────────────────────────────────────────────────────────────────────
   // boot
   // ───────────────────────────────────────────────────────────────────────────
-  async boot() {
-    const THREE = window.THREE;
-    if (!THREE) throw new Error('Three.js not found on window.THREE');
+  async boot({ THREE, preSessionPromise } = {}) {
+    const three = THREE || window.THREE;
+    if (!three) throw new Error('Three.js not found');
+
+    if (preSessionPromise) {
+      this._preSessionPromise = preSessionPromise;
+    }
 
     this._bindLifecycle();
 
@@ -314,9 +339,9 @@ export class ARExperience {
       if (!window.MINDAR?.IMAGE?.MindARThree) {
         throw new Error('MindARThree not found. Check CDN scripts in index.html.');
       }
-      await this._bootImageTarget(THREE);
+      await this._bootImageTarget(three);
     } else {
-      await this._bootSurfaceMode(THREE);
+      await this._bootSurfaceMode(three);
     }
   }
 
@@ -449,13 +474,31 @@ export class ARExperience {
     this._surfaceReticle = createPlacementReticle(THREE);
     scene.add(this._surfaceReticle);
 
+    this._coachingBillboard = createSurfaceCoachingBillboard(THREE);
+    scene.add(this._coachingBillboard.group);
+
+    this._initSurfaceCoaching();
+
     updateLoadingProgress(100, 'Ready!');
     hideLoading();
-    this._setSurfaceOverlayVisible(true);
-    this._bindSurfaceStartButton();
+
+    if (this._preSessionPromise) {
+      await this._startSurfaceSession({ sessionPromise: this._preSessionPromise });
+    } else {
+      this._showSurfaceCoaching('starting');
+    }
   }
 
   _animateSurfaceFrame(now, renderer) {
+    const cam = renderer.xr.getCamera();
+
+    if (
+      this._coachingBillboard?.group.visible
+      && !this._surfaceSession?.placed
+    ) {
+      this._coachingBillboard.update(now ?? performance.now(), cam);
+    }
+
     if (this._plane.visible && this._surfaceSession?.placed) {
       const sc = this._scratch;
       const cam = renderer.xr.getCamera();
@@ -494,7 +537,8 @@ export class ARExperience {
 
   _onSurfacePlaced() {
     this._setSurfacePlaceHintVisible(false);
-    this._setSurfaceOverlayVisible(false);
+    this._showSurfaceCoaching('placed');
+    this._coachingBillboard?.setVisible(false);
     this._onTargetFound();
   }
 
@@ -502,8 +546,7 @@ export class ARExperience {
     this._surfaceSession = null;
     this._started = false;
     this._prepareForRescan();
-    this._setSurfaceOverlayVisible(true);
-    this._bindSurfaceStartButton();
+    this._showSurfaceCoaching('starting');
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -922,11 +965,12 @@ export class ARExperience {
    */
   _prepareForRescan() {
     if (this._trackingMode === 'surface') {
-      this._setSurfaceOverlayVisible(!this._surfaceSession?.placed);
       this._setScanningOverlayVisible(false);
+      if (!this._surfaceSession?.placed) {
+        this._showSurfaceCoaching('starting');
+      }
     } else {
       this._setScanningOverlayVisible(true);
-      this._setSurfaceOverlayVisible(false);
     }
 
     if (this._plane?.visible) {
@@ -1014,7 +1058,9 @@ export class ARExperience {
       this._resumeTimer = null;
     }
 
-    this._setScanningOverlayVisible(true);
+    if (this._trackingMode === 'image') {
+      this._setScanningOverlayVisible(true);
+    }
     this._forceHideScene();
     this._videoEl?.pause();
     this._refreshPlayIcon();
@@ -1028,8 +1074,7 @@ export class ARExperience {
         }
         this._surfaceSession = null;
         this._started = false;
-        this._setSurfaceOverlayVisible(true);
-        this._bindSurfaceStartButton();
+        this._showSurfaceCoaching('starting');
         return;
       }
       if (!this._started || !this._mindarThree?.stop) return;
@@ -1075,8 +1120,7 @@ export class ARExperience {
         this._prepareForRescan();
 
         if (this._trackingMode === 'surface') {
-          this._setSurfaceOverlayVisible(true);
-          this._bindSurfaceStartButton();
+          this._showSurfaceCoaching('starting');
           this._sessionPaused = false;
           this._started = false;
           return;
@@ -1284,6 +1328,11 @@ export class ARExperience {
 
     this._videoTexture?.dispose();
     this._effect?.dispose();
+
+    this._coaching?.destroy();
+    this._coachingBillboard?.dispose();
+    this._coaching = null;
+    this._coachingBillboard = null;
 
     // Remove DOM overlays
     this._ui.linkOverlay?.destroy();

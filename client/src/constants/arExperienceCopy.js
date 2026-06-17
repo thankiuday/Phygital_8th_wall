@@ -43,9 +43,8 @@ const SURFACE_COPY = {
     seoDescription:
       'Place a hologram on any flat surface with WebXR — no printed marker required.',
     steps: [
-      'Hold your phone and slowly move it over a flat empty surface',
-      'Wait for the placement indicator to appear on the surface',
-      'Tap to place the hologram — video plays automatically',
+      'Move your phone slowly over a flat empty surface',
+      'Tap the purple ring to place the hologram',
     ],
   },
   'ar-card': {
@@ -57,9 +56,8 @@ const SURFACE_COPY = {
     seoDescription:
       'Place a hologram on any flat surface with WebXR — no printed marker required.',
     steps: [
-      'Hold your phone and slowly move it over a flat empty surface',
-      'Wait for the placement indicator to appear on the surface',
-      'Tap to place the hologram — video plays automatically',
+      'Move your phone slowly over a flat empty surface',
+      'Tap the purple ring to place the hologram',
     ],
   },
 };
