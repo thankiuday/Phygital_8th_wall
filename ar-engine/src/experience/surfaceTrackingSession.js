@@ -2,9 +2,15 @@
  * surfaceTrackingSession — WebXR immersive-ar hit-test placement.
  */
 
+import {
+  POSE_CACHE_MS,
+  applyMatrixToGroup,
+  horizontalnessFromMatrix,
+  resetGroupTransform,
+} from './surfaceHitUtils.js';
+
 const RETICLE_OUTER = 0.2;
 const RETICLE_INNER = 0.14;
-const POSE_CACHE_MS = 500;
 
 /**
  * @param {object} THREE
@@ -36,8 +42,6 @@ export const createPlacementReticle = (THREE) => {
   group.add(dot);
   return group;
 };
-
-const horizontalnessFromMatrix = (m) => Math.abs(m[5]);
 
 /**
  * @param {{
@@ -169,14 +173,7 @@ export class SurfaceTrackingSession {
   }
 
   _applyMatrixToAnchor(matrix) {
-    this._anchorGroup.matrixAutoUpdate = false;
-    this._anchorGroup.matrix.copy(matrix);
-    this._anchorGroup.matrix.decompose(
-      this._anchorGroup.position,
-      this._anchorGroup.quaternion,
-      this._anchorGroup.scale
-    );
-    this._anchorGroup.updateMatrixWorld(true);
+    applyMatrixToGroup(this._anchorGroup, matrix);
   }
 
   _onFrame(_time, frame) {
@@ -246,10 +243,7 @@ export class SurfaceTrackingSession {
     this._hitVisible = false;
     this._cachedPose = null;
     this._reticle.visible = false;
-    this._anchorGroup.matrixAutoUpdate = true;
-    this._anchorGroup.position.set(0, 0, 0);
-    this._anchorGroup.quaternion.identity();
-    this._anchorGroup.scale.set(1, 1, 1);
+    resetGroupTransform(this._anchorGroup);
     this._onRescan?.();
   }
 

@@ -1,20 +1,24 @@
 /**
  * eighthWallSurfaceSession — 8th Wall SLAM tap-to-place for iOS surface AR.
  *
- * Based on the official placeground Three.js example:
- * https://github.com/8thwall/web/tree/master/examples/threejs/placeground
+ * Uses XR8.XrController.hitTest (SLAM feature points) with the same horizontal
+ * surface scoring and matrix-based placement as WebXR on Android.
  */
 
 import { loadEighthWallEngine } from './loadEighthWallEngine.js';
 import { createPlacementReticle } from './surfaceTrackingSession.js';
+import {
+  POSE_CACHE_MS,
+  applyMatrixToGroup,
+  getHitTestNormFromClient,
+  pickBestHorizontalHit,
+  resetGroupTransform,
+} from './surfaceHitUtils.js';
 
-const GROUND_SIZE = 100;
-const SLAM_WARMUP_MS = 1800;
-const MIN_STABLE_HIT_FRAMES = 14;
-const MIN_LOOK_DOWN_DOT = 0.32;
-
-/** @type {THREE.Vector3 | null} */
-let scratchForward = null;
+const SLAM_WARMUP_MS = 1200;
+const MIN_STABLE_HIT_FRAMES = 8;
+const MIN_PLACEMENT_DISTANCE = 0.2;
+const MAX_PLACEMENT_DISTANCE = 6;
 
 /** @type {EighthWallSurfaceSession | null} */
 let activePlacementSession = null;
@@ -139,9 +143,6 @@ export class EighthWallSurfaceSession {
     this._placed = false;
     this._hitVisible = false;
     this._canvas = null;
-    this._surface = null;
-    this._raycaster = null;
-    this._tapPosition = null;
     this._touchHandler = null;
     this._touchMoveHandler = null;
     this._XR8 = null;
@@ -153,6 +154,9 @@ export class EighthWallSurfaceSession {
     this._unbindEmbeddedCanvas = null;
     this._scanStartedAt = 0;
     this._stableHitCount = 0;
+    this._cachedPose = null;
+    this._cachedPoseTs = 0;
+    this._scratchMatrix = null;
   }
 
   get placed() {
@@ -194,6 +198,28 @@ export class EighthWallSurfaceSession {
     if (this._hitVisible === visible) return;
     this._hitVisible = visible;
     this._onHitVisibilityChange?.(visible);
+  }
+
+  _cachePose(matrix) {
+    if (!this._cachedPose) {
+      this._cachedPose = new Float32Array(16);
+    }
+    this._cachedPose.set(matrix.elements);
+    this._cachedPoseTs = performance.now();
+  }
+
+  /**
+   * Query SLAM feature points at normalized screen coords (0–1, like Android hit-test).
+   * @param {number} normX
+   * @param {number} normY
+   */
+  _querySurfaceHit(normX, normY) {
+    const hitTest = this._XR8?.XrController?.hitTest;
+    const THREE = window.THREE;
+    if (!hitTest || !THREE) return null;
+
+    const results = hitTest(normX, normY, ['FEATURE_POINT']);
+    return pickBestHorizontalHit(THREE, results);
   }
 
   /**
@@ -285,8 +311,7 @@ export class EighthWallSurfaceSession {
         throw new Error('Surface scene setup did not provide anchor and reticle.');
       }
 
-      this._raycaster = new THREE.Raycaster();
-      this._tapPosition = new THREE.Vector2();
+      this._scratchMatrix = new THREE.Matrix4();
 
       renderer.shadowMap.enabled = false;
 
@@ -304,20 +329,17 @@ export class EighthWallSurfaceSession {
         scene.add(this._reticle);
       }
 
-      this._surface = new THREE.Mesh(
-        new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE, 1, 1),
-        new THREE.MeshBasicMaterial({ visible: false })
-      );
-      this._surface.rotateX(-Math.PI / 2);
-      this._surface.position.set(0, 0, 0);
-      scene.add(this._surface);
+      // Non-zero camera height improves SLAM scale (8th Wall recommendation).
+      if (camera.position.y < 0.5) {
+        camera.position.y = 1.4;
+      }
 
       this._XR8.XrController.updateCameraProjectionMatrix({
         origin: camera.position,
         facing: camera.quaternion,
       });
 
-      this._touchHandler = (event) => this._onTouchStart(event, camera);
+      this._touchHandler = (event) => this._onTouchStart(event);
       this._touchMoveHandler = (event) => event.preventDefault();
 
       this._canvas.addEventListener('touchstart', this._touchHandler, true);
@@ -331,97 +353,84 @@ export class EighthWallSurfaceSession {
     }
   }
 
-  _isSurfaceScanReady(camera, hitPoint) {
-    const THREE = window.THREE;
-    if (!THREE || !camera || !hitPoint) return false;
-
-    if (performance.now() - this._scanStartedAt < SLAM_WARMUP_MS) {
-      return false;
-    }
-
-    if (!scratchForward) scratchForward = new THREE.Vector3();
-    scratchForward.set(0, 0, -1).applyQuaternion(camera.quaternion);
-
-    // Require the user to tilt the phone down toward a floor/table, like WebXR scanning.
-    if (scratchForward.y > -MIN_LOOK_DOWN_DOT) return false;
-
-    if (hitPoint.y > camera.position.y - 0.08) return false;
-
-    const dist = hitPoint.distanceTo(camera.position);
-    if (dist < 0.25 || dist > 6) return false;
-
-    return true;
+  _isHitInRange(hit) {
+    if (!hit) return false;
+    const dist = hit.distance;
+    if (!Number.isFinite(dist)) return true;
+    return dist >= MIN_PLACEMENT_DISTANCE && dist <= MAX_PLACEMENT_DISTANCE;
   }
 
   _pipelineOnUpdate() {
     if (!this._running) return;
 
+    const xrScene = this._XR8?.Threejs?.xrScene?.();
+    const camera = xrScene?.camera;
+    if (camera) {
+      this._XR8.XrController.updateCameraProjectionMatrix({
+        origin: camera.position,
+        facing: camera.quaternion,
+      });
+    }
+
     if (!this._placed) {
-      const { camera } = this._XR8.Threejs.xrScene();
-      const THREE = window.THREE;
-      if (THREE && this._raycaster && this._surface && camera) {
-        this._tapPosition.set(0, 0);
-        this._raycaster.setFromCamera(this._tapPosition, camera);
-        const hits = this._raycaster.intersectObject(this._surface);
+      const warmedUp = performance.now() - this._scanStartedAt >= SLAM_WARMUP_MS;
+      const hit = warmedUp ? this._querySurfaceHit(0.5, 0.5) : null;
+      const inRange = this._isHitInRange(hit);
 
-        if (hits.length > 0) {
-          const point = hits[0].point;
-          const ready = this._isSurfaceScanReady(camera, point);
+      if (hit && inRange) {
+        this._stableHitCount = Math.min(
+          this._stableHitCount + 1,
+          MIN_STABLE_HIT_FRAMES,
+        );
+      } else {
+        this._stableHitCount = 0;
+      }
 
-          if (ready) {
-            this._stableHitCount = Math.min(
-              this._stableHitCount + 1,
-              MIN_STABLE_HIT_FRAMES,
-            );
-          } else {
-            this._stableHitCount = 0;
-          }
-
-          if (this._stableHitCount >= MIN_STABLE_HIT_FRAMES) {
-            this._reticle.visible = true;
-            this._reticle.position.copy(point);
-            this._reticle.rotation.set(-Math.PI / 2, 0, 0);
-            this._setHitVisible(true);
-          } else {
-            this._reticle.visible = false;
-            this._setHitVisible(false);
-          }
-        } else {
-          this._stableHitCount = 0;
-          this._reticle.visible = false;
-          this._setHitVisible(false);
-        }
+      if (hit && inRange && this._stableHitCount >= MIN_STABLE_HIT_FRAMES) {
+        this._reticle.visible = true;
+        this._reticle.matrix.copy(hit.matrix);
+        this._reticle.updateMatrixWorld(true);
+        this._cachePose(hit.matrix);
+        this._setHitVisible(true);
+      } else {
+        this._reticle.visible = false;
+        this._setHitVisible(false);
       }
     }
 
     this._onAnimate?.(performance.now());
   }
 
-  _onTouchStart(event, camera) {
-    if (!this._raycaster || !this._surface || this._placed) return;
-    if (!this._hitVisible || this._stableHitCount < MIN_STABLE_HIT_FRAMES) return;
+  _onTouchStart(event) {
+    if (this._placed) return;
 
     if (event.touches.length === 2) {
       this._XR8?.XrController?.recenter?.();
+      this._scanStartedAt = performance.now();
+      this._stableHitCount = 0;
       return;
     }
     if (event.touches.length !== 1) return;
 
+    const cacheFresh = this._cachedPose
+      && (performance.now() - this._cachedPoseTs) < POSE_CACHE_MS;
+    const canPlace = this._reticle.visible || cacheFresh;
+    if (!canPlace) return;
+
     event.preventDefault();
 
-    const touch = event.touches[0];
-    this._tapPosition.x = (touch.clientX / window.innerWidth) * 2 - 1;
-    this._tapPosition.y = -(touch.clientY / window.innerHeight) * 2 + 1;
-
-    this._raycaster.setFromCamera(this._tapPosition, camera);
-    const hits = this._raycaster.intersectObject(this._surface);
-    if (hits.length === 0) return;
-
-    const point = hits[0].point;
-    this._anchorGroup.position.set(point.x, point.y, point.z);
-    this._anchorGroup.quaternion.identity();
-    this._anchorGroup.scale.set(1, 1, 1);
-    this._anchorGroup.updateMatrixWorld(true);
+    if (this._reticle.visible) {
+      applyMatrixToGroup(this._anchorGroup, this._reticle.matrix);
+    } else if (this._cachedPose && this._scratchMatrix) {
+      this._scratchMatrix.fromArray(this._cachedPose);
+      applyMatrixToGroup(this._anchorGroup, this._scratchMatrix);
+    } else {
+      const touch = event.touches[0];
+      const { x, y } = getHitTestNormFromClient(touch.clientX, touch.clientY);
+      const hit = this._querySurfaceHit(x, y);
+      if (!hit || !this._isHitInRange(hit)) return;
+      applyMatrixToGroup(this._anchorGroup, hit.matrix);
+    }
 
     this._placed = true;
     this._reticle.visible = false;
@@ -434,12 +443,12 @@ export class EighthWallSurfaceSession {
     this._hitVisible = false;
     this._stableHitCount = 0;
     this._scanStartedAt = performance.now();
+    this._cachedPose = null;
     if (this._reticle) this._reticle.visible = false;
     if (this._anchorGroup) {
-      this._anchorGroup.position.set(0, 0, 0);
-      this._anchorGroup.quaternion.identity();
-      this._anchorGroup.scale.set(1, 1, 1);
+      resetGroupTransform(this._anchorGroup);
     }
+    this._onRescan?.();
   }
 
   async destroy() {
@@ -459,11 +468,6 @@ export class EighthWallSurfaceSession {
         this._canvas.removeEventListener('touchmove', this._touchMoveHandler);
       }
     }
-
-    if (this._surface?.parent) {
-      this._surface.parent.remove(this._surface);
-    }
-    this._surface = null;
 
     try {
       this._XR8?.pause?.();
