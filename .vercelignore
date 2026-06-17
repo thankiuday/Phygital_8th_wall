@@ -1,0 +1,10 @@
+server/
+deploy/env/
+deploy/.vps_key
+deploy/.vps_key.pub
+**/.env
+**/.env.local
+**/.env.*.local
+**/coverage/
+uploads/
+temp/

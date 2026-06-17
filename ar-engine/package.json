@@ -4,7 +4,9 @@
   "description": "Phygital — WebAR Experience Engine",
   "type": "module",
   "scripts": {
+    "predev": "node ../client/scripts/sync-xr-assets.mjs",
     "dev": "vite --port 5174 --host",
+    "prebuild": "node ../client/scripts/sync-xr-assets.mjs",
     "build": "vite build",
     "preview": "vite preview --port 5174"
   },
