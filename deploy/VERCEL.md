@@ -32,8 +32,8 @@ Mirror the Render `render.yaml` layout with **three Vercel projects** from the s
 
 1. [vercel.com/new](https://vercel.com/new) → import repo.
 2. **Project name:** `phygital-api`
-3. **Root Directory:** `server` ← click Edit, select `server`
-4. Framework: **Other** (uses `server/vercel.json`)
+3. **Root Directory:** `server` ← **required** (Edit → select `server`, not repo root)
+4. Framework: **Other** — Vercel auto-detects `server/index.js` as Express (no `api/` folder needed)
 5. **Environment variables** — paste from `deploy/env/server.env.vercel.example` + your real secrets from Render.
    - Do **not** set `VERCEL_URL` — Vercel sets it automatically.
    - Set `CLIENT_URL` and `API_PUBLIC_URL` after you know all URLs (step 4).
@@ -150,6 +150,7 @@ cd server && node index.js
 
 | Issue | Fix |
 |-------|-----|
+| `/health` returns Vercel `NOT_FOUND` | **Root Directory must be `server`** — redeploy after fixing in Project Settings |
 | API 500 on cold start | Check `MONGO_URI` and Vercel function logs |
 | CORS / cookies | `CLIENT_URL` on API must match `VITE_APP_URL` exactly |
 | Google OAuth fails | Redirect URI + JS origins must match Vercel URLs |
@@ -163,8 +164,8 @@ cd server && node index.js
 
 | Path | Purpose |
 |------|---------|
-| `server/vercel.json` | API serverless rewrites + 60s timeout |
-| `server/api/index.js` | Vercel Express entry |
+| `server/vercel.json` | Function timeout (60s) — Express entry is `index.js` |
+| `server/index.js` | Express app export (`module.exports = app`) |
 | `client/vercel.json` | Client static build + SPA routes |
 | `ar-engine/vercel.json` | AR static build + SPA routes |
 | `deploy/env/*.env.vercel.example` | Env templates per service |

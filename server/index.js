@@ -28,26 +28,12 @@ const PORT = process.env.PORT || 5000;
 const isVercel = process.env.VERCEL === '1';
 
 /* ─────────────────────────────────────────
-   Database Connection
-   ───────────────────────────────────────── */
-if (!isVercel) {
-  connectDB();
-}
-
-/* ─────────────────────────────────────────
    CORS — MUST be the very first middleware.
-   Manual implementation guarantees headers
-   are present on every response, including
-   errors thrown by later middleware.
    ───────────────────────────────────────── */
-// Default production client URL — used when Origin header is absent
-// Render auto-converts service names — check your Render dashboard for exact URLs
 const PRODUCTION_CLIENT =
   process.env.CLIENT_URL || 'https://phygital8thwall-client.onrender.com';
 
 app.use((req, res, next) => {
-  // Reflect the exact incoming Origin; fall back to the production client URL.
-  // NEVER use '*' with credentials:true — browsers reject it silently.
   const origin = req.headers.origin || PRODUCTION_CLIENT;
 
   res.setHeader('Access-Control-Allow-Origin',      origin);
@@ -57,13 +43,30 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Max-Age',           '86400');
   res.setHeader('Vary',                             'Origin');
 
-  // Answer preflight immediately — before Helmet, rate-limiter, body-parser, etc.
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
 
   next();
 });
+
+/* ─────────────────────────────────────────
+   MongoDB — await connection per request (cached; required on Vercel serverless)
+   ───────────────────────────────────────── */
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
+if (!isVercel) {
+  connectDB().catch((err) => {
+    logger.error('MongoDB boot connection failed', { error: err.message });
+  });
+}
 
 /* ─────────────────────────────────────────
    Security Headers (Helmet) — after CORS
