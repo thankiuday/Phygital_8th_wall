@@ -9,6 +9,12 @@ import { loadEighthWallEngine } from './loadEighthWallEngine.js';
 import { createPlacementReticle } from './surfaceTrackingSession.js';
 
 const GROUND_SIZE = 100;
+const SLAM_WARMUP_MS = 1800;
+const MIN_STABLE_HIT_FRAMES = 14;
+const MIN_LOOK_DOWN_DOT = 0.32;
+
+/** @type {THREE.Vector3 | null} */
+let scratchForward = null;
 
 /** @type {EighthWallSurfaceSession | null} */
 let activePlacementSession = null;
@@ -145,6 +151,8 @@ export class EighthWallSurfaceSession {
     this._sceneReadyResolve = null;
     this._sceneReadyReject = null;
     this._unbindEmbeddedCanvas = null;
+    this._scanStartedAt = 0;
+    this._stableHitCount = 0;
   }
 
   get placed() {
@@ -223,6 +231,9 @@ export class EighthWallSurfaceSession {
     });
     this._container.prepend(canvas);
     this._canvas = canvas;
+
+    this._scanStartedAt = performance.now();
+    this._stableHitCount = 0;
 
     registerPlacementPipeline(XR8, XRExtras);
 
@@ -320,26 +331,67 @@ export class EighthWallSurfaceSession {
     }
   }
 
-  _pipelineOnUpdate() {
-    if (!this._running || this._placed) return;
-
-    const { camera } = this._XR8.Threejs.xrScene();
+  _isSurfaceScanReady(camera, hitPoint) {
     const THREE = window.THREE;
-    if (!THREE || !this._raycaster || !this._surface) return;
+    if (!THREE || !camera || !hitPoint) return false;
 
-    this._tapPosition.set(0, 0);
-    this._raycaster.setFromCamera(this._tapPosition, camera);
-    const hits = this._raycaster.intersectObject(this._surface);
+    if (performance.now() - this._scanStartedAt < SLAM_WARMUP_MS) {
+      return false;
+    }
 
-    if (hits.length > 0) {
-      const point = hits[0].point;
-      this._reticle.visible = true;
-      this._reticle.position.copy(point);
-      this._reticle.rotation.set(-Math.PI / 2, 0, 0);
-      this._setHitVisible(true);
-    } else {
-      this._reticle.visible = false;
-      this._setHitVisible(false);
+    if (!scratchForward) scratchForward = new THREE.Vector3();
+    scratchForward.set(0, 0, -1).applyQuaternion(camera.quaternion);
+
+    // Require the user to tilt the phone down toward a floor/table, like WebXR scanning.
+    if (scratchForward.y > -MIN_LOOK_DOWN_DOT) return false;
+
+    if (hitPoint.y > camera.position.y - 0.08) return false;
+
+    const dist = hitPoint.distanceTo(camera.position);
+    if (dist < 0.25 || dist > 6) return false;
+
+    return true;
+  }
+
+  _pipelineOnUpdate() {
+    if (!this._running) return;
+
+    if (!this._placed) {
+      const { camera } = this._XR8.Threejs.xrScene();
+      const THREE = window.THREE;
+      if (THREE && this._raycaster && this._surface && camera) {
+        this._tapPosition.set(0, 0);
+        this._raycaster.setFromCamera(this._tapPosition, camera);
+        const hits = this._raycaster.intersectObject(this._surface);
+
+        if (hits.length > 0) {
+          const point = hits[0].point;
+          const ready = this._isSurfaceScanReady(camera, point);
+
+          if (ready) {
+            this._stableHitCount = Math.min(
+              this._stableHitCount + 1,
+              MIN_STABLE_HIT_FRAMES,
+            );
+          } else {
+            this._stableHitCount = 0;
+          }
+
+          if (this._stableHitCount >= MIN_STABLE_HIT_FRAMES) {
+            this._reticle.visible = true;
+            this._reticle.position.copy(point);
+            this._reticle.rotation.set(-Math.PI / 2, 0, 0);
+            this._setHitVisible(true);
+          } else {
+            this._reticle.visible = false;
+            this._setHitVisible(false);
+          }
+        } else {
+          this._stableHitCount = 0;
+          this._reticle.visible = false;
+          this._setHitVisible(false);
+        }
+      }
     }
 
     this._onAnimate?.(performance.now());
@@ -347,6 +399,7 @@ export class EighthWallSurfaceSession {
 
   _onTouchStart(event, camera) {
     if (!this._raycaster || !this._surface || this._placed) return;
+    if (!this._hitVisible || this._stableHitCount < MIN_STABLE_HIT_FRAMES) return;
 
     if (event.touches.length === 2) {
       this._XR8?.XrController?.recenter?.();
@@ -379,6 +432,8 @@ export class EighthWallSurfaceSession {
   resetPlacement() {
     this._placed = false;
     this._hitVisible = false;
+    this._stableHitCount = 0;
+    this._scanStartedAt = performance.now();
     if (this._reticle) this._reticle.visible = false;
     if (this._anchorGroup) {
       this._anchorGroup.position.set(0, 0, 0);

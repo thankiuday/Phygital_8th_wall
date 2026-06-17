@@ -3,6 +3,7 @@
  */
 
 import gsap from 'gsap';
+import './surfaceArUi.css';
 import {
   createSurfaceArShell,
   getSurfaceArShell,
