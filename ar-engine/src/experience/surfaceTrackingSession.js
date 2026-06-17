@@ -1,14 +1,10 @@
 /**
  * surfaceTrackingSession — WebXR immersive-ar hit-test placement.
- *
- * Follows the Three.js webxr_ar_hittest pattern:
- *  - Ring reticle rotated flat (rotateX -π/2) so it lies on horizontal surfaces
- *  - Hit-test source created on the first XR frame (not before the loop)
- *  - Poses resolved against renderer.xr.getReferenceSpace()
  */
 
 const RETICLE_OUTER = 0.2;
 const RETICLE_INNER = 0.14;
+const POSE_CACHE_MS = 500;
 
 /**
  * @param {object} THREE
@@ -28,7 +24,6 @@ export const createPlacementReticle = (THREE) => {
   group.visible = false;
   group.renderOrder = 999;
 
-  // Ring lies in the XZ plane → flat on floors/tables when posed by hit-test.
   const ring = new THREE.Mesh(
     new THREE.RingGeometry(RETICLE_INNER, RETICLE_OUTER, 32).rotateX(-Math.PI / 2),
     mat
@@ -42,10 +37,6 @@ export const createPlacementReticle = (THREE) => {
   return group;
 };
 
-/**
- * How horizontal a hit surface is (1 = flat floor, 0 = vertical wall).
- * Uses the Y component of the hit frame's local Y axis (column-major matrix).
- */
 const horizontalnessFromMatrix = (m) => Math.abs(m[5]);
 
 /**
@@ -55,6 +46,8 @@ const horizontalnessFromMatrix = (m) => Math.abs(m[5]);
  *   camera: THREE.PerspectiveCamera,
  *   anchorGroup: THREE.Group,
  *   reticle: THREE.Group,
+ *   domOverlayRoot?: HTMLElement,
+ *   THREE: typeof import('three'),
  *   onPlaced: () => void,
  *   onRescan: () => void,
  *   onAnimate?: (time: number) => void,
@@ -68,6 +61,8 @@ export class SurfaceTrackingSession {
     camera,
     anchorGroup,
     reticle,
+    domOverlayRoot,
+    THREE,
     onPlaced,
     onRescan,
     onAnimate,
@@ -78,6 +73,9 @@ export class SurfaceTrackingSession {
     this._camera = camera;
     this._anchorGroup = anchorGroup;
     this._reticle = reticle;
+    this._domOverlayRoot = domOverlayRoot;
+    this._THREE = THREE;
+    this._scratchMatrix = THREE ? new THREE.Matrix4() : null;
     this._onPlaced = onPlaced;
     this._onRescan = onRescan;
     this._onAnimate = onAnimate;
@@ -88,6 +86,8 @@ export class SurfaceTrackingSession {
     this._hitTestSourceRequested = false;
     this._placed = false;
     this._hitVisible = false;
+    this._cachedPose = null;
+    this._cachedPoseTs = 0;
 
     this._onSelect = this._onSelect.bind(this);
     this._controller = null;
@@ -107,6 +107,11 @@ export class SurfaceTrackingSession {
       optionalFeatures: ['local-floor'],
     };
 
+    if (this._domOverlayRoot) {
+      sessionInit.optionalFeatures.push('dom-overlay');
+      sessionInit.domOverlay = { root: this._domOverlayRoot };
+    }
+
     this._session = await navigator.xr.requestSession('immersive-ar', sessionInit);
 
     if (this._renderer.xr.setReferenceSpaceType) {
@@ -115,7 +120,6 @@ export class SurfaceTrackingSession {
 
     await this._renderer.xr.setSession(this._session);
 
-    // Tap-to-place via XR controller (standard on mobile AR).
     this._controller = this._renderer.xr.getController(0);
     this._controller.addEventListener('select', this._onSelect);
     this._scene.add(this._controller);
@@ -124,6 +128,7 @@ export class SurfaceTrackingSession {
     this._session.addEventListener('end', () => {
       this._placed = false;
       this._hitVisible = false;
+      this._cachedPose = null;
       this._hitTestSource = null;
       this._hitTestSourceRequested = false;
       this._onRescan?.();
@@ -153,6 +158,25 @@ export class SurfaceTrackingSession {
     });
   }
 
+  _cachePose(matrixArray) {
+    if (!this._cachedPose) {
+      this._cachedPose = new Float32Array(16);
+    }
+    this._cachedPose.set(matrixArray);
+    this._cachedPoseTs = performance.now();
+  }
+
+  _applyMatrixToAnchor(matrix) {
+    this._anchorGroup.matrixAutoUpdate = false;
+    this._anchorGroup.matrix.copy(matrix);
+    this._anchorGroup.matrix.decompose(
+      this._anchorGroup.position,
+      this._anchorGroup.quaternion,
+      this._anchorGroup.scale
+    );
+    this._anchorGroup.updateMatrixWorld(true);
+  }
+
   _onFrame(_time, frame) {
     if (!frame) return;
 
@@ -165,8 +189,6 @@ export class SurfaceTrackingSession {
 
     if (!this._placed && this._hitTestSource && referenceSpace) {
       const hits = frame.getHitTestResults(this._hitTestSource);
-      let found = false;
-
       let bestPose = null;
       let bestScore = 0;
 
@@ -184,9 +206,7 @@ export class SurfaceTrackingSession {
         this._reticle.visible = true;
         this._reticle.matrix.fromArray(bestPose.transform.matrix);
         this._reticle.updateMatrixWorld(true);
-        found = true;
-      }
-      if (found) {
+        this._cachePose(bestPose.transform.matrix);
         this._setHitVisible(true);
       } else {
         this._reticle.visible = false;
@@ -199,15 +219,19 @@ export class SurfaceTrackingSession {
   }
 
   _onSelect() {
-    if (this._placed || !this._hitVisible) return;
+    if (this._placed) return;
 
-    this._anchorGroup.matrix.copy(this._reticle.matrix);
-    this._anchorGroup.matrix.decompose(
-      this._anchorGroup.position,
-      this._anchorGroup.quaternion,
-      this._anchorGroup.scale
-    );
-    this._anchorGroup.updateMatrixWorld(true);
+    const cacheFresh = this._cachedPose
+      && (performance.now() - this._cachedPoseTs) < POSE_CACHE_MS;
+    const canPlace = this._reticle.visible || cacheFresh;
+    if (!canPlace) return;
+
+    if (this._reticle.visible) {
+      this._applyMatrixToAnchor(this._reticle.matrix);
+    } else if (this._cachedPose && this._scratchMatrix) {
+      this._scratchMatrix.fromArray(this._cachedPose);
+      this._applyMatrixToAnchor(this._scratchMatrix);
+    }
 
     this._placed = true;
     this._reticle.visible = false;
@@ -218,7 +242,9 @@ export class SurfaceTrackingSession {
   resetPlacement() {
     this._placed = false;
     this._hitVisible = false;
+    this._cachedPose = null;
     this._reticle.visible = false;
+    this._anchorGroup.matrixAutoUpdate = true;
     this._anchorGroup.position.set(0, 0, 0);
     this._anchorGroup.quaternion.identity();
     this._anchorGroup.scale.set(1, 1, 1);

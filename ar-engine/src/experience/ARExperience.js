@@ -171,10 +171,79 @@ export class ARExperience {
     this._trackingMode    = 'image';
     this._surfaceSession  = null;
     this._surfaceReticle  = null;
+    this._surfaceScene     = null;
+    this._surfaceStarting  = false;
   }
 
   _usesImageTarget() {
     return usesImageTarget(this._campaign);
+  }
+
+  _getUxRoot() {
+    if (this._trackingMode === 'surface') {
+      return document.getElementById('ar-dom-overlay') || document.body;
+    }
+    return document.body;
+  }
+
+  _getActiveCamera() {
+    if (this._trackingMode === 'surface') {
+      const renderer = this._mindarThree?.renderer;
+      if (renderer?.xr?.isPresenting) {
+        return renderer.xr.getCamera();
+      }
+      return this._surfaceCamera;
+    }
+    return this._mindarThree?.camera;
+  }
+
+  _bindSurfaceStartButton() {
+    const btn = document.getElementById('ar-surface-start-btn');
+    if (!btn) return;
+    btn.onclick = () => { this._startSurfaceSession(); };
+  }
+
+  async _startSurfaceSession() {
+    if (this._surfaceStarting) return;
+    if (this._surfaceSession) return;
+
+    const renderer = this._mindarThree?.renderer;
+    const scene = this._surfaceScene;
+    const camera = this._surfaceCamera;
+    if (!renderer || !scene || !camera) return;
+
+    this._surfaceStarting = true;
+    this._setSurfaceOverlayVisible(false);
+
+    try {
+      this._surfaceSession = new SurfaceTrackingSession({
+        renderer,
+        scene,
+        camera,
+        anchorGroup: this._anchor.group,
+        reticle: this._surfaceReticle,
+        domOverlayRoot: document.getElementById('ar-dom-overlay'),
+        THREE: this._THREE,
+        onPlaced: () => this._onSurfacePlaced(),
+        onRescan: () => this._onSurfaceRescan(),
+        onAnimate: (now) => this._animateSurfaceFrame(now, renderer),
+        onHitVisibilityChange: (visible) => this._setSurfacePlaceHintVisible(visible),
+      });
+      await this._surfaceSession.start();
+      this._started = true;
+      if (!this._sessionStart) {
+        this._sessionStart = Date.now();
+      }
+    } catch {
+      this._surfaceSession = null;
+      this._setSurfaceOverlayVisible(true);
+      showError(
+        'Could not start surface AR',
+        'Allow camera permissions and try again, or switch to Image target mode in your dashboard.'
+      );
+    } finally {
+      this._surfaceStarting = false;
+    }
   }
 
   _setupScanningOverlay() {
@@ -333,6 +402,7 @@ export class ARExperience {
   }
 
   async _bootSurfaceMode(THREE) {
+    this._THREE = THREE;
     updateLoadingProgress(10, 'Preparing surface AR…');
     initGravityTracker();
 
@@ -357,6 +427,7 @@ export class ARExperience {
     this._defaultPixelRatio = renderer.getPixelRatio();
 
     const scene = new THREE.Scene();
+    this._surfaceScene = scene;
     const camera = new THREE.PerspectiveCamera(
       70,
       window.innerWidth / window.innerHeight,
@@ -381,39 +452,7 @@ export class ARExperience {
     updateLoadingProgress(100, 'Ready!');
     hideLoading();
     this._setSurfaceOverlayVisible(true);
-
-    const startBtn = document.getElementById('ar-surface-start-btn');
-    const startSession = async () => {
-      startBtn?.removeEventListener('click', startSession);
-      try {
-        this._surfaceSession = new SurfaceTrackingSession({
-          renderer,
-          scene,
-          camera,
-          anchorGroup: this._anchor.group,
-          reticle: this._surfaceReticle,
-          onPlaced: () => this._onSurfacePlaced(),
-          onRescan: () => this._onSurfaceRescan(),
-          onAnimate: (now) => this._animateSurfaceFrame(now, renderer),
-          onHitVisibilityChange: (visible) => this._setSurfacePlaceHintVisible(visible),
-        });
-        await this._surfaceSession.start();
-        this._started = true;
-        this._sessionStart = Date.now();
-        this._setSurfaceOverlayVisible(false);
-      } catch {
-        showError(
-          'Could not start surface AR',
-          'Allow camera permissions and try again, or switch to Image target mode in your dashboard.'
-        );
-      }
-    };
-
-    if (startBtn) {
-      startBtn.addEventListener('click', startSession);
-    } else {
-      await startSession();
-    }
+    this._bindSurfaceStartButton();
   }
 
   _animateSurfaceFrame(now, renderer) {
@@ -457,17 +496,14 @@ export class ARExperience {
     this._setSurfacePlaceHintVisible(false);
     this._setSurfaceOverlayVisible(false);
     this._onTargetFound();
-    this._targetVisible = true;
-    this._surfaceMode = true;
-    if (this._effect) {
-      this._effect.show();
-      this._effectShown = true;
-    }
   }
 
   _onSurfaceRescan() {
+    this._surfaceSession = null;
+    this._started = false;
     this._prepareForRescan();
     this._setSurfaceOverlayVisible(true);
+    this._bindSurfaceStartButton();
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -656,6 +692,8 @@ export class ARExperience {
   // _buildUx — DOM overlays (controls, buffer spinner, watermark)
   // ───────────────────────────────────────────────────────────────────────────
   _buildUx() {
+    const uxRoot = this._getUxRoot();
+
     // Controls pill (hidden until target is found for the first time)
     const controls = document.createElement('div');
     controls.id = 'ar-controls';
@@ -679,7 +717,7 @@ export class ARExperience {
         </svg>
       </button>
     `;
-    document.body.appendChild(controls);
+    uxRoot.appendChild(controls);
 
     const btnPlay = controls.querySelector('[data-action="play"]');
     const btnMute = controls.querySelector('[data-action="mute"]');
@@ -693,13 +731,16 @@ export class ARExperience {
     const buffer = document.createElement('div');
     buffer.id = 'ar-buffer';
     buffer.innerHTML = '<div class="ar-buffer-ring"></div>';
-    document.body.appendChild(buffer);
+    uxRoot.appendChild(buffer);
 
-    // Watermark (auto-fades via CSS keyframes)
+    // Watermark with brand mark
     const watermark = document.createElement('div');
     watermark.id = 'ar-watermark';
-    watermark.textContent = 'Powered by Phygital';
-    document.body.appendChild(watermark);
+    watermark.innerHTML = `
+      <img src="/phygital-mark.png" alt="" class="ar-watermark-mark" width="16" height="16" />
+      <span>Powered by Phygital</span>
+    `;
+    uxRoot.appendChild(watermark);
 
     this._ui.controls  = controls;
     this._ui.btnPlay   = btnPlay;
@@ -741,6 +782,14 @@ export class ARExperience {
       videoEl: this._videoEl,
       onBeforeLeave: markForReturnReload,
     });
+
+    if (this._trackingMode === 'surface') {
+      const overlay = document.getElementById('ar-dom-overlay');
+      if (overlay) {
+        if (this._ui.hubToggle?.el) overlay.appendChild(this._ui.hubToggle.el);
+        if (this._ui.linkOverlay?.dock) overlay.appendChild(this._ui.linkOverlay.dock);
+      }
+    }
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -832,16 +881,16 @@ export class ARExperience {
   _onTargetFound() {
     this._setScanningOverlayVisible(false);
 
-    // Prime the smoothed billboard quaternion toward the camera so the very
-    // first frame already faces the user (no slerp ramp-in shimmer).
     const sc = this._scratch;
-    const camera = this._mindarThree.camera;
-    this._anchor.group.getWorldPosition(sc.anchorWorldPos);
-    camera.getWorldPosition(sc.camPos);
-    sc.towardCam.subVectors(sc.camPos, sc.anchorWorldPos);
-    if (sc.towardCam.lengthSq() > 0.0001) {
-      sc.towardCam.normalize();
-      sc.smoothBillboardQuat.setFromUnitVectors(sc.FWD, sc.towardCam);
+    const camera = this._getActiveCamera();
+    if (camera) {
+      this._anchor.group.getWorldPosition(sc.anchorWorldPos);
+      camera.getWorldPosition(sc.camPos);
+      sc.towardCam.subVectors(sc.camPos, sc.anchorWorldPos);
+      if (sc.towardCam.lengthSq() > 0.0001) {
+        sc.towardCam.normalize();
+        sc.smoothBillboardQuat.setFromUnitVectors(sc.FWD, sc.towardCam);
+      }
     }
 
     this._playWithAudio();
@@ -979,6 +1028,8 @@ export class ARExperience {
         }
         this._surfaceSession = null;
         this._started = false;
+        this._setSurfaceOverlayVisible(true);
+        this._bindSurfaceStartButton();
         return;
       }
       if (!this._started || !this._mindarThree?.stop) return;
@@ -1024,13 +1075,11 @@ export class ARExperience {
         this._prepareForRescan();
 
         if (this._trackingMode === 'surface') {
-          const startBtn = document.getElementById('ar-surface-start-btn');
-          if (startBtn) {
-            this._setSurfaceOverlayVisible(true);
-            this._started = true;
-            this._sessionPaused = false;
-            return;
-          }
+          this._setSurfaceOverlayVisible(true);
+          this._bindSurfaceStartButton();
+          this._sessionPaused = false;
+          this._started = false;
+          return;
         }
 
         await this._mindarThree.start();
