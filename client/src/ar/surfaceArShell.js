@@ -18,13 +18,16 @@ export const createSurfaceArShell = () => {
   root.id = 'surface-ar-shell';
   root.className = 'surface-ar-shell';
   root.innerHTML = `
-    <div id="ar-dom-overlay">
-      <p id="ar-surface-place-hint" aria-hidden="true">Tap the purple ring to place the hologram</p>
-    </div>
+    <div id="ar-dom-overlay"></div>
     <div id="ar-root"></div>
-    <button type="button" class="surface-ar-close" id="surface-ar-close" aria-label="Close AR">×</button>
+    <button type="button" class="surface-ar-close" id="surface-ar-close" aria-label="Close AR">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+        <path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/>
+      </svg>
+    </button>
   `;
   document.body.appendChild(root);
+  document.body.classList.add('ar-surface-active');
   shellEl = root;
 
   return {
@@ -35,6 +38,7 @@ export const createSurfaceArShell = () => {
 };
 
 export const removeSurfaceArShell = () => {
+  document.body.classList.remove('ar-surface-active');
   shellEl?.remove();
   shellEl = null;
 };

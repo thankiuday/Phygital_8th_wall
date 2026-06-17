@@ -47,9 +47,9 @@ const createLinkButton = (link, redirectSlug, onBeforeLeave) => {
 const gsap = () => window.gsap;
 
 /**
- * @param {{ links: Array, redirectSlug: string, videoEl: HTMLVideoElement, onBeforeLeave?: () => void }} opts
+ * @param {{ links: Array, redirectSlug: string, videoEl: HTMLVideoElement, onBeforeLeave?: () => void, parent?: HTMLElement }} opts
  */
-export const buildLinkOverlay = ({ links, redirectSlug, videoEl, onBeforeLeave }) => {
+export const buildLinkOverlay = ({ links, redirectSlug, videoEl, onBeforeLeave, parent }) => {
   if (!Array.isArray(links) || links.length === 0 || !videoEl) {
     return null;
   }
@@ -68,7 +68,7 @@ export const buildLinkOverlay = ({ links, redirectSlug, videoEl, onBeforeLeave }
   });
 
   dock.appendChild(inner);
-  document.body.appendChild(dock);
+  (parent || document.body).appendChild(dock);
 
   let isVisible = false;
 

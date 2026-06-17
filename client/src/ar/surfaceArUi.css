@@ -1,0 +1,2 @@
+/* Re-export shared surface AR UI (source of truth: ar-engine/src/styles/arSurfaceUi.css) */
+@import '../../../ar-engine/src/styles/arSurfaceUi.css';

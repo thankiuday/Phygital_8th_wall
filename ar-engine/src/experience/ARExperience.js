@@ -446,6 +446,8 @@ export class ARExperience {
 
     this._trackingMode = 'surface';
 
+    document.body.classList.add('ar-surface-active');
+
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.outputEncoding = THREE.sRGBEncoding;
@@ -814,20 +816,24 @@ export class ARExperience {
       markReturnReload(this._campaign._id, this._sessionId);
     };
 
-    this._ui.hubToggle = buildHubToggle(this._campaign.hubPageUrl, markForReturnReload);
+    const uxOverlay = this._trackingMode === 'surface'
+      ? document.getElementById('ar-dom-overlay')
+      : null;
+
+    this._ui.hubToggle = buildHubToggle(
+      this._campaign.hubPageUrl,
+      markForReturnReload,
+      uxOverlay
+    );
     this._ui.linkOverlay = buildLinkOverlay({
       links: this._campaign.links,
       redirectSlug: this._campaign.redirectSlug,
       videoEl: this._videoEl,
       onBeforeLeave: markForReturnReload,
+      parent: uxOverlay,
     });
 
     if (this._trackingMode === 'surface') {
-      const overlay = document.getElementById('ar-dom-overlay');
-      if (overlay) {
-        if (this._ui.hubToggle?.el) overlay.appendChild(this._ui.hubToggle.el);
-        if (this._ui.linkOverlay?.dock) overlay.appendChild(this._ui.linkOverlay.dock);
-      }
       this._syncSurfaceSessionUi(false);
     } else {
       this._ui.hubToggle?.el?.classList.add('visible');
@@ -1289,6 +1295,7 @@ export class ARExperience {
   // ───────────────────────────────────────────────────────────────────────────
   async destroy() {
     this._destroyed = true;
+    document.body.classList.remove('ar-surface-active');
     this._unbindLifecycle();
 
     if (this._sessionStart) {

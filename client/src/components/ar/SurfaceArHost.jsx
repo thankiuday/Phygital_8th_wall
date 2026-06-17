@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { bootEmbeddedSurfaceAr, teardownEmbeddedSurfaceAr } from '../../ar/launchSurfaceAr.js';
-import '../../ar/surfaceArStyles.css';
+import '../../ar/surfaceArUi.css';
 
 /**
  * Fullscreen host for embedded surface WebXR launched from the landing page.

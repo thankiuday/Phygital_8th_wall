@@ -16,8 +16,9 @@ const HUB_ICON_SVG = `
 /**
  * @param {string} hubPageUrl
  * @param {() => void} [onBeforeLeave]
+ * @param {HTMLElement} [parent]
  */
-export const buildHubToggle = (hubPageUrl, onBeforeLeave) => {
+export const buildHubToggle = (hubPageUrl, onBeforeLeave, parent) => {
   if (!hubPageUrl) return null;
 
   const btn = document.createElement('a');
@@ -32,7 +33,7 @@ export const buildHubToggle = (hubPageUrl, onBeforeLeave) => {
     window.location.href = hubPageUrl;
   });
 
-  document.body.appendChild(btn);
+  (parent || document.body).appendChild(btn);
 
   const destroy = () => btn.remove();
 

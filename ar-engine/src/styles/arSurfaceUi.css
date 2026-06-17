@@ -1,0 +1,517 @@
+/**
+ * Shared surface AR overlay UI — used by embedded client host and ar-engine.
+ * Scoped under .surface-ar-shell for embed; also applies globally on ar-engine page.
+ */
+
+.surface-ar-shell,
+body.ar-surface-active {
+  --ar-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --ar-safe-top: max(12px, env(safe-area-inset-top, 0px));
+  --ar-safe-right: max(12px, env(safe-area-inset-right, 0px));
+  --ar-safe-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  --ar-safe-left: max(12px, env(safe-area-inset-left, 0px));
+  --ar-controls-bottom: calc(var(--ar-safe-bottom) + 16px);
+  --ar-dock-bottom: calc(var(--ar-controls-bottom) + 68px);
+  --ar-glass: rgba(12, 8, 24, 0.78);
+  --ar-glass-border: rgba(167, 139, 250, 0.28);
+  --ar-violet: #a78bfa;
+  font-family: var(--ar-font);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Shell ─────────────────────────────────────────────────────────────── */
+.surface-ar-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #000;
+  overflow: hidden;
+  touch-action: manipulation;
+}
+
+.surface-ar-shell #ar-root {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.surface-ar-shell #ar-root canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.surface-ar-close {
+  position: fixed;
+  top: var(--ar-safe-top);
+  right: var(--ar-safe-right);
+  z-index: 10001;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: var(--ar-glass);
+  color: #fff;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.surface-ar-close:active {
+  transform: scale(0.94);
+}
+
+/* ── Dom overlay root ──────────────────────────────────────────────────── */
+#ar-dom-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+}
+
+#ar-dom-overlay #ar-controls,
+#ar-dom-overlay #ar-hub-toggle,
+#ar-dom-overlay #ar-link-dock,
+#ar-dom-overlay .ar-surface-coaching.state-starting {
+  pointer-events: auto;
+}
+
+/* Hide legacy duplicate hint — coaching handles copy */
+#ar-surface-place-hint {
+  display: none !important;
+}
+
+/* ── Coaching overlay ──────────────────────────────────────────────────── */
+.ar-surface-coaching {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+  padding-top: calc(var(--ar-safe-top) + 56px);
+}
+
+.ar-surface-coaching.state-hidden,
+.ar-surface-coaching.state-placed {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ar-surface-coaching.state-starting {
+  align-items: center;
+  padding-top: 0;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.ar-surface-coaching.state-scanning,
+.ar-surface-coaching.state-ready {
+  opacity: 1;
+}
+
+.ar-surface-coaching-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 120% 80% at 50% 35%,
+    rgba(2, 6, 23, 0.04) 0%,
+    rgba(2, 6, 23, 0.18) 100%
+  );
+  pointer-events: none;
+}
+
+.ar-surface-coaching-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: min(88vw, 320px);
+  text-align: center;
+  padding: 18px 20px;
+  border-radius: 20px;
+  background: rgba(12, 8, 24, 0.52);
+  border: 1px solid var(--ar-glass-border);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.ar-surface-coaching.state-starting .ar-surface-coaching-content {
+  width: min(90vw, 340px);
+  padding: 24px 22px;
+}
+
+.ar-surface-coaching.state-ready {
+  align-items: center;
+  padding-top: calc(var(--ar-safe-top) + 52px);
+}
+
+.ar-surface-coaching.state-ready .ar-surface-coaching-content {
+  width: auto;
+  max-width: min(92vw, 340px);
+  padding: 12px 18px;
+  border-radius: 999px;
+}
+
+.ar-surface-coaching.state-ready .ar-surface-coaching-mark,
+.ar-surface-coaching.state-ready .ar-surface-coaching-brand,
+.ar-surface-coaching.state-ready .ar-surface-coaching-scan,
+.ar-surface-coaching.state-ready .ar-surface-coaching-vignette {
+  display: none;
+}
+
+.ar-surface-coaching-mark {
+  width: clamp(40px, 12vw, 52px);
+  height: clamp(40px, 12vw, 52px);
+  object-fit: contain;
+  opacity: 0.75;
+  animation: ar-coaching-float 2.8s ease-in-out infinite;
+  filter: drop-shadow(0 4px 14px rgba(124, 58, 237, 0.4));
+}
+
+@keyframes ar-coaching-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+.ar-surface-coaching-brand {
+  margin: 0;
+  font-size: clamp(10px, 2.8vw, 11px);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.ar-surface-coaching-scan {
+  position: relative;
+  width: min(140px, 40vw);
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(167, 139, 250, 0.18);
+  overflow: hidden;
+}
+
+.ar-surface-coaching-scan-line {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, var(--ar-violet), transparent);
+  animation: ar-coaching-sweep 2s ease-in-out infinite;
+}
+
+@keyframes ar-coaching-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.ar-surface-coaching-message {
+  margin: 0;
+  font-size: clamp(13px, 3.6vw, 15px);
+  font-weight: 600;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+}
+
+.ar-surface-coaching.state-ready .ar-surface-coaching-message {
+  font-size: clamp(12px, 3.4vw, 14px);
+}
+
+.ar-surface-coaching-tap {
+  margin: 0;
+  font-size: clamp(11px, 3.2vw, 12px);
+  color: var(--ar-violet);
+  font-weight: 600;
+}
+
+/* ── Controls pill ─────────────────────────────────────────────────────── */
+#ar-controls {
+  position: fixed;
+  left: 50%;
+  bottom: var(--ar-controls-bottom);
+  transform: translate(-50%, 10px);
+  z-index: 52;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--ar-glass);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid var(--ar-glass-border);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+#ar-controls.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+
+#ar-controls .ar-ctrl {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+#ar-controls .ar-ctrl:active {
+  transform: scale(0.92);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ── Link dock ─────────────────────────────────────────────────────────── */
+#ar-link-dock {
+  position: fixed;
+  left: 50%;
+  bottom: var(--ar-dock-bottom);
+  transform: translateX(-50%);
+  z-index: 51;
+  width: min(94vw, 380px);
+  padding: 0 var(--ar-safe-left);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  display: flex;
+  justify-content: center;
+}
+
+#ar-link-dock.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#ar-link-dock-inner {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 10px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: var(--ar-glass);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid var(--ar-glass-border);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+}
+
+#ar-link-dock-inner.layout-single,
+#ar-link-dock-inner.layout-even {
+  justify-content: center;
+}
+
+#ar-link-dock-inner.layout-many {
+  justify-content: flex-start;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  border-radius: 22px;
+  max-width: min(94vw, 380px);
+}
+
+#ar-link-dock-inner.layout-many::-webkit-scrollbar {
+  display: none;
+}
+
+.ar-link-btn {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  transition: transform 0.12s ease;
+}
+
+.ar-link-btn:active {
+  transform: scale(0.9);
+}
+
+.ar-link-btn svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  flex-shrink: 0;
+}
+
+/* ── Hub toggle ────────────────────────────────────────────────────────── */
+#ar-hub-toggle {
+  position: fixed;
+  top: var(--ar-safe-top);
+  left: var(--ar-safe-left);
+  right: auto;
+  z-index: 51;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  max-width: calc(100vw - 72px);
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(124, 58, 237, 0.45);
+  background: var(--ar-glass);
+  color: #e9d5ff;
+  font-size: clamp(12px, 3.4vw, 13px);
+  font-weight: 600;
+  text-decoration: none;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.12s ease;
+}
+
+#ar-hub-toggle.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#ar-hub-toggle:active {
+  transform: scale(0.97);
+}
+
+#ar-hub-toggle svg {
+  flex-shrink: 0;
+}
+
+#ar-hub-toggle span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: min(160px, 42vw);
+}
+
+/* ── Watermark ─────────────────────────────────────────────────────────── */
+#ar-watermark {
+  position: fixed;
+  right: var(--ar-safe-right);
+  bottom: calc(var(--ar-controls-bottom) + 58px);
+  z-index: 48;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(12, 8, 24, 0.55);
+  border: 1px solid rgba(167, 139, 250, 0.15);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.88);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+#ar-watermark.visible {
+  opacity: 1;
+  animation: ar-fade-watermark 4s ease-out forwards;
+}
+
+@keyframes ar-fade-watermark {
+  0%, 75% { opacity: 1; }
+  100% { opacity: 0.55; }
+}
+
+.ar-watermark-mark {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+}
+
+/* ── Buffer spinner ────────────────────────────────────────────────────── */
+#ar-buffer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#ar-buffer.visible {
+  opacity: 1;
+}
+
+.ar-buffer-ring {
+  width: 48px;
+  height: 48px;
+  border: 3px solid rgba(167, 139, 250, 0.2);
+  border-top-color: var(--ar-violet);
+  border-radius: 50%;
+  animation: ar-buffer-spin 0.85s linear infinite;
+}
+
+@keyframes ar-buffer-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Narrow phones ─────────────────────────────────────────────────────── */
+@media (max-width: 380px) {
+  #ar-hub-toggle {
+    padding: 10px 12px;
+  }
+
+  #ar-hub-toggle span {
+    max-width: 100px;
+  }
+
+  .ar-surface-coaching-content {
+    width: min(92vw, 300px);
+    padding: 16px 18px;
+  }
+}
+
+@media (max-width: 340px) {
+  #ar-hub-toggle span {
+    display: none;
+  }
+
+  #ar-hub-toggle {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    padding: 0;
+  }
+}

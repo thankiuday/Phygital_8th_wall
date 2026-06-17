@@ -9,6 +9,7 @@
  */
 
 import gsap from 'gsap';
+import './styles/arSurfaceUi.css';
 import { loadCampaign, recordScan } from './services/campaignLoader.js';
 import { ARExperience } from './experience/ARExperience.js';
 import { updateLoadingProgress, showError } from './utils/loadingScreen.js';
