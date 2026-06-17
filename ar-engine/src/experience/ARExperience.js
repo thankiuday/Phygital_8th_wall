@@ -357,6 +357,15 @@ export class ARExperience {
     this._defaultPixelRatio = renderer.getPixelRatio();
 
     const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(
+      70,
+      window.innerWidth / window.innerHeight,
+      0.01,
+      50
+    );
+    this._surfaceCamera = camera;
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 2.5));
     this._buildScene(THREE, renderer);
     this._buildUx();
 
@@ -364,7 +373,7 @@ export class ARExperience {
     scene.add(this._anchor.group);
     this._anchor.group.add(this._plane);
     if (this._effect) this._anchor.group.add(this._effect.group);
-    scene.add(new THREE.AmbientLight(0xffffff, 1));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 
     this._surfaceReticle = createPlacementReticle(THREE);
     scene.add(this._surfaceReticle);
@@ -380,11 +389,13 @@ export class ARExperience {
         this._surfaceSession = new SurfaceTrackingSession({
           renderer,
           scene,
+          camera,
           anchorGroup: this._anchor.group,
           reticle: this._surfaceReticle,
           onPlaced: () => this._onSurfacePlaced(),
           onRescan: () => this._onSurfaceRescan(),
           onAnimate: (now) => this._animateSurfaceFrame(now, renderer),
+          onHitVisibilityChange: (visible) => this._setSurfacePlaceHintVisible(visible),
         });
         await this._surfaceSession.start();
         this._started = true;
@@ -435,7 +446,15 @@ export class ARExperience {
     }
   }
 
+  _setSurfacePlaceHintVisible(visible) {
+    const el = document.getElementById('ar-surface-place-hint');
+    if (!el) return;
+    el.classList.toggle('visible', visible);
+    el.setAttribute('aria-hidden', visible ? 'false' : 'true');
+  }
+
   _onSurfacePlaced() {
+    this._setSurfacePlaceHintVisible(false);
     this._setSurfaceOverlayVisible(false);
     this._onTargetFound();
     this._targetVisible = true;

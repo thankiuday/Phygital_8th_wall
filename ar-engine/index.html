@@ -376,6 +376,33 @@
         transform: scale(0.97);
       }
 
+      /* In-AR hint when hit-test reticle is visible */
+      #ar-surface-place-hint {
+        position: fixed;
+        left: 50%;
+        bottom: max(96px, env(safe-area-inset-bottom, 12px) + 80px);
+        transform: translateX(-50%) translateY(8px);
+        z-index: 55;
+        max-width: min(92vw, 320px);
+        padding: 10px 16px;
+        border-radius: 999px;
+        border: 1px solid rgba(167, 139, 250, 0.45);
+        background: rgba(12, 8, 24, 0.78);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        color: rgba(255, 255, 255, 0.92);
+        font-size: 13px;
+        font-weight: 600;
+        text-align: center;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.25s ease, transform 0.25s ease;
+      }
+      #ar-surface-place-hint.visible {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+
       /* ------------------------------------------------------------------ */
       /* AR UX overlays (controls, buffer spinner, watermark)                */
       /* Sit above MindAR canvases (z-index 1-2), below loading (10000).    */
@@ -636,6 +663,10 @@
       </p>
       <button type="button" id="ar-surface-start-btn">Start surface AR</button>
     </div>
+
+    <p id="ar-surface-place-hint" aria-hidden="true">
+      Tap the purple ring to place the hologram
+    </p>
 
     <!-- AR canvas container — MindARThree injects <canvas> here -->
     <div id="ar-root"></div>
