@@ -35,7 +35,7 @@ const bindEmbeddedCanvas = (canvas) => {
       height: '100%',
       display: 'block',
       zIndex: '0',
-      objectFit: 'cover',
+      objectFit: 'contain',
     });
   };
 

@@ -97,6 +97,8 @@ const BILLBOARD_ALPHA = 0.18;
 const FPS_DROP_THRESHOLD    = 30;
 const FPS_RESTORE_THRESHOLD = 50;
 const FPS_SAMPLE_FRAMES     = 60;
+const IOS_FPS_DROP_THRESHOLD = 22;
+const IOS_FPS_RESTORE_THRESHOLD = 42;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Surface gating for the hologram base effect
@@ -182,6 +184,7 @@ export class ARExperience {
     this._surfaceScene     = null;
     this._surfaceStarting  = false;
     this._surfaceBackend   = null;
+    this._preferHighQuality = false;
   }
 
   _usesImageTarget() {
@@ -567,6 +570,11 @@ export class ARExperience {
         this._surfaceScene = scene;
         this._surfaceCamera = camera;
         this._mindarThree = { renderer };
+        this._preferHighQuality = isApplePlaybackEngine();
+        if (renderer?.setPixelRatio) {
+          const targetRatio = Math.min(window.devicePixelRatio || 1, this._preferHighQuality ? 2.25 : 2);
+          renderer.setPixelRatio(targetRatio);
+        }
         this._defaultPixelRatio = renderer.getPixelRatio?.()
           ?? Math.min(window.devicePixelRatio, 2);
 
@@ -744,8 +752,8 @@ export class ARExperience {
       crossOrigin: 'anonymous',   // required so the texture upload isn't tainted on iOS
       preload:     'auto',
     });
-    this._videoEl.setAttribute('width',  '1080');
-    this._videoEl.setAttribute('height', '1920');
+    this._videoEl.setAttribute('webkit-playsinline', 'true');
+    this._videoEl.disableRemotePlayback = true;
     this._videoEl.style.display = 'none';
     document.body.appendChild(this._videoEl);
     this._videoEl.load();
@@ -764,7 +772,7 @@ export class ARExperience {
       ? THREE.LinearEncoding
       : THREE.sRGBEncoding;
     const maxAniso = renderer.capabilities?.getMaxAnisotropy?.() ?? 1;
-    this._videoTexture.anisotropy = maxAniso;
+    this._videoTexture.anisotropy = Math.min(8, maxAniso);
 
     // ── Video plane (billboard — render loop sets quaternion each frame) ─────
     // Geometry is translated so the mesh origin is the BOTTOM EDGE of the
@@ -991,13 +999,6 @@ export class ARExperience {
       this._ui.hubToggle?.el?.classList.add('visible');
     }
 
-    if (this._surfaceBackend === 'eighthwall-slam') {
-      const notice = document.createElement('div');
-      notice.id = 'ar-xr-engine-notice';
-      notice.className = 'ar-xr-engine-notice';
-      notice.textContent = 'XR tracking © Niantic Spatial';
-      uxRoot.appendChild(notice);
-    }
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -1022,10 +1023,17 @@ export class ARExperience {
     this._fpsAccum = 0;
     this._fpsFrames = 0;
 
-    if (fps < FPS_DROP_THRESHOLD) {
+    const dropThreshold = this._preferHighQuality
+      ? IOS_FPS_DROP_THRESHOLD
+      : FPS_DROP_THRESHOLD;
+    const restoreThreshold = this._preferHighQuality
+      ? IOS_FPS_RESTORE_THRESHOLD
+      : FPS_RESTORE_THRESHOLD;
+
+    if (fps < dropThreshold) {
       this._fpsLowStreak  += 1;
       this._fpsHighStreak  = 0;
-    } else if (fps > FPS_RESTORE_THRESHOLD) {
+    } else if (fps > restoreThreshold) {
       this._fpsHighStreak += 1;
       this._fpsLowStreak   = 0;
     } else {

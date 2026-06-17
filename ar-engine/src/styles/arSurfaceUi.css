@@ -45,7 +45,7 @@ body.ar-surface-active {
   width: 100% !important;
   height: 100% !important;
   display: block !important;
-  object-fit: cover;
+  object-fit: contain;
   -webkit-transform: translateZ(0);
   transform: translateZ(0);
 }
