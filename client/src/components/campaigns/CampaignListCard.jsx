@@ -24,6 +24,7 @@ import {
   primaryOpenUrl,
   digitalCardEditUrl,
 } from '../../utils/campaignActions';
+import ArImageTargetToggle from './ArImageTargetToggle';
 
 const StatusBadge = ({ status }) => {
   const styles = {
@@ -176,6 +177,7 @@ export const CampaignListCard = ({
   onEdit,
   onDuplicate,
   onToggleStatus,
+  onToggleImageTarget,
   onDelete,
   getCampaignHref = (c) => `/dashboard/campaigns/${c._id}`,
   domId,
@@ -251,6 +253,13 @@ export const CampaignListCard = ({
             {new Date(campaign.createdAt).toLocaleDateString()}
           </span>
         </div>
+
+        {isAr && onToggleImageTarget && (
+          <ArImageTargetToggle
+            value={campaign.requiresImageTarget !== false}
+            onChange={(next) => onToggleImageTarget(campaign, next)}
+          />
+        )}
 
         <div className="mt-auto flex gap-2 border-t border-[var(--border-color)] pt-3">
           <Link

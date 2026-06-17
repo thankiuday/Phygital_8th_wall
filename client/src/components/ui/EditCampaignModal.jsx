@@ -19,6 +19,7 @@ import FormInput from './FormInput';
 import UploadProgress from './UploadProgress';
 import VideoItemsEditor from './VideoItemsEditor';
 import ArEffectPicker from '../campaigns/ArEffectPicker';
+import ArImageTargetToggle from '../campaigns/ArImageTargetToggle';
 import { campaignService } from '../../services/campaignService';
 import { isArMediaType } from '../../constants/arMediaProducts';
 import { AR_VIDEO_MAX_DURATION_SEC } from '../../constants/arVideoLimits';
@@ -201,6 +202,9 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
   const [videoIosError, setVideoIosError] = useState('');
   const [arIosChangeMode, setArIosChangeMode] = useState(false);
   const [arEffect, setArEffect] = useState(campaign.arEffect || 'none');
+  const [requiresImageTarget, setRequiresImageTarget] = useState(
+    campaign.requiresImageTarget !== false,
+  );
 
   /** When true, hero FileDropZone hides saved campaign video so the drop zone is empty after ✕. */
   const [suppressExistingHeroPreview, setSuppressExistingHeroPreview] = useState(false);
@@ -246,6 +250,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
     setVideoIosProgress(0);
     setVideoIosError('');
     setArIosChangeMode(false);
+    setRequiresImageTarget(campaign.requiresImageTarget !== false);
 
     if (campaign.campaignType === 'multiple-links-qr'
       || campaign.campaignType === 'links-video-qr'
@@ -545,6 +550,9 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
       }
       if (arEffect !== (campaign.arEffect || 'none')) {
         updates.arEffect = arEffect;
+      }
+      if (requiresImageTarget !== (campaign.requiresImageTarget !== false)) {
+        updates.requiresImageTarget = requiresImageTarget;
       }
     }
 
@@ -861,6 +869,15 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
                         New iOS .mov ready — save to apply on the AR experience.
                       </p>
                     )}
+                  </div>
+
+                  {/* Image target vs surface mode */}
+                  <div className="mt-2 border-t border-dashed border-[var(--border-color)] pt-4">
+                    <ArImageTargetToggle
+                      variant="settings"
+                      value={requiresImageTarget}
+                      onChange={setRequiresImageTarget}
+                    />
                   </div>
 
                   {/* Hologram base effect — animated theme under the AR video */}

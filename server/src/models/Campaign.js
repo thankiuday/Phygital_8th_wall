@@ -89,6 +89,9 @@ const campaignSchema = new mongoose.Schema(
       default: 'none',
     },
 
+    /** When false, AR experience uses surface placement instead of image marker. */
+    requiresImageTarget: { type: Boolean, default: true },
+
     videoUrl: {
       type: String,
       default: null,

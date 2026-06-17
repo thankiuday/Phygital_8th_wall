@@ -51,14 +51,22 @@ const init = async () => {
     return;
   }
 
-  if (!campaign.targetImageUrl || !campaign.videoUrl) {
+  if (!campaign.targetImageUrl && campaign.requiresImageTarget !== false) {
     showError('Campaign is incomplete.', 'Target image or video is missing.');
+    return;
+  }
+
+  if (!campaign.videoUrl) {
+    showError('Campaign is incomplete.', 'Video is missing.');
     return;
   }
 
   const loadingHint = document.getElementById('ar-loading-hint');
   if (loadingHint) {
-    loadingHint.textContent = getLoadingHint(campaign.campaignType);
+    loadingHint.textContent = getLoadingHint(
+      campaign.campaignType,
+      campaign.requiresImageTarget !== false,
+    );
   }
 
   // Fire-and-forget scan recording

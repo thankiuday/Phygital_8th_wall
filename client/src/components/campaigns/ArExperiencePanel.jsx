@@ -1,4 +1,4 @@
-import { Video as VideoIcon, Sparkles } from 'lucide-react';
+import { Video as VideoIcon, Sparkles, Layers, ScanLine } from 'lucide-react';
 import { arEffectLabel } from '../../constants/arEffects';
 import { pickCampaignImageThumbUrl, resolvePlaybackMediaUrl } from '../../utils/assetUrl';
 import DownloadPrintCardButton from './DownloadPrintCardButton';
@@ -7,10 +7,32 @@ import SectionCard from './SectionCard';
 
 const ArExperiencePanel = ({ campaign, arProduct }) => {
   const assetNoun = arProduct?.assetNoun || 'marker';
+  const imageTargetOn = campaign.requiresImageTarget !== false;
 
   return (
     <div className="space-y-4 sm:space-y-5">
-      {campaign.targetImageUrl && (
+      <SectionCard
+        icon={imageTargetOn ? ScanLine : Layers}
+        iconClassName={imageTargetOn ? 'text-brand-400' : 'text-violet-400'}
+        title="AR tracking mode"
+        badge={(
+          <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+            imageTargetOn
+              ? 'border-brand-500/25 bg-brand-500/10 text-brand-300'
+              : 'border-violet-500/25 bg-violet-500/10 text-violet-300'
+          }`}
+          >
+            {imageTargetOn ? 'Image target' : 'Surface only'}
+          </span>
+        )}
+        description={
+          imageTargetOn
+            ? 'Visitors scan your printed marker before the hologram plays. Toggle off from Edit or the campaign card for surface placement.'
+            : 'Visitors place the hologram on a flat surface without a printed marker. Requires WebXR on Android Chrome.'
+        }
+      />
+
+      {imageTargetOn && campaign.targetImageUrl && (
         <SectionCard
           icon={Sparkles}
           title={`Print-ready ${assetNoun} (with QR)`}

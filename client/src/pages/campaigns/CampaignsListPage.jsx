@@ -111,6 +111,11 @@ const CampaignsListPage = () => {
     if (!result.success) showToast(result.message);
   };
 
+  const handleToggleImageTarget = async (campaign, requiresImageTarget) => {
+    const result = await updateCampaignInList(campaign._id, { requiresImageTarget });
+    if (!result.success) showToast(result.message);
+  };
+
   const handleDelete = async (campaign) => {
     if (!window.confirm(`Delete "${campaign.campaignName}"? This cannot be undone.`)) return;
     const result = await removeCampaignFromList(campaign._id);
@@ -258,6 +263,7 @@ const CampaignsListPage = () => {
                 onEdit={() => setEditTarget(campaign)}
                 onDuplicate={() => handleDuplicate(campaign)}
                 onToggleStatus={() => handleToggleStatus(campaign)}
+                onToggleImageTarget={handleToggleImageTarget}
                 onDelete={() => handleDelete(campaign)}
               />
             ))}

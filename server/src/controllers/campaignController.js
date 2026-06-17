@@ -1143,6 +1143,9 @@ const updateCampaign = async (req, res) => {
       }
       updates.arEffect = req.body.arEffect;
     }
+    if (req.body.requiresImageTarget !== undefined) {
+      updates.requiresImageTarget = !!req.body.requiresImageTarget;
+    }
   }
 
   if (existing.campaignType === 'digital-business-card') {

@@ -126,3 +126,17 @@ The rest of the Three.js scene (video plane, GSAP animations) is identical.
 | Avoid | Reflective or shiny surfaces on the physical card |
 | Lighting | Good ambient light when scanning |
 | Angle | Hold phone 15–30cm from card, near-perpendicular |
+
+---
+
+## Surface mode (no printed marker)
+
+Campaigns can disable **Image target** (`requiresImageTarget: false`) in the dashboard. The AR engine then uses **WebXR immersive-ar** with **hit-test** plane detection instead of MindAR image tracking.
+
+| Platform | Image target ON | Surface mode OFF |
+|---|---|---|
+| Android Chrome | Yes | WebXR AR + tap-to-place |
+| iOS Safari | Yes | Not supported — show fallback; use image target |
+| Desktop | Preview | Not supported |
+
+Surface mode skips MindAR target compilation (faster boot). Visitors tap **Start surface AR**, move the phone over a flat surface, then tap the placement indicator to play the hologram.

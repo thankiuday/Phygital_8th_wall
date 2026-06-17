@@ -47,7 +47,8 @@
  * GSAP is bundled via Vite and exposed as window.gsap in main.js.
  */
 
-import { compileMindTarget } from './targetCompiler.js';
+import { startImageTargetSession } from './imageTargetSession.js';
+import { SurfaceTrackingSession, createPlacementReticle } from './surfaceTrackingSession.js';
 import { animateTargetFound, animateTargetLost, forceHidePlane } from './animations.js';
 import { createArEffect } from './effects/index.js';
 import { updateLoadingProgress, showError, hideLoading } from '../utils/loadingScreen.js';
@@ -59,6 +60,10 @@ import { buildHubToggle } from './buildHubToggle.js';
 import {
   getScanHintPrefix,
   getScanImageAlt,
+  getScanTitle,
+  getSurfaceTapHint,
+  usesImageTarget,
+  checkWebXrArSupported,
 } from '../utils/arTargetCopy.js';
 import {
   markReturnReload,
@@ -101,6 +106,7 @@ const SURFACE_CHECK_INTERVAL = 10;   // frames between checks
 
 // ─────────────────────────────────────────────────────────────────────────────
 const SCAN_OVERLAY_ID = 'ar-scanning-overlay';
+const SURFACE_OVERLAY_ID = 'ar-surface-overlay';
 
 export class ARExperience {
   constructor({ container, campaign, sessionId }) {
@@ -162,27 +168,61 @@ export class ARExperience {
     this._resumeInFlight  = null;
     this._pauseTask       = Promise.resolve();
     this._cameraWatchdog  = null;
+    this._trackingMode    = 'image';
+    this._surfaceSession  = null;
+    this._surfaceReticle  = null;
+  }
+
+  _usesImageTarget() {
+    return usesImageTarget(this._campaign);
   }
 
   _setupScanningOverlay() {
+    const imageMode = this._usesImageTarget();
+    const scanEl = document.getElementById(SCAN_OVERLAY_ID);
+    const surfaceEl = document.getElementById(SURFACE_OVERLAY_ID);
+    if (scanEl) scanEl.classList.toggle('mode-hidden', !imageMode);
+    if (surfaceEl) surfaceEl.classList.toggle('mode-hidden', imageMode);
+
+    const campaignType = this._campaign.campaignType;
+    const titleEl = document.getElementById('ar-scan-title');
+    if (titleEl) titleEl.textContent = getScanTitle(imageMode);
+
     const img = document.getElementById('ar-scan-target-img');
     const nameEl = document.getElementById('ar-scan-campaign-name');
     const hintPrefixEl = document.getElementById('ar-scan-hint-prefix');
-    const campaignType = this._campaign.campaignType;
+    const surfaceHintEl = document.getElementById('ar-surface-hint');
+    const surfaceTapEl = document.getElementById('ar-surface-tap-hint');
     const url = this._campaign.targetImageUrl || this._campaign.targetImageOriginalUrl;
-    if (img && url) {
+
+    if (imageMode && img && url) {
       img.src = url;
-      img.alt = getScanImageAlt(campaignType, this._campaign.campaignName);
+      img.alt = getScanImageAlt(campaignType, this._campaign.campaignName, true);
     }
+
     if (hintPrefixEl && nameEl) {
-      if (this._campaign.campaignName) {
+      if (imageMode && this._campaign.campaignName) {
         hintPrefixEl.textContent = 'Point your camera at ';
         nameEl.textContent = this._campaign.campaignName;
-      } else {
-        hintPrefixEl.textContent = getScanHintPrefix(campaignType);
+      } else if (imageMode) {
+        hintPrefixEl.textContent = getScanHintPrefix(campaignType, true);
         nameEl.textContent = '';
       }
     }
+
+    if (surfaceHintEl) {
+      surfaceHintEl.textContent = getScanHintPrefix(campaignType, false);
+    }
+    if (surfaceTapEl) {
+      surfaceTapEl.textContent = getSurfaceTapHint();
+    }
+  }
+
+  _setSurfaceOverlayVisible(visible) {
+    const el = document.getElementById(SURFACE_OVERLAY_ID);
+    if (!el) return;
+    el.classList.toggle('hidden', !visible);
+    el.setAttribute('aria-hidden', visible ? 'false' : 'true');
   }
 
   _setScanningOverlayVisible(visible) {
@@ -198,102 +238,58 @@ export class ARExperience {
   async boot() {
     const THREE = window.THREE;
     if (!THREE) throw new Error('Three.js not found on window.THREE');
-    if (!window.MINDAR?.IMAGE?.MindARThree) {
-      throw new Error('MindARThree not found. Check CDN scripts in index.html.');
-    }
 
-    // Lifecycle must be live before the async compile/start pipeline so a
-    // return from a social tab during startup still triggers a full reload.
     this._bindLifecycle();
 
-    updateLoadingProgress(5, 'Preparing AR experience…');
+    if (this._usesImageTarget()) {
+      if (!window.MINDAR?.IMAGE?.MindARThree) {
+        throw new Error('MindARThree not found. Check CDN scripts in index.html.');
+      }
+      await this._bootImageTarget(THREE);
+    } else {
+      await this._bootSurfaceMode(THREE);
+    }
+  }
 
-    // Gravity tracking for surface-only base effects (no-op without an effect,
-    // but cheap enough to start unconditionally).
+  async _bootImageTarget(THREE) {
+    updateLoadingProgress(5, 'Preparing AR experience…');
     initGravityTracker();
 
-    // 1 — Compile target image → .mind blob
-    let mindBlobUrl;
+    let session;
     try {
-      mindBlobUrl = await compileMindTarget(
-        this._campaign.targetImageUrl,
-        (pct) => {
-          const clamped = Math.min(100, Math.max(0, pct));
-          const barPct = 5 + Math.round((clamped / 100) * 80);
-          updateLoadingProgress(barPct, `Calibrating target… ${clamped}%`);
-        }
-      );
+      session = await startImageTargetSession({
+        container: this._container,
+        campaign: this._campaign,
+        THREE,
+        onTargetFound: () => this._onTargetFound(),
+        onTargetLost: () => this._onTargetLost(),
+      });
     } catch (err) {
       showError('Could not calibrate image target.', err.message);
       return;
     }
 
-    updateLoadingProgress(88, 'Starting camera…');
+    this._trackingMode = 'image';
+    this._mindarThree = session.mindarThree;
+    const { renderer, scene, camera } = session;
+    this._anchor = session.anchor;
+    this._defaultPixelRatio = session.defaultPixelRatio;
+    this._started = true;
 
-    // 2 — Bootstrap MindARThree
-    const { MindARThree } = window.MINDAR.IMAGE;
-    this._mindarThree = new MindARThree({
-      container:      this._container,
-      imageTargetSrc: mindBlobUrl,
-      maxTrack:       1,
-      uiLoading:      'no',
-      uiScanning:     `#${SCAN_OVERLAY_ID}`,
-      uiError:        'no',
-
-      // One-Euro: tight cutoff at rest, opens on motion
-      filterMinCF:    0.0001,
-      filterBeta:     0.01,
-
-      warmupTolerance: 5,
-      missTolerance:   20,
-    });
-
-    const { renderer, scene, camera } = this._mindarThree;
-
-    // Transparent canvas — camera feed shows through
-    renderer.setClearColor(0x000000, 0);
-    scene.background = null;
-    renderer.outputEncoding = THREE.sRGBEncoding;
-    this._defaultPixelRatio = Math.min(window.devicePixelRatio, 2);
-    renderer.setPixelRatio(this._defaultPixelRatio);
-    renderer.physicallyCorrectLights = true;
-
-    // 3 — Build scene + UX overlay
     this._buildScene(THREE, renderer);
     this._buildUx();
 
-    // 4 — Wire anchor events; plane lives on anchor.group (always at the card)
-    const anchor = this._mindarThree.addAnchor(0);
-    this._anchor = anchor;
-    anchor.onTargetFound = () => this._onTargetFound();
-    anchor.onTargetLost  = () => this._onTargetLost();
-    anchor.group.add(this._plane);
-    // Hologram base effect shares the anchor group, so MindAR's single pose
-    // update keeps it perfectly aligned with the video plane.
-    if (this._effect) anchor.group.add(this._effect.group);
-
+    this._anchor.group.add(this._plane);
+    if (this._effect) this._anchor.group.add(this._effect.group);
     scene.add(new THREE.AmbientLight(0xffffff, 1));
-
-    // 5 — Start MindAR
-    try {
-      await this._mindarThree.start();
-      this._started = true;
-    } catch {
-      showError('Camera access required.', 'Please allow camera permissions and reload.');
-      return;
-    }
 
     this._sessionStart = Date.now();
     updateLoadingProgress(100, 'Ready!');
     hideLoading();
     this._setScanningOverlayVisible(true);
 
-    // ── Render loop ──────────────────────────────────────────────────────────
     const sc = this._scratch;
-
     this._renderLoop = (now) => {
-      // Billboard: plane always faces the camera, with an EMA on the facing
-      // quaternion → calmer face-to-camera updates (no per-frame shimmer).
       if (this._plane.visible) {
         camera.getWorldPosition(sc.camPos);
         this._anchor.group.getWorldPosition(sc.anchorWorldPos);
@@ -304,7 +300,6 @@ export class ARExperience {
           sc.billboardWorldQuat.setFromUnitVectors(sc.FWD, sc.towardCam);
           sc.smoothBillboardQuat.slerp(sc.billboardWorldQuat, BILLBOARD_ALPHA);
 
-          // Convert smoothed world quaternion to anchor.group local space
           this._anchor.group.getWorldQuaternion(sc.parentQuatInv);
           sc.parentQuatInv.invert();
           sc.parentQuatInv.multiply(sc.smoothBillboardQuat);
@@ -312,9 +307,6 @@ export class ARExperience {
         }
       }
 
-      // 1b. Surface gating — re-evaluate every few frames while tracking, and
-      //     show/hide the base effect when the card transitions between lying
-      //     on a surface and hanging vertically.
       if (this._effect && this._targetVisible) {
         this._surfaceCheckFrame += 1;
         if (this._surfaceCheckFrame >= SURFACE_CHECK_INTERVAL) {
@@ -324,10 +316,8 @@ export class ARExperience {
         }
       }
 
-      // 1c. Animate the hologram base effect (no-op while hidden)
       this._effect?.update(now ?? performance.now());
 
-      // 2. Upload latest decoded video frame to GPU texture
       if (
         this._videoTexture &&
         this._videoEl?.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
@@ -335,14 +325,130 @@ export class ARExperience {
         this._videoTexture.needsUpdate = true;
       }
 
-      // 3. Render
       renderer.render(scene, camera);
-
-      // 4. FPS-aware auto-quality (after render, so dt reflects real GPU work)
       this._sampleFps(now ?? performance.now(), renderer);
     };
 
     renderer.setAnimationLoop(this._renderLoop);
+  }
+
+  async _bootSurfaceMode(THREE) {
+    updateLoadingProgress(10, 'Preparing surface AR…');
+    initGravityTracker();
+
+    const supported = await checkWebXrArSupported();
+    if (!supported) {
+      showError(
+        'Surface mode unavailable',
+        'Surface AR needs WebXR on Android Chrome. Turn Image target back on in your dashboard, or open this experience on a supported device.'
+      );
+      return;
+    }
+
+    this._trackingMode = 'surface';
+
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.xr.enabled = true;
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    this._container.appendChild(renderer.domElement);
+    this._mindarThree = { renderer };
+    this._defaultPixelRatio = renderer.getPixelRatio();
+
+    const scene = new THREE.Scene();
+    this._buildScene(THREE, renderer);
+    this._buildUx();
+
+    this._anchor = { group: new THREE.Group() };
+    scene.add(this._anchor.group);
+    this._anchor.group.add(this._plane);
+    if (this._effect) this._anchor.group.add(this._effect.group);
+    scene.add(new THREE.AmbientLight(0xffffff, 1));
+
+    this._surfaceReticle = createPlacementReticle(THREE);
+    scene.add(this._surfaceReticle);
+
+    updateLoadingProgress(100, 'Ready!');
+    hideLoading();
+    this._setSurfaceOverlayVisible(true);
+
+    const startBtn = document.getElementById('ar-surface-start-btn');
+    const startSession = async () => {
+      startBtn?.removeEventListener('click', startSession);
+      try {
+        this._surfaceSession = new SurfaceTrackingSession({
+          renderer,
+          scene,
+          anchorGroup: this._anchor.group,
+          reticle: this._surfaceReticle,
+          onPlaced: () => this._onSurfacePlaced(),
+          onRescan: () => this._onSurfaceRescan(),
+          onAnimate: (now) => this._animateSurfaceFrame(now, renderer),
+        });
+        await this._surfaceSession.start();
+        this._started = true;
+        this._sessionStart = Date.now();
+        this._setSurfaceOverlayVisible(false);
+      } catch {
+        showError(
+          'Could not start surface AR',
+          'Allow camera permissions and try again, or switch to Image target mode in your dashboard.'
+        );
+      }
+    };
+
+    if (startBtn) {
+      startBtn.addEventListener('click', startSession);
+    } else {
+      await startSession();
+    }
+  }
+
+  _animateSurfaceFrame(now, renderer) {
+    if (this._plane.visible && this._surfaceSession?.placed) {
+      const sc = this._scratch;
+      const cam = renderer.xr.getCamera();
+      cam.getWorldPosition(sc.camPos);
+      this._anchor.group.getWorldPosition(sc.anchorWorldPos);
+      sc.towardCam.subVectors(sc.camPos, sc.anchorWorldPos);
+      if (sc.towardCam.lengthSq() > 0.0001) {
+        sc.towardCam.normalize();
+        sc.billboardWorldQuat.setFromUnitVectors(sc.FWD, sc.towardCam);
+        sc.smoothBillboardQuat.slerp(sc.billboardWorldQuat, BILLBOARD_ALPHA);
+        this._anchor.group.getWorldQuaternion(sc.parentQuatInv);
+        sc.parentQuatInv.invert();
+        sc.parentQuatInv.multiply(sc.smoothBillboardQuat);
+        this._plane.quaternion.copy(sc.parentQuatInv);
+      }
+    }
+
+    if (this._effect && this._targetVisible) {
+      this._effect.update(now ?? performance.now());
+    }
+
+    if (
+      this._videoTexture &&
+      this._videoEl?.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+    ) {
+      this._videoTexture.needsUpdate = true;
+    }
+  }
+
+  _onSurfacePlaced() {
+    this._setSurfaceOverlayVisible(false);
+    this._onTargetFound();
+    this._targetVisible = true;
+    this._surfaceMode = true;
+    if (this._effect) {
+      this._effect.show();
+      this._effectShown = true;
+    }
+  }
+
+  _onSurfaceRescan() {
+    this._prepareForRescan();
+    this._setSurfaceOverlayVisible(true);
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -747,7 +853,13 @@ export class ARExperience {
    * Reset UI/video to scanning state so MindAR can re-acquire the target.
    */
   _prepareForRescan() {
-    this._setScanningOverlayVisible(true);
+    if (this._trackingMode === 'surface') {
+      this._setSurfaceOverlayVisible(!this._surfaceSession?.placed);
+      this._setScanningOverlayVisible(false);
+    } else {
+      this._setScanningOverlayVisible(true);
+      this._setSurfaceOverlayVisible(false);
+    }
 
     if (this._plane?.visible) {
       animateTargetLost(this._plane);
@@ -840,7 +952,17 @@ export class ARExperience {
     this._refreshPlayIcon();
 
     this._pauseTask = (async () => {
-      if (!this._started || !this._mindarThree) return;
+      if (this._trackingMode === 'surface' && this._surfaceSession) {
+        try {
+          await this._surfaceSession.destroy();
+        } catch {
+          // ignore
+        }
+        this._surfaceSession = null;
+        this._started = false;
+        return;
+      }
+      if (!this._started || !this._mindarThree?.stop) return;
       try {
         await this._mindarThree.stop();
       } catch {
@@ -881,6 +1003,16 @@ export class ARExperience {
         if (this._hasPendingReturnReload()) return;
 
         this._prepareForRescan();
+
+        if (this._trackingMode === 'surface') {
+          const startBtn = document.getElementById('ar-surface-start-btn');
+          if (startBtn) {
+            this._setSurfaceOverlayVisible(true);
+            this._started = true;
+            this._sessionPaused = false;
+            return;
+          }
+        }
 
         await this._mindarThree.start();
         this._started = true;
@@ -1054,7 +1186,11 @@ export class ARExperience {
     if (this._mindarThree?.renderer) {
       this._mindarThree.renderer.setAnimationLoop(null);
     }
-    if (this._started && this._mindarThree) {
+    if (this._surfaceSession) {
+      await this._surfaceSession.destroy();
+      this._surfaceSession = null;
+    }
+    if (this._started && this._mindarThree?.stop) {
       await this._mindarThree.stop();
     }
 

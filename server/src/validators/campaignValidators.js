@@ -874,6 +874,7 @@ const updateCampaignSchema = z
     arEffect: z
       .enum(['none', 'portal-rings', 'light-pillar', 'sparkles', 'energy-spiral', 'pulse-glow', 'ember-rise', 'rune-circle', 'orbit-orbs'])
       .optional(),
+    requiresImageTarget: z.boolean().optional(),
   })
   .strict()
   .refine((d) => Object.keys(d).length > 0, { message: 'No valid fields to update' });

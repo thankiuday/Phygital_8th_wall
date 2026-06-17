@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   ExternalLink,
   Loader2,
+  Layers,
 } from 'lucide-react';
 import { publicService } from '../services/publicService';
 import { getVisitorHashForCampaign } from '../utils/visitorHash';
@@ -116,7 +117,8 @@ const ARExperiencePage = () => {
       ? `/open/${campaign.ownerHandle}/${campaign.hubSlug}`
       : null);
 
-  const experienceCopy = getArExperienceCopy(campaign?.campaignType);
+  const imageTargetOn = campaign?.requiresImageTarget !== false;
+  const experienceCopy = getArExperienceCopy(campaign?.campaignType, imageTargetOn);
   const howToSteps = experienceCopy.steps.map((text, i) => ({
     icon: STEP_ICONS[i] || Zap,
     text,
@@ -264,15 +266,24 @@ const ARExperiencePage = () => {
         <section className="pt-2 text-center">
           <div className="relative mx-auto w-fit max-w-[min(100%,12.5rem)]">
             <div className="overflow-hidden rounded-2xl border border-violet-500/20 bg-white/[0.03] p-1 shadow-[0_0_28px_rgba(124,58,237,0.1)]">
-              <CampaignThumbnail
-                campaign={campaign}
-                alt={campaign?.campaignName || experienceCopy.target}
-                className="mx-auto max-h-[10.5rem] w-auto max-w-full rounded-xl object-contain"
-                placeholderClassName="flex h-32 w-28 items-center justify-center rounded-xl bg-brand-900/50"
-              />
+              {imageTargetOn ? (
+                <CampaignThumbnail
+                  campaign={campaign}
+                  alt={campaign?.campaignName || experienceCopy.target}
+                  className="mx-auto max-h-[10.5rem] w-auto max-w-full rounded-xl object-contain"
+                  placeholderClassName="flex h-32 w-28 items-center justify-center rounded-xl bg-brand-900/50"
+                />
+              ) : (
+                <div className="flex h-32 w-36 flex-col items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-violet-900/40 to-brand-900/30 sm:h-[10.5rem] sm:w-40">
+                  <Layers size={36} className="text-violet-300/90" aria-hidden />
+                  <p className="px-2 text-[10px] font-medium leading-snug text-white/50">
+                    No printed marker needed
+                  </p>
+                </div>
+              )}
             </div>
             <span className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-brand-500/40 bg-brand-500/15 px-2.5 py-0.5 text-[10px] font-semibold text-brand-200 backdrop-blur-md">
-              AR Hologram Ready
+              {experienceCopy.badge}
             </span>
           </div>
         </section>
