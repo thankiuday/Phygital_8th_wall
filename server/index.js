@@ -25,11 +25,14 @@ const { startDraftAssetCleanupScheduler } = require('./src/services/draftAssetCl
 
 const app  = express();
 const PORT = process.env.PORT || 5000;
+const isVercel = process.env.VERCEL === '1';
 
 /* ─────────────────────────────────────────
    Database Connection
    ───────────────────────────────────────── */
-connectDB();
+if (!isVercel) {
+  connectDB();
+}
 
 /* ─────────────────────────────────────────
    CORS — MUST be the very first middleware.
@@ -284,41 +287,36 @@ app.use(notFound);
 app.use(errorHandler);
 
 /* ─────────────────────────────────────────
-   Start Server
+   Start Server (skipped on Vercel — api/index.js exports the app)
    ───────────────────────────────────────── */
-const server = app.listen(PORT, () => {
-  logger.info('Server started', {
-    port: PORT,
-    env:  process.env.NODE_ENV || 'development',
-    url:  `http://localhost:${PORT}`,
+if (!isVercel) {
+  const server = app.listen(PORT, () => {
+    logger.info('Server started', {
+      port: PORT,
+      env:  process.env.NODE_ENV || 'development',
+      url:  `http://localhost:${PORT}`,
+    });
   });
-});
 
-startDraftAssetCleanupScheduler();
+  startDraftAssetCleanupScheduler();
 
-/* ─────────────────────────────────────────
-   HTTP keep-alive tuning for reverse proxies
-   (Render / Fly / ALB hold sockets open ~60 s by default).  Node's defaults
-   are too tight, which causes intermittent ECONNRESET on busy /r/:slug
-   traffic.  headersTimeout MUST be > keepAliveTimeout to satisfy the Node
-   contract introduced after CVE-2018-0739.
-   ───────────────────────────────────────── */
-server.keepAliveTimeout = 65_000;
-server.headersTimeout   = 66_000;
+  server.keepAliveTimeout = 65_000;
+  server.headersTimeout   = 66_000;
 
-/* ─────────────────────────────────────────
-   Safety net
-   ───────────────────────────────────────── */
-process.on('unhandledRejection', (reason) => {
-  logger.error('Unhandled promise rejection', { reason: String(reason) });
-});
-
-process.on('uncaughtException', (err) => {
-  logger.error('Uncaught exception — shutting down', {
-    error: err.message,
-    stack: err.stack,
+  /* ─────────────────────────────────────────
+     Safety net
+     ───────────────────────────────────────── */
+  process.on('unhandledRejection', (reason) => {
+    logger.error('Unhandled promise rejection', { reason: String(reason) });
   });
-  process.exit(1);
-});
+
+  process.on('uncaughtException', (err) => {
+    logger.error('Uncaught exception — shutting down', {
+      error: err.message,
+      stack: err.stack,
+    });
+    process.exit(1);
+  });
+}
 
 module.exports = app;

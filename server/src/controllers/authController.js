@@ -110,6 +110,12 @@ const resolveGoogleRedirectUri = () => {
     return `${render}/api/auth/google/callback`;
   }
 
+  const vercel = trimTrailingSlash(process.env.VERCEL_URL);
+  if (vercel) {
+    const origin = vercel.startsWith('http') ? vercel : `https://${vercel}`;
+    return `${origin}/api/auth/google/callback`;
+  }
+
   const apiPublic = trimTrailingSlash(process.env.API_PUBLIC_URL);
   if (apiPublic) {
     const withApi = apiPublic.endsWith('/api') ? apiPublic : `${apiPublic}/api`;

@@ -1,156 +1,148 @@
-# Deploy Phygital client to Vercel (manual)
+# Deploy all Phygital services on Vercel (3 separate projects)
 
-This repo is a **monorepo**. Vercel hosts the **React client** (`client/`). The **API** (`server/`) stays on your VPS/Render — it is not deployed to Vercel.
+Mirror the Render `render.yaml` layout with **three Vercel projects** from the same GitHub repo.
 
-| Component | Host |
-|-----------|------|
-| React app (dashboard, QR, surface AR) | **Vercel** |
-| Express API + MongoDB + workers | **VPS / Render** (existing) |
-| Image-target AR (`ar-engine`) | **Optional** second Vercel project or `ar.phygital.zone` |
-
----
-
-## 0. Prerequisites
-
-1. [GitHub repo](https://github.com/thankiuday/Phygital_8th_wall) pushed and up to date.
-2. [Vercel account](https://vercel.com/signup) (GitHub login recommended).
-3. A running API with HTTPS, e.g. `https://phygital.zone/api`.
-4. Node **18+** locally (Vercel uses Node 20 by default).
+| Render service | Vercel project | Root Directory |
+|----------------|----------------|----------------|
+| `phygital8thwall-api` | `phygital-api` | `server` |
+| `phygital8thwall-client` | `phygital-client` | `client` |
+| `phygital8thwall-ar` | `phygital-ar` | `ar-engine` |
 
 ---
 
-## 1. One-time: prepare the API for a new client URL
+## Before you start
 
-When the client lives on a new domain (e.g. `https://phygital.vercel.app`), update **server** env on VPS/Render:
+1. GitHub repo connected to Vercel.
+2. MongoDB Atlas, AWS S3, Stripe, Google OAuth credentials (same as Render).
+3. Copy secrets from `deploy/env/server.env.render.local` for the API project.
+
+### Vercel limits (API)
+
+| Feature | On Vercel |
+|---------|-----------|
+| Express API | Yes (serverless via `server/api/index.js`) |
+| `/health`, `/api/*`, `/r/:slug` | Yes |
+| Background workers (`scanWorker`, `cardRenderWorker`) | **No** — leave `REDIS_URL` unset |
+| Puppeteer card PNG export | **Limited** — may fail on serverless; keep Render for heavy print jobs or use Pro + long timeout |
+| Function timeout | 10s (Hobby) / 60s (Pro) — set in `server/vercel.json` |
+
+---
+
+## Step 1 — Deploy API (`phygital-api`)
+
+1. [vercel.com/new](https://vercel.com/new) → import repo.
+2. **Project name:** `phygital-api`
+3. **Root Directory:** `server` ← click Edit, select `server`
+4. Framework: **Other** (uses `server/vercel.json`)
+5. **Environment variables** — paste from `deploy/env/server.env.vercel.example` + your real secrets from Render.
+   - Do **not** set `VERCEL_URL` — Vercel sets it automatically.
+   - Set `CLIENT_URL` and `API_PUBLIC_URL` after you know all URLs (step 4).
+6. **Deploy** → note URL: `https://phygital-api.vercel.app`
+7. Test: `https://phygital-api.vercel.app/health` → `{ "status": "ok" }`
+
+### Google OAuth (API)
+
+Authorized redirect URI:
+
+`https://phygital-api.vercel.app/api/auth/google/callback`
+
+### Stripe webhook (API)
+
+Dashboard → Webhooks → endpoint:
+
+`https://phygital-api.vercel.app/api/billing/webhook`
+
+---
+
+## Step 2 — Deploy AR engine (`phygital-ar`)
+
+1. New project → same repo.
+2. **Project name:** `phygital-ar`
+3. **Root Directory:** `ar-engine`
+4. **Environment variables:**
+
+   | Variable | Value |
+   |----------|--------|
+   | `VITE_API_URL` | `https://phygital-api.vercel.app/api` |
+
+5. **Deploy** → note URL: `https://phygital-ar.vercel.app`
+
+---
+
+## Step 3 — Deploy client (`phygital-client`)
+
+1. New project → same repo.
+2. **Project name:** `phygital-client`
+3. **Root Directory:** `client`
+4. **Environment variables** — from `deploy/env/client.env.vercel.example`:
+
+   | Variable | Value |
+   |----------|--------|
+   | `VITE_API_URL` | `https://phygital-api.vercel.app/api` |
+   | `VITE_APP_URL` | `https://phygital-client.vercel.app` |
+   | `VITE_AR_ENGINE_URL` | `https://phygital-ar.vercel.app` |
+   | `VITE_APP_NAME` | `Phygital` |
+   | `VITE_STRIPE_PUBLISHABLE_KEY` | (from Render, if used) |
+
+5. **Deploy** → note URL: `https://phygital-client.vercel.app`
+
+---
+
+## Step 4 — Wire URLs together (redeploy all 3)
+
+Update env vars with **final** URLs, then **Redeploy** each project:
+
+| Project | Update |
+|---------|--------|
+| **phygital-api** | `CLIENT_URL=https://phygital-client.vercel.app` |
+| **phygital-api** | `API_PUBLIC_URL=https://phygital-api.vercel.app` |
+| **phygital-client** | `VITE_*` URLs match the table above |
+| **phygital-ar** | `VITE_API_URL=https://phygital-api.vercel.app/api` |
+
+### Google Cloud (client origin)
+
+Authorized JavaScript origins:
+
+- `https://phygital-client.vercel.app`
+
+---
+
+## Step 5 — Verify
+
+- [ ] `https://phygital-api.vercel.app/health`
+- [ ] `https://phygital-client.vercel.app` — home page
+- [ ] Login / register
+- [ ] Dashboard campaigns
+- [ ] `https://phygital-client.vercel.app/ar/<id>` — surface AR + `/xr/xr.js`
+- [ ] Image-target AR → `https://phygital-ar.vercel.app/ar/<id>`
+- [ ] Short links: `https://phygital-api.vercel.app/r/<slug>`
+
+---
+
+## Custom domains (optional)
+
+| Service | Example domain |
+|---------|----------------|
+| Client | `phygital.zone` |
+| API | `api.phygital.zone` |
+| AR | `ar.phygital.zone` |
+
+Update all env vars to match custom domains and redeploy.
+
+---
+
+## Local build test
 
 ```bash
-# Use your real Vercel URL or custom domain
-CLIENT_URL=https://your-project.vercel.app
+# Client
+cd client && npm run build
+
+# AR engine
+cd ar-engine && npm run build
+
+# API — no build; test locally:
+cd server && node index.js
 ```
-
-Also update:
-
-| Service | Setting |
-|---------|---------|
-| Google Cloud Console | Authorized JavaScript origins: `https://your-project.vercel.app` |
-| Google Cloud Console | Authorized redirect URI stays: `https://phygital.zone/api/auth/google/callback` |
-| Stripe Dashboard | Success/cancel URLs if they hard-code `CLIENT_URL` |
-| CORS | Already reflects `Origin` — no change if API allows any origin with credentials |
-
-If you later point a **custom domain** on Vercel (e.g. `https://phygital.zone`), set `CLIENT_URL` to that domain instead.
-
----
-
-## 2. Create the Vercel project (client)
-
-1. Go to [vercel.com/new](https://vercel.com/new).
-2. **Import** `thankiuday/Phygital_8th_wall` (or your fork).
-3. **Important — Project settings:**
-
-   | Setting | Value |
-   |---------|--------|
-   | **Root Directory** | `.` (repository root — **not** `client`) |
-   | **Framework Preset** | Other |
-   | **Build Command** | `npm run build:client` (or leave empty — `vercel.json` sets this) |
-   | **Output Directory** | `client/dist` |
-   | **Install Command** | `npm install` |
-
-4. Do **not** enable “Override” unless you know you need to — root `vercel.json` already configures the build.
-
-5. Click **Deploy** once to verify the build (it may fail until env vars are set — that’s OK).
-
----
-
-## 3. Environment variables (Vercel dashboard)
-
-**Project → Settings → Environment Variables**
-
-Add for **Production** and **Preview**:
-
-| Variable | Example | Required |
-|----------|---------|----------|
-| `VITE_API_URL` | `https://phygital.zone/api` | Yes |
-| `VITE_APP_URL` | `https://your-project.vercel.app` | Yes |
-| `VITE_AR_ENGINE_URL` | `https://ar.phygital.zone` | Yes (image-target AR) |
-| `VITE_APP_NAME` | `Phygital` | Optional |
-
-Use your real Vercel URL for `VITE_APP_URL` until a custom domain is attached.
-
-Reference: `deploy/env/client.env.vercel.example`
-
----
-
-## 4. Redeploy
-
-After env vars are saved:
-
-**Deployments → … → Redeploy** (or push a commit to `main`).
-
-Build steps (automatic):
-
-1. `npm install` (all workspaces — links `ar-engine` into client)
-2. `client` prebuild: copies 8th Wall binaries to `client/public/xr`
-3. `vite build` → output in `client/dist`
-
----
-
-## 5. Custom domain (optional)
-
-1. Vercel → **Project → Settings → Domains**
-2. Add `phygital.zone` and `www.phygital.zone`
-3. At your DNS host, add the records Vercel shows (usually `CNAME` for `www`, `A` for apex)
-4. Update env vars:
-   - `VITE_APP_URL=https://phygital.zone`
-   - Server `CLIENT_URL=https://phygital.zone`
-5. Redeploy client
-
-**Note:** If `phygital.zone` currently points to your VPS for API + static files, move API to a subdomain (e.g. `api.phygital.zone`) and set `VITE_API_URL=https://api.phygital.zone/api`, or keep API on the same host behind a reverse proxy.
-
----
-
-## 6. Optional: deploy `ar-engine` on Vercel
-
-Image-target campaigns redirect to `VITE_AR_ENGINE_URL`. You can host that separately:
-
-1. Create a **second** Vercel project from the same repo.
-2. Settings:
-
-   | Setting | Value |
-   |---------|--------|
-   | **Root Directory** | `ar-engine` |
-   | **Build Command** | `npm run build` (from `ar-engine/vercel.json`) |
-   | **Output Directory** | `dist` |
-   | **Install Command** | `cd .. && npm install` |
-
-3. Set client `VITE_AR_ENGINE_URL` to the new URL (e.g. `https://ar-yourproject.vercel.app`).
-
----
-
-## 7. Verify after deploy
-
-- [ ] Home page loads: `https://your-project.vercel.app`
-- [ ] Login / register (API + cookies)
-- [ ] Google OAuth (if enabled)
-- [ ] Dashboard loads campaigns
-- [ ] Public AR page: `/ar/<campaignId>` — surface mode opens camera on iPhone
-- [ ] `/xr/xr.js` returns 200 (8th Wall SLAM assets)
-- [ ] Image-target AR opens `VITE_AR_ENGINE_URL/ar/<id>`
-
----
-
-## 8. Local production build test (before Vercel)
-
-```bash
-cd PhygitalEightThWall
-npm install
-cp deploy/env/client.env.vercel.example client/.env.local
-# Edit client/.env.local with real URLs
-
-npm run build:client
-npx serve client/dist -p 4173
-```
-
-Open `http://localhost:4173` — API calls go to `VITE_API_URL` (not proxied).
 
 ---
 
@@ -158,19 +150,23 @@ Open `http://localhost:4173` — API calls go to `VITE_API_URL` (not proxied).
 
 | Issue | Fix |
 |-------|-----|
-| Build: `@8thwall` not found | Root Directory must be repo root; run `npm install` at root |
-| 404 on `/dashboard` refresh | `vercel.json` rewrites — redeploy from latest `main` |
-| API 401 / cookies not sent | `VITE_API_URL` must be HTTPS; API `CLIENT_URL` must match `VITE_APP_URL` |
-| CORS errors | API must allow your Vercel origin (current server reflects `Origin`) |
-| AR black screen on iOS | Confirm `/xr/xr.js` loads; use HTTPS; allow camera permission |
-| Google login fails | Update `CLIENT_URL` on server + Google authorized origins |
+| API 500 on cold start | Check `MONGO_URI` and Vercel function logs |
+| CORS / cookies | `CLIENT_URL` on API must match `VITE_APP_URL` exactly |
+| Google OAuth fails | Redirect URI + JS origins must match Vercel URLs |
+| `npm install` fails in subdirectory | `installCommand` is `cd .. && npm install` in each `vercel.json` |
+| AR black screen on iOS | Confirm `https://phygital-client.vercel.app/xr/xr.js` returns 200 |
+| Card print download fails | Expected on serverless — use Render API for print workers or VPS |
 
 ---
 
-## What stays off Vercel
+## Repo config files
 
-- `server/` — Express, MongoDB, Redis workers, Puppeteer card render
-- Long-running processes (PM2 workers)
-- MongoDB / S3 / Stripe webhooks
+| Path | Purpose |
+|------|---------|
+| `server/vercel.json` | API serverless rewrites + 60s timeout |
+| `server/api/index.js` | Vercel Express entry |
+| `client/vercel.json` | Client static build + SPA routes |
+| `ar-engine/vercel.json` | AR static build + SPA routes |
+| `deploy/env/*.env.vercel.example` | Env templates per service |
 
-Keep using `deploy/DEPLOY.md` for VPS API operations.
+Production VPS deploy: `deploy/DEPLOY.md` (unchanged).

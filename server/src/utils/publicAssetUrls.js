@@ -7,8 +7,16 @@ const {
 
 /** API origin for browser media URLs (hub, AR). */
 const getApiBaseForMedia = () => {
-  const fromEnv = (process.env.API_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '').trim();
-  if (fromEnv) return fromEnv.replace(/\/$/, '');
+  const fromEnv = (
+    process.env.API_PUBLIC_URL
+    || process.env.VERCEL_URL
+    || process.env.RENDER_EXTERNAL_URL
+    || ''
+  ).trim();
+  if (fromEnv) {
+    const base = fromEnv.replace(/\/$/, '');
+    return base.startsWith('http') ? base : `https://${base}`;
+  }
   return `http://localhost:${process.env.PORT || 5000}`;
 };
 

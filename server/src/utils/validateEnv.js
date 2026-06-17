@@ -66,6 +66,7 @@ const validateEnv = () => {
   const gRedirExplicit = (process.env.GOOGLE_REDIRECT_URI || '').trim();
   const clientUrl = (process.env.CLIENT_URL || '').trim();
   const renderExt = (process.env.RENDER_EXTERNAL_URL || '').trim();
+  const vercelUrl = (process.env.VERCEL_URL || '').trim();
   const apiPublic = (process.env.API_PUBLIC_URL || '').trim();
 
   const hasAnyGoogleOAuthVar = !!(gId || gSec || gRedirExplicit);
@@ -74,10 +75,10 @@ const validateEnv = () => {
     if (!gId) missingGoogle.push('GOOGLE_CLIENT_ID');
     if (!gSec) missingGoogle.push('GOOGLE_CLIENT_SECRET');
     if (!clientUrl) missingGoogle.push('CLIENT_URL');
-    const hasRedirectSource = !!(gRedirExplicit || renderExt || apiPublic);
+    const hasRedirectSource = !!(gRedirExplicit || renderExt || vercelUrl || apiPublic);
     if (!hasRedirectSource) {
       missingGoogle.push(
-        'GOOGLE_REDIRECT_URI (or RENDER_EXTERNAL_URL / API_PUBLIC_URL for automatic callback URL)'
+        'GOOGLE_REDIRECT_URI (or VERCEL_URL / RENDER_EXTERNAL_URL / API_PUBLIC_URL for automatic callback URL)'
       );
     }
     if (missingGoogle.length > 0) {
