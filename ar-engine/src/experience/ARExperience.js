@@ -50,6 +50,7 @@
 import { startImageTargetSession } from './imageTargetSession.js';
 import { SurfaceTrackingSession, createPlacementReticle } from './surfaceTrackingSession.js';
 import { EighthWallSurfaceSession } from './eighthWallSurfaceSession.js';
+import { takeGestureEighthWallSession } from './eighthWallGestureBoot.js';
 import { animateTargetFound, animateTargetLost, forceHidePlane } from './animations.js';
 import { createArEffect } from './effects/index.js';
 import { updateLoadingProgress, showError, hideLoading } from '../utils/loadingScreen.js';
@@ -531,7 +532,8 @@ export class ARExperience {
 
   async _bootEighthWallSurfaceMode() {
     this._initSurfaceCoaching();
-    updateLoadingProgress(40, 'Loading AR engine…');
+    this._showSurfaceCoaching('scanning');
+    updateLoadingProgress(40, 'Starting camera…');
 
     try {
       await this._startEighthWallSession();
@@ -555,43 +557,53 @@ export class ARExperience {
 
     this._surfaceStarting = true;
 
+    const sceneCallbacks = {
+      onPlaced: () => this._onSurfacePlaced(),
+      onRescan: () => this._onSurfaceRescan(),
+      onAnimate: (now) => this._animateEighthWallFrame(now),
+      onHitVisibilityChange: (visible) => this._onSurfaceHitVisibilityChange(visible),
+      onSceneReady: async ({ scene, camera, renderer, THREE }) => {
+        this._THREE = THREE;
+        this._surfaceScene = scene;
+        this._surfaceCamera = camera;
+        this._mindarThree = { renderer };
+        this._defaultPixelRatio = renderer.getPixelRatio?.()
+          ?? Math.min(window.devicePixelRatio, 2);
+
+        scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 2.5));
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+
+        this._anchor = { group: new THREE.Group() };
+        this._buildScene(THREE, renderer);
+        this._anchor.group.add(this._plane);
+        if (this._effect) this._anchor.group.add(this._effect.group);
+
+        const reticle = createPlacementReticle(THREE);
+        this._surfaceReticle = reticle;
+
+        this._buildUx();
+        this._showSurfaceCoaching('scanning');
+
+        return {
+          anchorGroup: this._anchor.group,
+          reticle,
+        };
+      },
+    };
+
     try {
-      this._surfaceSession = new EighthWallSurfaceSession({
-        container: this._container,
-        onPlaced: () => this._onSurfacePlaced(),
-        onRescan: () => this._onSurfaceRescan(),
-        onAnimate: (now) => this._animateEighthWallFrame(now),
-        onHitVisibilityChange: (visible) => this._onSurfaceHitVisibilityChange(visible),
-        onSceneReady: async ({ scene, camera, renderer, THREE }) => {
-          this._THREE = THREE;
-          this._surfaceScene = scene;
-          this._surfaceCamera = camera;
-          this._mindarThree = { renderer };
-          this._defaultPixelRatio = renderer.getPixelRatio?.()
-            ?? Math.min(window.devicePixelRatio, 2);
-
-          scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 2.5));
-          scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-
-          this._anchor = { group: new THREE.Group() };
-          this._buildScene(THREE, renderer);
-          this._anchor.group.add(this._plane);
-          if (this._effect) this._anchor.group.add(this._effect.group);
-
-          const reticle = createPlacementReticle(THREE);
-          this._surfaceReticle = reticle;
-
-          this._buildUx();
-          this._showSurfaceCoaching('scanning');
-
-          return {
-            anchorGroup: this._anchor.group,
-            reticle,
-          };
-        },
-      });
-
-      await this._surfaceSession.start();
+      const gestureSession = takeGestureEighthWallSession();
+      if (gestureSession) {
+        gestureSession.bindCallbacks(sceneCallbacks);
+        this._surfaceSession = gestureSession;
+        await gestureSession.waitForSceneReady();
+      } else {
+        this._surfaceSession = new EighthWallSurfaceSession({
+          container: this._container,
+          ...sceneCallbacks,
+        });
+        await this._surfaceSession.start();
+      }
     } catch (err) {
       this._surfaceSession = null;
       throw err;

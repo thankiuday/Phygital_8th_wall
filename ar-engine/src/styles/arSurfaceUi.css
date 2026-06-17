@@ -41,6 +41,35 @@ body.ar-surface-active {
   height: 100% !important;
 }
 
+.surface-ar-boot-error {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--ar-safe-bottom) + 72px);
+  z-index: 10002;
+  width: min(92vw, 360px);
+  transform: translateX(-50%);
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(24, 8, 12, 0.88);
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  text-align: center;
+  pointer-events: none;
+}
+
+.surface-ar-boot-error-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fecaca;
+}
+
+.surface-ar-boot-error-detail {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(254, 202, 202, 0.78);
+}
+
 .surface-ar-close {
   position: fixed;
   top: var(--ar-safe-top);

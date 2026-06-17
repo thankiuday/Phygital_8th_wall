@@ -4,7 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/sync-xr-assets.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/sync-xr-assets.mjs",
     "build": "vite build",
     "lint": "eslint src --ext .js,.jsx",
     "preview": "vite preview"

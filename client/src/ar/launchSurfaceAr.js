@@ -3,7 +3,11 @@
  */
 
 import gsap from 'gsap';
-import { createSurfaceArShell, removeSurfaceArShell } from './surfaceArShell.js';
+import {
+  createSurfaceArShell,
+  getSurfaceArShell,
+  removeSurfaceArShell,
+} from './surfaceArShell.js';
 import { registerReturnReloadHandlers } from '@ar-engine/utils/arReturnReload.js';
 
 let activeExperience = null;
@@ -13,11 +17,19 @@ export const bootEmbeddedSurfaceAr = async ({
   sessionId,
   sessionPromise,
   surfaceBackend,
+  skipShellCreation = false,
   onError,
 }) => {
   window.gsap = gsap;
 
-  const shell = createSurfaceArShell();
+  const shell = skipShellCreation && getSurfaceArShell()
+    ? {
+        shell: getSurfaceArShell(),
+        arRoot: getSurfaceArShell().querySelector('#ar-root'),
+        domOverlay: getSurfaceArShell().querySelector('#ar-dom-overlay'),
+      }
+    : createSurfaceArShell();
+
   const container = shell.arRoot;
   if (!container) {
     onError?.('Could not create AR view.');

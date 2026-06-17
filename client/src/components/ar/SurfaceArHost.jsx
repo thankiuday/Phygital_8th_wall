@@ -17,7 +17,10 @@ const SurfaceArHost = ({
   const bootedRef = useRef(false);
 
   useEffect(() => {
-    const needsSession = surfaceBackend !== 'eighthwall-slam';
+    const isEighthWall = surfaceBackend === 'eighthwall-slam';
+    if (isEighthWall) return undefined;
+
+    const needsSession = true;
     if (!campaign || bootedRef.current) return undefined;
     if (needsSession && !sessionPromise) return undefined;
 
@@ -29,7 +32,7 @@ const SurfaceArHost = ({
       const experience = await bootEmbeddedSurfaceAr({
         campaign,
         sessionId,
-        sessionPromise: needsSession ? sessionPromise : null,
+        sessionPromise,
         surfaceBackend,
         onError: (msg) => {
           if (!cancelled) onError?.(msg);

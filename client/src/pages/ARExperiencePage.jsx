@@ -24,9 +24,12 @@ import ArExperienceLinkDock from '../components/ar/ArExperienceLinkDock';
 import SurfaceArHost from '../components/ar/SurfaceArHost';
 import { getArExperienceCopy } from '../constants/arExperienceCopy';
 import { createSurfaceArShell, removeSurfaceArShell } from '../ar/surfaceArShell.js';
+import { bootEmbeddedSurfaceAr } from '../ar/launchSurfaceAr.js';
 import { resolveSurfaceArBackend } from '@ar-engine/utils/surfaceCapability.js';
 import { requestSurfaceSession } from '@ar-engine/utils/webxr.js';
 import { createArSessionId } from '@ar-engine/utils/arReturnReload.js';
+import { preloadEighthWallEngine, isEighthWallEngineReady } from '@ar-engine/experience/loadEighthWallEngine.js';
+import { beginEighthWallSurfaceGesture } from '@ar-engine/experience/eighthWallGestureBoot.js';
 
 const STEP_ICONS_SURFACE = [ScanLine, Zap];
 
@@ -62,6 +65,7 @@ const ARExperiencePage = () => {
   const [surfaceBackend, setSurfaceBackend] = useState(null);
   const [surfaceAr, setSurfaceAr] = useState(null);
   const [surfaceArError, setSurfaceArError] = useState('');
+  const [eighthWallReady, setEighthWallReady] = useState(false);
 
   useEffect(() => {
     applyThemeClass('dark');
@@ -116,11 +120,19 @@ const ARExperiencePage = () => {
     if (!campaign || imageTargetOn) {
       setSurfaceArSupported(null);
       setSurfaceBackend(null);
+      setEighthWallReady(false);
       return;
     }
     resolveSurfaceArBackend().then((backend) => {
       setSurfaceBackend(backend);
       setSurfaceArSupported(backend === 'webxr' || backend === 'eighthwall-slam');
+      if (backend === 'eighthwall-slam') {
+        preloadEighthWallEngine()
+          .then(() => setEighthWallReady(true))
+          .catch(() => setEighthWallReady(false));
+      } else {
+        setEighthWallReady(true);
+      }
     });
   }, [campaign, imageTargetOn]);
 
@@ -140,11 +152,42 @@ const ARExperiencePage = () => {
         const backend = surfaceBackend || 'webxr';
 
         if (backend === 'eighthwall-slam') {
+          if (!isEighthWallEngineReady()) {
+            removeSurfaceArShell();
+            setLaunching(false);
+            setSurfaceArError('AR is still preparing. Wait a moment and try again.');
+            return;
+          }
+
+          try {
+            beginEighthWallSurfaceGesture(shell.arRoot);
+          } catch (err) {
+            removeSurfaceArShell();
+            setLaunching(false);
+            setSurfaceArError(err?.message || 'Could not open the camera.');
+            return;
+          }
+
+          const sessionId = createArSessionId();
           setSurfaceAr({
             campaign,
-            sessionId: createArSessionId(),
+            sessionId,
             sessionPromise: null,
             surfaceBackend: backend,
+          });
+
+          bootEmbeddedSurfaceAr({
+            campaign,
+            sessionId,
+            surfaceBackend: backend,
+            skipShellCreation: true,
+            onError: (msg) => {
+              setSurfaceArError(msg);
+              setSurfaceAr(null);
+              setLaunching(false);
+            },
+          }).then((experience) => {
+            if (experience) setLaunching(false);
           });
           return;
         }
@@ -200,6 +243,9 @@ const ARExperiencePage = () => {
   }));
 
   const surfaceLaunchBlocked = !imageTargetOn && surfaceArSupported === false;
+  const surfaceEnginePreparing = !imageTargetOn
+    && surfaceBackend === 'eighthwall-slam'
+    && !eighthWallReady;
 
   const hubButton = hubHref ? (
     hubHref.startsWith('http') ? (
@@ -220,11 +266,13 @@ const ARExperiencePage = () => {
       type="button"
       whileTap={{ scale: 0.97 }}
       onClick={handleLaunchAR}
-      disabled={launching || surfaceLaunchBlocked}
+      disabled={launching || surfaceLaunchBlocked || surfaceEnginePreparing}
       className="flex w-full min-h-[52px] items-center justify-center gap-2.5 rounded-2xl bg-gradient-brand py-3.5 text-base font-bold text-white shadow-glow-lg transition-all hover:shadow-glow disabled:opacity-60"
     >
       {launching ? (
         <><Loader2 size={18} className="animate-spin" /> Opening camera…</>
+      ) : surfaceEnginePreparing ? (
+        <><Loader2 size={18} className="animate-spin" /> Preparing AR…</>
       ) : (
         <><Camera size={18} /> Launch AR Experience</>
       )}

@@ -1,16 +1,22 @@
 /**
- * loadEighthWallEngine — dynamic loader for 8th Wall SLAM binary + XRExtras.
+ * loadEighthWallEngine — loader for 8th Wall SLAM binary + XRExtras.
  *
- * Loaded only on the eighthwall-slam surface path so WebXR Android users
- * do not download the binary.
+ * Scripts are self-hosted under /xr/ (see client/scripts/sync-xr-assets.mjs)
+ * so SLAM chunks resolve on the same origin as xr.js on iOS Safari.
  */
 
-const ENGINE_SCRIPT =
-  'https://cdn.jsdelivr.net/npm/@8thwall/engine-binary@1/dist/xr.js';
-const XREXTRAS_SCRIPT =
-  'https://cdn.jsdelivr.net/npm/@8thwall/xrextras@1/dist/xrextras.js';
+const scriptOrigin = () => {
+  if (typeof window === 'undefined') return '';
+  const base = import.meta.env?.BASE_URL || '/';
+  const normalized = base.endsWith('/') ? base : `${base}/`;
+  return `${window.location.origin}${normalized}xr`;
+};
+
+const ENGINE_SCRIPT = () => `${scriptOrigin()}/xr.js`;
+const XREXTRAS_SCRIPT = () => `${scriptOrigin()}/xrextras.js`;
 
 let loadPromise = null;
+let loadedEngine = null;
 
 const injectScript = (src, attrs = {}) =>
   new Promise((resolve, reject) => {
@@ -29,7 +35,7 @@ const injectScript = (src, attrs = {}) =>
 
     const script = document.createElement('script');
     script.src = src;
-    script.async = true;
+    script.async = false;
     script.crossOrigin = 'anonymous';
     script.dataset.phygitalXr = src;
     Object.entries(attrs).forEach(([key, value]) => {
@@ -58,13 +64,14 @@ const waitForGlobal = (name, eventName) =>
  * @returns {Promise<{ XR8: object, XRExtras: object }>}
  */
 export const loadEighthWallEngine = () => {
+  if (loadedEngine) return Promise.resolve(loadedEngine);
   if (loadPromise) return loadPromise;
 
   loadPromise = (async () => {
-    await injectScript(XREXTRAS_SCRIPT);
+    await injectScript(XREXTRAS_SCRIPT());
     await waitForGlobal('XRExtras', 'xrextrasloaded');
 
-    await injectScript(ENGINE_SCRIPT, {
+    await injectScript(ENGINE_SCRIPT(), {
       'data-preload-chunks': 'slam',
     });
     const XR8 = await waitForGlobal('XR8', 'xrloaded');
@@ -73,7 +80,8 @@ export const loadEighthWallEngine = () => {
       await XR8.loadChunk('slam');
     }
 
-    return { XR8, XRExtras: window.XRExtras };
+    loadedEngine = { XR8, XRExtras: window.XRExtras };
+    return loadedEngine;
   })().catch((err) => {
     loadPromise = null;
     throw err;
@@ -82,6 +90,14 @@ export const loadEighthWallEngine = () => {
   return loadPromise;
 };
 
+export const preloadEighthWallEngine = () => loadEighthWallEngine();
+
+export const isEighthWallEngineReady = () =>
+  Boolean(window.XR8?.run && window.XRExtras && loadedEngine);
+
+export const getEighthWallEngineSync = () => loadedEngine;
+
 export const resetEighthWallEngineLoader = () => {
   loadPromise = null;
+  loadedEngine = null;
 };

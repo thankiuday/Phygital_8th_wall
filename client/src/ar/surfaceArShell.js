@@ -44,3 +44,32 @@ export const removeSurfaceArShell = () => {
 };
 
 export const getSurfaceArShell = () => shellEl;
+
+/** Inline error banner for embedded surface AR (no ar-engine loading overlay). */
+export const showSurfaceArBootError = (headline, detail = '') => {
+  const shell = shellEl;
+  if (!shell) return;
+
+  let box = shell.querySelector('#surface-ar-boot-error');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'surface-ar-boot-error';
+    box.className = 'surface-ar-boot-error';
+    box.innerHTML = `
+      <p class="surface-ar-boot-error-title"></p>
+      <p class="surface-ar-boot-error-detail"></p>
+    `;
+    shell.appendChild(box);
+  }
+
+  const title = box.querySelector('.surface-ar-boot-error-title');
+  const sub = box.querySelector('.surface-ar-boot-error-detail');
+  if (title) title.textContent = headline;
+  if (sub) sub.textContent = detail;
+  box.hidden = false;
+};
+
+export const hideSurfaceArBootError = () => {
+  const box = shellEl?.querySelector('#surface-ar-boot-error');
+  if (box) box.hidden = true;
+};

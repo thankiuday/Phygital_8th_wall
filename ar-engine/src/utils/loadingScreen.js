@@ -40,12 +40,40 @@ export const hideLoading = () => {
  * @param {string} headline  Primary user-facing message
  * @param {string} detail    Technical detail (smaller text)
  */
+const showEmbeddedShellError = (headline, detail) => {
+  const shell = document.getElementById('surface-ar-shell');
+  if (!shell) return false;
+
+  let box = shell.querySelector('#surface-ar-boot-error');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'surface-ar-boot-error';
+    box.className = 'surface-ar-boot-error';
+    box.innerHTML = `
+      <p class="surface-ar-boot-error-title"></p>
+      <p class="surface-ar-boot-error-detail"></p>
+    `;
+    shell.appendChild(box);
+  }
+
+  const title = box.querySelector('.surface-ar-boot-error-title');
+  const sub = box.querySelector('.surface-ar-boot-error-detail');
+  if (title) title.textContent = headline;
+  if (sub) sub.textContent = detail;
+  box.hidden = false;
+  return true;
+};
+
 export const showError = (headline, detail = '') => {
   const b = errorBox();
   const m = errMsg();
   const s = errSub();
   const l = overlay();
   const progress = document.getElementById('ar-loading-content');
+
+  if (!l && showEmbeddedShellError(headline, detail)) {
+    return;
+  }
 
   if (progress) progress.style.display = 'none';
   if (b) b.style.display = 'flex';
