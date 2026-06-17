@@ -16,6 +16,9 @@ let gestureSession = null;
  * @returns {EighthWallSurfaceSession}
  */
 export const beginEighthWallSurfaceGesture = (container) => {
+  if (!window.THREE) {
+    throw new Error('Three.js is still loading. Wait a moment and try again.');
+  }
   if (!isEighthWallEngineReady()) {
     throw new Error('AR engine is still loading. Wait a moment and try again.');
   }

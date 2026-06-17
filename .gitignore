@@ -10,6 +10,7 @@ build/
 
 # Deploy secrets (generated locally)
 deploy/env/server.env.production.local
+deploy/env/server.env.render.local
 deploy/.vps_key
 deploy/.vps_key.pub
 

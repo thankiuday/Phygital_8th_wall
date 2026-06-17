@@ -41,10 +41,13 @@ export const bootEmbeddedSurfaceAr = async ({
 
     const [{ ARExperience }, threeModule] = await Promise.all([
       import('@ar-engine/experience/ARExperience.js'),
-      surfaceBackend === 'eighthwall-slam'
-        ? Promise.resolve(null)
-        : import('three-ar'),
+      import('three-ar'),
     ]);
+
+    const THREE = threeModule?.default || threeModule;
+    if (THREE && !window.THREE) {
+      window.THREE = THREE;
+    }
 
     const experience = new ARExperience({
       container,
@@ -55,7 +58,7 @@ export const bootEmbeddedSurfaceAr = async ({
 
     activeExperience = experience;
     await experience.boot({
-      THREE: threeModule?.default || threeModule || undefined,
+      THREE: THREE || window.THREE,
       preSessionPromise: sessionPromise,
       surfaceBackend,
     });

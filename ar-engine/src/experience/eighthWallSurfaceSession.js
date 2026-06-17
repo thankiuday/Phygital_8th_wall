@@ -130,6 +130,9 @@ export class EighthWallSurfaceSession {
   beginCameraInUserGesture() {
     const XR8 = window.XR8;
     const XRExtras = window.XRExtras;
+    if (!window.THREE) {
+      throw new Error('window.THREE does not exist but is required by the ThreeJS pipeline module');
+    }
     if (!XR8?.run || !XRExtras) {
       throw new Error('8th Wall engine not loaded yet.');
     }
