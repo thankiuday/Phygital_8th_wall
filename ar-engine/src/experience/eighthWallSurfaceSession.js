@@ -17,31 +17,46 @@ let placementPipelineRegistered = false;
 const isEmbeddedSurfaceShell = () =>
   Boolean(document.getElementById('surface-ar-shell'));
 
+/** Keep the XR canvas edge-to-edge inside the surface shell (portrait fullscreen). */
+const fitFullscreenCanvas = (canvas) => {
+  if (!canvas) return;
+
+  const host =
+    document.getElementById('ar-root')
+    || document.getElementById('surface-ar-shell')
+    || canvas.parentElement;
+
+  if (host && !host.contains(canvas)) {
+    host.prepend(canvas);
+  }
+
+  Object.assign(canvas.style, {
+    position: 'absolute',
+    top: '0',
+    left: '0',
+    right: '0',
+    bottom: '0',
+    width: '100%',
+    height: '100%',
+    maxWidth: 'none',
+    maxHeight: 'none',
+    display: 'block',
+    zIndex: '0',
+    objectFit: 'cover',
+  });
+};
+
 const bindEmbeddedCanvas = (canvas) => {
-  if (!canvas || !isEmbeddedSurfaceShell()) return () => {};
+  if (!canvas) return () => {};
 
-  const fit = () => {
-    const host = document.getElementById('ar-root') || canvas.parentElement;
-    if (!host) return;
-
-    if (!host.contains(canvas)) {
-      host.prepend(canvas);
-    }
-
-    Object.assign(canvas.style, {
-      position: 'absolute',
-      inset: '0',
-      width: '100%',
-      height: '100%',
-      display: 'block',
-      zIndex: '0',
-      objectFit: 'contain',
-    });
-  };
-
+  const fit = () => fitFullscreenCanvas(canvas);
   fit();
   window.addEventListener('resize', fit);
-  return () => window.removeEventListener('resize', fit);
+  window.visualViewport?.addEventListener('resize', fit);
+  return () => {
+    window.removeEventListener('resize', fit);
+    window.visualViewport?.removeEventListener('resize', fit);
+  };
 };
 
 const registerPlacementPipeline = (XR8, XRExtras) => {
@@ -63,18 +78,15 @@ const registerPlacementPipeline = (XR8, XRExtras) => {
   const modules = [
     XR8.GlTextureRenderer.pipelineModule(),
     XR8.Threejs.pipelineModule(),
+    XRExtras.FullWindowCanvas.pipelineModule(),
+    XR8.XrController.pipelineModule(),
   ];
 
   if (isEmbeddedSurfaceShell()) {
     modules.push(embeddedCanvasModule());
-  } else {
-    modules.push(XRExtras.FullWindowCanvas.pipelineModule());
   }
 
-  modules.push(
-    XR8.XrController.pipelineModule(),
-    placementModule(),
-  );
+  modules.push(placementModule());
 
   XR8.addCameraPipelineModules(modules);
 
@@ -266,6 +278,13 @@ export class EighthWallSurfaceSession {
       this._tapPosition = new THREE.Vector2();
 
       renderer.shadowMap.enabled = false;
+
+      if (renderer?.setSize) {
+        renderer.setSize(window.innerWidth, window.innerHeight, false);
+      }
+      if (this._canvas) {
+        fitFullscreenCanvas(this._canvas);
+      }
 
       if (!this._anchorGroup.parent) {
         scene.add(this._anchorGroup);

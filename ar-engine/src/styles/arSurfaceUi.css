@@ -33,6 +33,9 @@ body.ar-surface-active {
   position: absolute;
   inset: 0;
   z-index: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
   background: #000;
   overflow: hidden;
   isolation: isolate;
@@ -44,8 +47,10 @@ body.ar-surface-active {
   inset: 0 !important;
   width: 100% !important;
   height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
   display: block !important;
-  object-fit: contain;
+  object-fit: cover !important;
   -webkit-transform: translateZ(0);
   transform: translateZ(0);
 }
@@ -534,6 +539,7 @@ body.ar-surface-active {
   inset: 0;
   width: 100%;
   height: 100%;
+  object-fit: cover;
   z-index: 0;
 }
 
