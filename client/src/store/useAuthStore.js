@@ -34,6 +34,7 @@ const useAuthStore = create((set, get) => {
     isAuthenticated: false,
     isLoading:       false, // form-submission loading — starts false
     isHydrating:     true,  // page-load session restore — starts true
+    authHydrateDeferred: false, // true when public AR/hub routes skip cold-load refresh
     error:           null,
     pendingWelcomeNotification: false,
 
@@ -111,22 +112,36 @@ const useAuthStore = create((set, get) => {
     },
 
     /**
-     * hydrate — called ONCE in App.jsx on mount.
+     * Skip silent session restore on public visitor routes (AR, hub, card).
+     * Avoids a noisy 401 from /auth/refresh when no login cookie exists.
+     */
+    skipAuthHydrate: () => {
+      set({ isHydrating: false, authHydrateDeferred: true });
+    },
+
+    /**
+     * hydrate — called on cold load (or deferred until a protected route).
      * Silently restores a session from the httpOnly refresh cookie.
-     * Sets isHydrating (not isLoading) so auth page buttons are unaffected.
      */
     hydrate: async () => {
-      set({ isHydrating: true });
+      if (get().isHydrating && get().isAuthenticated) return;
+      set({ isHydrating: true, authHydrateDeferred: false });
       try {
         const { accessToken } = await authService.refresh();
         const { user }        = await authService.getMe(accessToken);
-        set({ user, accessToken, isAuthenticated: true, isHydrating: false });
+        set({ user, accessToken, isAuthenticated: true, isHydrating: false, authHydrateDeferred: false });
       } catch {
         // Only clear auth state if the user didn't log in while hydrate was in-flight
         if (!get().isAuthenticated) {
-          set({ user: null, accessToken: null, isAuthenticated: false, isHydrating: false });
+          set({
+            user: null,
+            accessToken: null,
+            isAuthenticated: false,
+            isHydrating: false,
+            authHydrateDeferred: false,
+          });
         } else {
-          set({ isHydrating: false });
+          set({ isHydrating: false, authHydrateDeferred: false });
         }
       }
     },

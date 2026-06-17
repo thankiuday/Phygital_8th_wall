@@ -4,7 +4,7 @@ import { HelmetProvider } from 'react-helmet-async';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './queryClient';
 import useThemeStore, { applyThemeClass } from './store/useThemeStore';
-import useAuthStore from './store/useAuthStore';
+import AuthHydrator from './components/auth/AuthHydrator';
 
 // Layouts
 import PublicLayout    from './layouts/PublicLayout';
@@ -85,26 +85,21 @@ const ScrollToTop = () => {
  *
  * On mount:
  * 1. Syncs the saved theme to <html>
- * 2. Calls hydrate() to silently restore the user's session via refresh cookie
+ * AuthHydrator (inside the router) restores sessions except on public AR/hub routes.
  */
 function App() {
   const { theme } = useThemeStore();
-  const { hydrate } = useAuthStore();
 
   useEffect(() => {
     applyThemeClass(theme);
   }, [theme]);
-
-  // Restore session once on cold load
-  useEffect(() => {
-    hydrate();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <HelmetProvider>
       <QueryClientProvider client={queryClient}>
         <ErrorBoundary>
           <BrowserRouter>
+          <AuthHydrator />
           <ScrollToTop />
           <Routes>
             {/* ── Public marketing pages ────────────────────────────── */}

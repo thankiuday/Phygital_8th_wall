@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import useAuthStore from '../../store/useAuthStore';
 import PageLoader from './PageLoader';
+import { useEffect } from 'react';
 
 /**
  * ProtectedRoute — wraps routes that require authentication.
@@ -12,8 +13,14 @@ import PageLoader from './PageLoader';
  *   - Not authenticated → redirect to /login, preserving the intended URL
  */
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, isHydrating } = useAuthStore();
+  const { isAuthenticated, isHydrating, authHydrateDeferred, hydrate } = useAuthStore();
   const location = useLocation();
+
+  useEffect(() => {
+    if (authHydrateDeferred && !isAuthenticated && !isHydrating) {
+      hydrate();
+    }
+  }, [authHydrateDeferred, isAuthenticated, isHydrating, hydrate]);
 
   if (isHydrating) return <PageLoader />;
 
@@ -29,8 +36,14 @@ const ProtectedRoute = ({ children }) => {
  * Redirects non-admin users to the dashboard.
  */
 const AdminRoute = ({ children }) => {
-  const { isAuthenticated, isHydrating, user } = useAuthStore();
+  const { isAuthenticated, isHydrating, authHydrateDeferred, hydrate, user } = useAuthStore();
   const location = useLocation();
+
+  useEffect(() => {
+    if (authHydrateDeferred && !isAuthenticated && !isHydrating) {
+      hydrate();
+    }
+  }, [authHydrateDeferred, isAuthenticated, isHydrating, hydrate]);
 
   if (isHydrating) return <PageLoader />;
 
