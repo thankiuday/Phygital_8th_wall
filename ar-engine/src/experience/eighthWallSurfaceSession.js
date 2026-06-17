@@ -14,6 +14,36 @@ const GROUND_SIZE = 100;
 let activePlacementSession = null;
 let placementPipelineRegistered = false;
 
+const isEmbeddedSurfaceShell = () =>
+  Boolean(document.getElementById('surface-ar-shell'));
+
+const bindEmbeddedCanvas = (canvas) => {
+  if (!canvas || !isEmbeddedSurfaceShell()) return () => {};
+
+  const fit = () => {
+    const host = document.getElementById('ar-root') || canvas.parentElement;
+    if (!host) return;
+
+    if (!host.contains(canvas)) {
+      host.prepend(canvas);
+    }
+
+    Object.assign(canvas.style, {
+      position: 'absolute',
+      inset: '0',
+      width: '100%',
+      height: '100%',
+      display: 'block',
+      zIndex: '0',
+      objectFit: 'cover',
+    });
+  };
+
+  fit();
+  window.addEventListener('resize', fit);
+  return () => window.removeEventListener('resize', fit);
+};
+
 const registerPlacementPipeline = (XR8, XRExtras) => {
   if (placementPipelineRegistered) return;
 
@@ -23,13 +53,30 @@ const registerPlacementPipeline = (XR8, XRExtras) => {
     onUpdate: () => activePlacementSession?._pipelineOnUpdate(),
   });
 
-  XR8.addCameraPipelineModules([
+  const embeddedCanvasModule = () => ({
+    name: 'phygital-embedded-canvas',
+    onStart: ({ canvas }) => {
+      activePlacementSession?._bindEmbeddedCanvas(canvas);
+    },
+  });
+
+  const modules = [
     XR8.GlTextureRenderer.pipelineModule(),
     XR8.Threejs.pipelineModule(),
+  ];
+
+  if (isEmbeddedSurfaceShell()) {
+    modules.push(embeddedCanvasModule());
+  } else {
+    modules.push(XRExtras.FullWindowCanvas.pipelineModule());
+  }
+
+  modules.push(
     XR8.XrController.pipelineModule(),
-    XRExtras.FullWindowCanvas.pipelineModule(),
     placementModule(),
-  ]);
+  );
+
+  XR8.addCameraPipelineModules(modules);
 
   placementPipelineRegistered = true;
 };
@@ -85,6 +132,7 @@ export class EighthWallSurfaceSession {
     this._sceneReadyPromise = null;
     this._sceneReadyResolve = null;
     this._sceneReadyReject = null;
+    this._unbindEmbeddedCanvas = null;
   }
 
   get placed() {
@@ -115,6 +163,11 @@ export class EighthWallSurfaceSession {
 
   waitForSceneReady() {
     return this._sceneReadyPromise || Promise.resolve();
+  }
+
+  _bindEmbeddedCanvas(canvas) {
+    this._unbindEmbeddedCanvas?.();
+    this._unbindEmbeddedCanvas = bindEmbeddedCanvas(canvas);
   }
 
   _setHitVisible(visible) {
@@ -148,6 +201,14 @@ export class EighthWallSurfaceSession {
     const canvas = document.createElement('canvas');
     canvas.id = 'camerafeed';
     canvas.className = 'eighthwall-camerafeed';
+    Object.assign(canvas.style, {
+      position: 'absolute',
+      inset: '0',
+      width: '100%',
+      height: '100%',
+      display: 'block',
+      zIndex: '0',
+    });
     this._container.prepend(canvas);
     this._canvas = canvas;
 
@@ -309,6 +370,8 @@ export class EighthWallSurfaceSession {
 
   async destroy() {
     this._running = false;
+    this._unbindEmbeddedCanvas?.();
+    this._unbindEmbeddedCanvas = null;
 
     if (activePlacementSession === this) {
       activePlacementSession = null;

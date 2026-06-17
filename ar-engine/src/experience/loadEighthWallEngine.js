@@ -5,7 +5,7 @@
  * so SLAM chunks resolve on the same origin as xr.js on iOS Safari.
  */
 
-import { ensureEighthWallThree } from './ensureEighthWallThree.js';
+import { ensureEighthWallThree, applyIosArTextureWorkarounds } from './ensureEighthWallThree.js';
 
 const scriptOrigin = () => {
   if (typeof window === 'undefined') return '';
@@ -70,6 +70,7 @@ export const loadEighthWallEngine = () => {
   if (loadPromise) return loadPromise;
 
   loadPromise = (async () => {
+    applyIosArTextureWorkarounds();
     await ensureEighthWallThree();
 
     await injectScript(XREXTRAS_SCRIPT());

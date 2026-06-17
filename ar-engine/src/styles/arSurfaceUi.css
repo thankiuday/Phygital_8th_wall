@@ -24,7 +24,7 @@ body.ar-surface-active {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: #000;
+  background: transparent;
   overflow: hidden;
   touch-action: manipulation;
 }
@@ -33,12 +33,29 @@ body.ar-surface-active {
   position: absolute;
   inset: 0;
   z-index: 0;
+  background: #000;
+  overflow: hidden;
+  isolation: isolate;
 }
 
-.surface-ar-shell #ar-root canvas {
-  display: block;
+.surface-ar-shell #ar-root canvas,
+.surface-ar-shell #ar-root .eighthwall-camerafeed {
+  position: absolute !important;
+  inset: 0 !important;
   width: 100% !important;
   height: 100% !important;
+  display: block !important;
+  object-fit: cover;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+.surface-ar-shell #ar-root canvas:nth-of-type(1) {
+  z-index: 0 !important;
+}
+
+.surface-ar-shell #ar-root canvas:nth-of-type(2) {
+  z-index: 1 !important;
 }
 
 .surface-ar-boot-error {
@@ -148,6 +165,16 @@ body.ar-surface-active {
 .ar-surface-coaching.state-scanning,
 .ar-surface-coaching.state-ready {
   opacity: 1;
+  pointer-events: none;
+}
+
+.ar-surface-coaching.state-scanning .ar-surface-coaching-vignette,
+.ar-surface-coaching.state-ready .ar-surface-coaching-vignette {
+  background: radial-gradient(
+    ellipse 120% 80% at 50% 35%,
+    rgba(2, 6, 23, 0) 0%,
+    rgba(2, 6, 23, 0.12) 100%
+  );
 }
 
 .ar-surface-coaching-vignette {

@@ -18,8 +18,8 @@ export const createSurfaceArShell = () => {
   root.id = 'surface-ar-shell';
   root.className = 'surface-ar-shell';
   root.innerHTML = `
-    <div id="ar-dom-overlay"></div>
     <div id="ar-root"></div>
+    <div id="ar-dom-overlay"></div>
     <button type="button" class="surface-ar-close" id="surface-ar-close" aria-label="Close AR">
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
         <path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/>
