@@ -347,7 +347,31 @@
         pointer-events: none;
       }
       .ar-surface-coaching.state-ready {
-        opacity: 0.55;
+        opacity: 0.85;
+      }
+      .ar-surface-coaching.state-ready .ar-surface-coaching-content {
+        position: fixed;
+        top: max(64px, env(safe-area-inset-top, 12px) + 48px);
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: auto;
+        padding: 10px 16px;
+        max-width: min(92vw, 320px);
+        border-radius: 999px;
+        background: rgba(12, 8, 24, 0.72);
+        border: 1px solid rgba(167, 139, 250, 0.35);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+      }
+      .ar-surface-coaching.state-ready .ar-surface-coaching-mark,
+      .ar-surface-coaching.state-ready .ar-surface-coaching-brand,
+      .ar-surface-coaching.state-ready .ar-surface-coaching-scan,
+      .ar-surface-coaching.state-ready .ar-surface-coaching-vignette {
+        display: none;
+      }
+      .ar-surface-coaching.state-ready .ar-surface-coaching-message {
+        font-size: 13px;
+        margin: 0;
       }
       .ar-surface-coaching-vignette {
         position: absolute;
@@ -541,7 +565,7 @@
       }
       @keyframes ar-spin { to { transform: rotate(360deg); } }
 
-      /* "Powered by" watermark — fades to a faint label after 3 s */
+      /* "Powered by" watermark — shown after placement in surface mode */
       #ar-watermark {
         position: fixed;
         right: 14px;
@@ -556,6 +580,11 @@
         color: rgba(255, 255, 255, 0.85);
         text-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
         pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.4s ease;
+      }
+      #ar-watermark.visible {
+        opacity: 1;
         animation: ar-fade-watermark 3s ease-out forwards;
       }
       .ar-watermark-mark {
@@ -645,17 +674,18 @@
       .ar-link-btn:active {
         transform: scale(0.92);
       }
-      .ar-link-btn:focus-visible {
-        outline: 2px solid rgba(167, 139, 250, 0.9);
-        outline-offset: 2px;
+      .ar-link-btn svg {
+        width: 20px;
+        height: 20px;
+        display: block;
       }
 
       /* Hub switch — compact top-right pill */
       #ar-hub-toggle {
         position: fixed;
         top: max(12px, env(safe-area-inset-top, 12px));
-        right: max(12px, env(safe-area-inset-right, 12px));
-        left: auto;
+        left: max(12px, env(safe-area-inset-left, 12px));
+        right: auto;
         transform: none;
         z-index: 51;
         display: inline-flex;
@@ -663,7 +693,7 @@
         justify-content: center;
         gap: 6px;
         min-height: 40px;
-        max-width: calc(100vw - 24px);
+        max-width: calc(100vw - 80px);
         padding: 8px 14px;
         border-radius: 999px;
         border: 1px solid rgba(124, 58, 237, 0.5);
@@ -676,7 +706,9 @@
         -webkit-backdrop-filter: blur(14px) saturate(160%);
         box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
         cursor: pointer;
-        transition: background-color 0.15s ease, transform 0.1s ease;
+        transition: background-color 0.15s ease, transform 0.1s ease, opacity 0.3s ease;
+        opacity: 0;
+        pointer-events: none;
       }
       #ar-hub-toggle span {
         white-space: nowrap;

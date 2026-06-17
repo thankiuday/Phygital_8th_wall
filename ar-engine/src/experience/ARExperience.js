@@ -68,7 +68,6 @@ import {
   requestSurfaceSession,
 } from '../utils/webxr.js';
 import { createSurfaceCoachingOverlay } from './surfaceCoachingOverlay.js';
-import { createSurfaceCoachingBillboard } from './surfaceCoachingBillboard.js';
 import {
   markReturnReload,
   hasPendingReturnReload,
@@ -119,7 +118,6 @@ export class ARExperience {
     this._embedMode = embedMode;
     this._preSessionPromise = null;
     this._coaching = null;
-    this._coachingBillboard = null;
     this._setupScanningOverlay();
 
     // Three.js / MindAR objects
@@ -226,10 +224,16 @@ export class ARExperience {
   _showSurfaceCoaching(state) {
     this._initSurfaceCoaching();
     this._coaching?.setState(state);
+  }
 
-    if (this._coachingBillboard) {
-      const showBillboard = state === 'scanning' || state === 'ready';
-      this._coachingBillboard.setVisible(showBillboard);
+  _syncSurfaceSessionUi(placed) {
+    if (this._trackingMode !== 'surface') return;
+
+    this._ui.watermark?.classList.toggle('visible', placed);
+    this._ui.hubToggle?.el?.classList.toggle('visible', placed);
+
+    if (!placed) {
+      this._ui.linkOverlay?.hide();
     }
   }
 
@@ -280,8 +284,8 @@ export class ARExperience {
   }
 
   _onSurfaceHitVisibilityChange(visible) {
-    this._setSurfacePlaceHintVisible(visible);
     if (this._surfaceSession?.placed) return;
+    this._setSurfacePlaceHintVisible(false);
     this._showSurfaceCoaching(visible ? 'ready' : 'scanning');
   }
 
@@ -474,9 +478,6 @@ export class ARExperience {
     this._surfaceReticle = createPlacementReticle(THREE);
     scene.add(this._surfaceReticle);
 
-    this._coachingBillboard = createSurfaceCoachingBillboard(THREE);
-    scene.add(this._coachingBillboard.group);
-
     this._initSurfaceCoaching();
 
     updateLoadingProgress(100, 'Ready!');
@@ -490,15 +491,6 @@ export class ARExperience {
   }
 
   _animateSurfaceFrame(now, renderer) {
-    const cam = renderer.xr.getCamera();
-
-    if (
-      this._coachingBillboard?.group.visible
-      && !this._surfaceSession?.placed
-    ) {
-      this._coachingBillboard.update(now ?? performance.now(), cam);
-    }
-
     if (this._plane.visible && this._surfaceSession?.placed) {
       const sc = this._scratch;
       const cam = renderer.xr.getCamera();
@@ -538,7 +530,6 @@ export class ARExperience {
   _onSurfacePlaced() {
     this._setSurfacePlaceHintVisible(false);
     this._showSurfaceCoaching('placed');
-    this._coachingBillboard?.setVisible(false);
     this._onTargetFound();
   }
 
@@ -784,6 +775,11 @@ export class ARExperience {
       <span>Powered by Phygital</span>
     `;
     uxRoot.appendChild(watermark);
+    if (this._trackingMode === 'surface') {
+      watermark.classList.remove('visible');
+    } else {
+      watermark.classList.add('visible');
+    }
 
     this._ui.controls  = controls;
     this._ui.btnPlay   = btnPlay;
@@ -832,6 +828,9 @@ export class ARExperience {
         if (this._ui.hubToggle?.el) overlay.appendChild(this._ui.hubToggle.el);
         if (this._ui.linkOverlay?.dock) overlay.appendChild(this._ui.linkOverlay.dock);
       }
+      this._syncSurfaceSessionUi(false);
+    } else {
+      this._ui.hubToggle?.el?.classList.add('visible');
     }
   }
 
@@ -952,6 +951,10 @@ export class ARExperience {
 
     // Reveal the controls overlay (after the entrance has started)
     this._ui.controls?.classList.add('visible');
+    this._syncSurfaceSessionUi(true);
+    if (this._trackingMode !== 'surface') {
+      this._ui.hubToggle?.el?.classList.add('visible');
+    }
   }
 
   _onTargetLost() {
@@ -966,6 +969,7 @@ export class ARExperience {
   _prepareForRescan() {
     if (this._trackingMode === 'surface') {
       this._setScanningOverlayVisible(false);
+      this._syncSurfaceSessionUi(false);
       if (!this._surfaceSession?.placed) {
         this._showSurfaceCoaching('starting');
       }
@@ -1330,9 +1334,7 @@ export class ARExperience {
     this._effect?.dispose();
 
     this._coaching?.destroy();
-    this._coachingBillboard?.dispose();
     this._coaching = null;
-    this._coachingBillboard = null;
 
     // Remove DOM overlays
     this._ui.linkOverlay?.destroy();

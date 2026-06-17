@@ -23,7 +23,6 @@ export const buildHubToggle = (hubPageUrl, onBeforeLeave) => {
   const btn = document.createElement('a');
   btn.id = 'ar-hub-toggle';
   btn.href = hubPageUrl;
-  btn.className = 'visible';
   btn.setAttribute('aria-label', 'View profile hub');
   btn.innerHTML = `${HUB_ICON_SVG}<span>View profile hub</span>`;
 
