@@ -23,6 +23,8 @@ import PoweredByPhygitalFooter from '../components/hub/PoweredByPhygitalFooter';
 import ArExperienceLinkDock from '../components/ar/ArExperienceLinkDock';
 import SurfaceArHost from '../components/ar/SurfaceArHost';
 import { getArExperienceCopy } from '../constants/arExperienceCopy';
+import { SURFACE_AR_IOS_VISITOR_NOTICE } from '../constants/surfaceArIosCopy';
+import { isIOSDevice } from '../utils/platform';
 import { createSurfaceArShell, removeSurfaceArShell } from '../ar/surfaceArShell.js';
 import { bootEmbeddedSurfaceAr } from '../ar/launchSurfaceAr.js';
 import { resolveSurfaceArBackend } from '@ar-engine/utils/surfaceCapability.js';
@@ -115,11 +117,18 @@ const ARExperiencePage = () => {
   }, [campaignId]);
 
   const imageTargetOn = campaign?.requiresImageTarget !== false;
+  const iosSurfaceBlocked = !imageTargetOn && isIOSDevice();
 
   useEffect(() => {
     if (!campaign || imageTargetOn) {
       setSurfaceArSupported(null);
       setSurfaceBackend(null);
+      setEighthWallReady(false);
+      return;
+    }
+    if (iosSurfaceBlocked) {
+      setSurfaceBackend('unsupported');
+      setSurfaceArSupported(false);
       setEighthWallReady(false);
       return;
     }
@@ -134,10 +143,11 @@ const ARExperiencePage = () => {
         setEighthWallReady(true);
       }
     });
-  }, [campaign, imageTargetOn]);
+  }, [campaign, imageTargetOn, iosSurfaceBlocked]);
 
   const handleLaunchAR = () => {
     if (!imageTargetOn) {
+      if (iosSurfaceBlocked) return;
       setSurfaceArError('');
       setLaunching(true);
 
@@ -242,7 +252,11 @@ const ARExperiencePage = () => {
     text,
   }));
 
-  const surfaceLaunchBlocked = !imageTargetOn && surfaceArSupported === false;
+  const surfaceLaunchBlocked = iosSurfaceBlocked
+    || (!imageTargetOn && surfaceArSupported === false);
+  const surfaceBlockedMessage = iosSurfaceBlocked
+    ? SURFACE_AR_IOS_VISITOR_NOTICE.body
+    : 'Surface AR needs a phone with a camera. Open this link on your mobile device.';
   const surfaceEnginePreparing = !imageTargetOn
     && surfaceBackend === 'eighthwall-slam'
     && !eighthWallReady;
@@ -435,6 +449,19 @@ const ARExperiencePage = () => {
 
         {/* How it works */}
         <section className="mt-4 px-0.5">
+          {iosSurfaceBlocked && (
+            <div
+              className="mb-3 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3.5 py-3 text-left"
+              role="status"
+            >
+              <p className="text-sm font-semibold text-amber-100">
+                {SURFACE_AR_IOS_VISITOR_NOTICE.title}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-amber-100/80">
+                {SURFACE_AR_IOS_VISITOR_NOTICE.body}
+              </p>
+            </div>
+          )}
           <p className="mb-2 text-left text-[10px] font-semibold uppercase tracking-[0.14em] text-white/35">
             How it works
           </p>
@@ -465,7 +492,7 @@ const ARExperiencePage = () => {
             )}
             {surfaceLaunchBlocked && (
               <p className="mb-2 text-center text-xs text-amber-200/80">
-                Surface AR needs a phone with a camera. Open this link on your mobile device.
+                {surfaceBlockedMessage}
               </p>
             )}
             {actionStack}
@@ -497,7 +524,7 @@ const ARExperiencePage = () => {
             )}
             {surfaceLaunchBlocked && (
               <p className="mb-2 text-center text-xs text-amber-200/80">
-                Surface AR needs a phone with a camera. Open this link on your mobile device.
+                {surfaceBlockedMessage}
               </p>
             )}
             {actionStack}

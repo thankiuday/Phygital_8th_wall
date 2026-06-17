@@ -14,6 +14,7 @@ import { loadCampaign, recordScan } from './services/campaignLoader.js';
 import { ARExperience } from './experience/ARExperience.js';
 import { updateLoadingProgress, showError } from './utils/loadingScreen.js';
 import { getLoadingHint } from './utils/arTargetCopy.js';
+import { isSurfaceArBlockedOnIos } from './utils/surfaceCapability.js';
 import {
   createArSessionId,
   registerReturnReloadHandlers,
@@ -59,6 +60,14 @@ const init = async () => {
 
   if (!campaign.videoUrl) {
     showError('Campaign is incomplete.', 'Video is missing.');
+    return;
+  }
+
+  if (campaign.requiresImageTarget === false && isSurfaceArBlockedOnIos()) {
+    showError(
+      'Coming soon on iOS',
+      'This experience uses surface placement (no printed marker), which is not available on iPhone or iPad yet. Please try on an Android device, or ask the host to turn image target back on.',
+    );
     return;
   }
 

@@ -69,7 +69,7 @@ import {
   checkWebXrArSupported,
   requestSurfaceSession,
 } from '../utils/webxr.js';
-import { resolveSurfaceArBackend } from '../utils/surfaceCapability.js';
+import { resolveSurfaceArBackend, isSurfaceArBlockedOnIos } from '../utils/surfaceCapability.js';
 import { createSurfaceCoachingOverlay } from './surfaceCoachingOverlay.js';
 import {
   markReturnReload,
@@ -460,10 +460,13 @@ export class ARExperience {
       this._surfaceBackend = await resolveSurfaceArBackend();
     }
 
-    if (this._surfaceBackend === 'unsupported') {
+    if (this._surfaceBackend === 'unsupported' || isSurfaceArBlockedOnIos()) {
+      const iosBlocked = isSurfaceArBlockedOnIos();
       showError(
-        'Surface mode unavailable',
-        'Surface AR needs a phone with a camera. Turn Image target back on in your dashboard, or open this experience on a supported mobile device.'
+        iosBlocked ? 'Coming soon on iOS' : 'Surface mode unavailable',
+        iosBlocked
+          ? 'This experience uses surface placement (no printed marker), which is not available on iPhone or iPad yet. Please try on an Android device, or ask the host to turn image target back on.'
+          : 'Surface AR needs a phone with a camera. Turn Image target back on in your dashboard, or open this experience on a supported mobile device.',
       );
       return;
     }
