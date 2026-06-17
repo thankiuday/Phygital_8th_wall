@@ -39,12 +39,24 @@ export function validateLinkRows(linkRows) {
 
 /** PATCH/create body items — include linkId only when editing an existing row. */
 export function rowsToApiLinkItems(linkRows, { omitLinkIds = false } = {}) {
-  return linkRows.map((r) => ({
-    ...(!omitLinkIds && r.linkId ? { linkId: r.linkId } : {}),
-    kind: r.kind,
-    label: (r.kind === 'custom' ? r.label.trim() : r.label).slice(0, 80),
-    value: r.value.trim().slice(0, 500),
-  }));
+  return linkRows.map((r) => {
+    const item = {
+      ...(!omitLinkIds && r.linkId ? { linkId: r.linkId } : {}),
+      kind: r.kind,
+      label: (r.kind === 'custom' ? r.label.trim() : r.label).slice(0, 80),
+      value: r.value.trim().slice(0, 500),
+    };
+    if (r.kind === 'custom') {
+      if (r.logoUrl && r.logoPublicId) {
+        item.logoUrl = r.logoUrl;
+        item.logoPublicId = r.logoPublicId;
+      } else {
+        item.logoUrl = null;
+        item.logoPublicId = null;
+      }
+    }
+    return item;
+  });
 }
 
 /** Hydrate editor state from GET /campaigns/:id linkItems. */
@@ -55,6 +67,8 @@ export function campaignLinkItemsToRows(linkItems) {
     kind: it.kind,
     label: it.label,
     value: it.value,
+    ...(it.logoUrl ? { logoUrl: it.logoUrl } : {}),
+    ...(it.logoPublicId ? { logoPublicId: it.logoPublicId } : {}),
   }));
 }
 

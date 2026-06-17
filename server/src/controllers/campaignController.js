@@ -111,6 +111,11 @@ const createArCardCampaign = async (req, res) => {
     persistLinkItems: persistLinkItemsFromBody,
   });
 
+  const logoIds = collectLinkLogoPublicIds(campaign.linkItems);
+  if (logoIds.length) {
+    claimUploadedDraftAssets({ image: logoIds }).catch(() => {});
+  }
+
   return created(res, { campaign }, 'Campaign created successfully');
 };
 
@@ -158,6 +163,58 @@ const createSingleLinkCampaign = async (req, res) => {
   return created(res, { campaign }, 'Single Link QR campaign created successfully');
 };
 
+const trimLinkLogoField = (v) => {
+  if (typeof v !== 'string') return null;
+  const t = v.trim();
+  return t.length ? t : null;
+};
+
+const attachLinkLogoFields = (row, item) => {
+  if (item.kind !== 'custom') return row;
+  const logoUrl = trimLinkLogoField(item.logoUrl);
+  const logoPublicId = trimLinkLogoField(item.logoPublicId);
+  if (logoUrl && logoPublicId) {
+    row.logoUrl = logoUrl;
+    row.logoPublicId = logoPublicId;
+  } else if (
+    Object.prototype.hasOwnProperty.call(item, 'logoUrl')
+    || Object.prototype.hasOwnProperty.call(item, 'logoPublicId')
+  ) {
+    row.logoUrl = null;
+    row.logoPublicId = null;
+  }
+  return row;
+};
+
+const collectLinkLogoPublicIds = (items) =>
+  (items || [])
+    .map((it) => it.logoPublicId)
+    .filter(Boolean);
+
+const cleanupReplacedLinkLogos = (existingItems, incomingItems) => {
+  const existingById = new Map((existingItems || []).map((it) => [it.linkId, it]));
+  const incomingIds = new Set();
+
+  for (const item of incomingItems || []) {
+    const claimed = typeof item.linkId === 'string' ? item.linkId.trim() : '';
+    if (claimed) incomingIds.add(claimed);
+    if (!claimed || !existingById.has(claimed)) continue;
+
+    const old = existingById.get(claimed);
+    const newId = trimLinkLogoField(item.logoPublicId);
+    const oldId = old.logoPublicId || null;
+    if (oldId && oldId !== newId) {
+      deleteCloudinaryAsset(oldId, 'image').catch(() => {});
+    }
+  }
+
+  for (const old of existingItems || []) {
+    if (!incomingIds.has(old.linkId) && old.logoPublicId) {
+      deleteCloudinaryAsset(old.logoPublicId, 'image').catch(() => {});
+    }
+  }
+};
+
 const persistLinkItemsFromBody = async (linkItems) => {
   const { nanoid } = await import('nanoid');
   const persistedItems = [];
@@ -168,6 +225,7 @@ const persistLinkItemsFromBody = async (linkItems) => {
       label: item.label.trim(),
       value: item.value.trim(),
     };
+    attachLinkLogoFields(row, item);
     resolveLinkHref(row.kind, row.value);
     persistedItems.push(row);
   }
@@ -201,7 +259,9 @@ const mergeLinkItemsForUpdate = async (existingItems, incomingItems) => {
       }
     }
     assigned.add(linkId);
-    merged.push({ linkId, kind: item.kind, label, value });
+    const row = { linkId, kind: item.kind, label, value };
+    attachLinkLogoFields(row, item);
+    merged.push(row);
   }
 
   return merged;
@@ -258,6 +318,11 @@ const createMultipleLinksCampaign = async (req, res) => {
     preciseGeoAnalytics: !!preciseGeoAnalytics,
     status: 'active',
   });
+
+  const logoIds = collectLinkLogoPublicIds(persistedItems);
+  if (logoIds.length) {
+    claimUploadedDraftAssets({ image: logoIds }).catch(() => {});
+  }
 
   return created(res, { campaign }, 'Multiple Links QR campaign created successfully');
 };
@@ -459,9 +524,14 @@ const createLinksDocVideoCampaign = async (req, res) => {
   if (uploadVideoPublicIds.length || uploadImageDocPublicIds.length || uploadRawDocPublicIds.length) {
     claimUploadedDraftAssets({
       video: uploadVideoPublicIds,
-      image: uploadImageDocPublicIds,
+      image: [...uploadImageDocPublicIds, ...collectLinkLogoPublicIds(persistedLinks)],
       raw: uploadRawDocPublicIds,
     }).catch(() => {});
+  } else {
+    const logoIds = collectLinkLogoPublicIds(persistedLinks);
+    if (logoIds.length) {
+      claimUploadedDraftAssets({ image: logoIds }).catch(() => {});
+    }
   }
 
   return created(res, { campaign }, 'Links + Doc + Video QR campaign created successfully');
@@ -847,6 +917,10 @@ const createLinksVideoCampaign = async (req, res) => {
   if (videoSource === 'upload' && videoPublicId) {
     claimUploadedDraftAssets({ video: [videoPublicId] }).catch(() => {});
   }
+  const logoIds = collectLinkLogoPublicIds(persistedItems);
+  if (logoIds.length) {
+    claimUploadedDraftAssets({ image: logoIds }).catch(() => {});
+  }
 
   return created(res, { campaign }, 'Links + Video QR campaign created successfully');
 };
@@ -1028,6 +1102,7 @@ const updateCampaign = async (req, res) => {
 
   const applyLinkItemsMerge = async () => {
     if (linkItems === undefined) return;
+    cleanupReplacedLinkLogos(existing.linkItems, linkItems);
     const merged = await mergeLinkItemsForUpdate(existing.linkItems, linkItems);
     updates.linkItems = merged;
     updates['analytics.linkClickTotals'] = pruneLinkClickTotals(
@@ -1384,6 +1459,9 @@ const duplicateCampaign = async (req, res) => {
       kind: it.kind,
       label: it.label,
       value: it.value,
+      ...(it.logoUrl && it.logoPublicId
+        ? { logoUrl: it.logoUrl, logoPublicId: it.logoPublicId }
+        : {}),
     }));
     const copy = await Campaign.create({
       userId: original.userId,
@@ -1410,6 +1488,9 @@ const duplicateCampaign = async (req, res) => {
       kind: it.kind,
       label: it.label,
       value: it.value,
+      ...(it.logoUrl && it.logoPublicId
+        ? { logoUrl: it.logoUrl, logoPublicId: it.logoPublicId }
+        : {}),
     }));
     const copy = await Campaign.create({
       userId: original.userId,
@@ -1468,6 +1549,9 @@ const duplicateCampaign = async (req, res) => {
       kind: it.kind,
       label: it.label,
       value: it.value,
+      ...(it.logoUrl && it.logoPublicId
+        ? { logoUrl: it.logoUrl, logoPublicId: it.logoPublicId }
+        : {}),
     }));
     // Asset rows keep their Cloudinary URLs / publicIds — duplicating shares
     // storage; deleting the duplicate later won't try to remove the same

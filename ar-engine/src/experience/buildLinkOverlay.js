@@ -31,7 +31,19 @@ const createLinkButton = (link, redirectSlug, onBeforeLeave) => {
   btn.setAttribute('aria-label', link.label || kind);
   btn.style.background = accent.bg;
   btn.style.color = accent.color;
-  btn.innerHTML = getLinkIconSvg(kind);
+
+  if (kind === 'custom' && link.logoUrl) {
+    btn.style.background = 'transparent';
+    const img = document.createElement('img');
+    img.src = link.logoUrl;
+    img.alt = '';
+    img.className = 'ar-link-logo';
+    img.setAttribute('aria-hidden', 'true');
+    btn.appendChild(img);
+  } else {
+    btn.innerHTML = getLinkIconSvg(kind);
+  }
+
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     if (redirectSlug && link.linkId) {

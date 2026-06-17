@@ -1,9 +1,8 @@
 import { useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Link2 } from 'lucide-react';
 import publicApi from '../../services/publicApi';
 import { getVisitorHashForCampaign } from '../../utils/visitorHash';
-import { HUB_LINK_KIND_ICONS } from '../hub/HubLinkButton';
+import LinkIconCircle from '../hub/LinkIconCircle';
 
 const STAGGER_SEC = 0.3;
 
@@ -69,7 +68,7 @@ const ArExperienceLinkDock = ({ links = [], redirectSlug, className = '' }) => {
       >
         {links.map((link, index) => {
           const kind = link.kind || 'custom';
-          const Icon = HUB_LINK_KIND_ICONS[kind] || Link2;
+          const hasCustomLogo = kind === 'custom' && link.logoUrl;
           const accent = KIND_ACCENT[kind] || KIND_ACCENT.custom;
 
           return (
@@ -86,9 +85,15 @@ const ArExperienceLinkDock = ({ links = [], redirectSlug, className = '' }) => {
               whileTap={{ scale: 0.92 }}
               onClick={() => onActivate(link)}
               aria-label={link.label || kind}
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ring-1 ${accent}`}
+              className={`flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ${
+                hasCustomLogo ? '' : accent
+              }`}
             >
-              <Icon className="h-5 w-5" aria-hidden />
+              <LinkIconCircle
+                link={link}
+                size={44}
+                className={hasCustomLogo ? 'h-full w-full' : 'h-5 w-5'}
+              />
             </motion.button>
           );
         })}

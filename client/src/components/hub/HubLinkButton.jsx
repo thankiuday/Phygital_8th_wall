@@ -13,6 +13,7 @@ import {
   ExternalLink,
   ChevronRight,
 } from 'lucide-react';
+import LinkIconCircle from './LinkIconCircle';
 
 export const HUB_LINK_KIND_ICONS = {
   contact: Phone,
@@ -48,6 +49,7 @@ const usesExternalIcon = (kind) => kind === 'website' || kind === 'custom';
  */
 const HubLinkButton = ({ link, onActivate, index = 0 }) => {
   const kind = link.kind || 'custom';
+  const hasCustomLogo = kind === 'custom' && link.logoUrl;
   const Icon = HUB_LINK_KIND_ICONS[kind] || Link2;
   const accent = KIND_ACCENT[kind] || KIND_ACCENT.custom;
   const TrailingIcon = usesExternalIcon(kind) ? ExternalLink : ChevronRight;
@@ -64,9 +66,15 @@ const HubLinkButton = ({ link, onActivate, index = 0 }) => {
         className="flex w-full min-h-[52px] items-center gap-3 rounded-2xl border border-[var(--border-color)] bg-[var(--surface-1)] px-4 py-3.5 text-left shadow-sm transition-all duration-200 hover:border-brand-500/40 hover:bg-[var(--surface-2)] hover:shadow-md active:scale-[0.98] md:min-h-[56px] md:px-5 md:py-4"
       >
         <span
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl md:h-12 md:w-12 ${accent}`}
+          className={`flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden md:h-12 md:w-12 ${
+            hasCustomLogo ? 'rounded-full' : `rounded-xl ${accent}`
+          }`}
         >
-          <Icon className="h-5 w-5 md:h-[22px] md:w-[22px]" aria-hidden />
+          {hasCustomLogo ? (
+            <LinkIconCircle link={link} size={48} className="h-full w-full" />
+          ) : (
+            <Icon className="h-5 w-5 md:h-[22px] md:w-[22px]" aria-hidden />
+          )}
         </span>
         <span className="min-w-0 flex-1 font-medium text-[var(--text-primary)] md:text-base">
           {link.label}

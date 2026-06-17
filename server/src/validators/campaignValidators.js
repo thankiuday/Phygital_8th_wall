@@ -203,6 +203,8 @@ const linkItemObjectSchema = z
     kind: linkKindEnum,
     label: z.string().trim().min(1, 'label is required').max(80),
     value: z.string().trim().min(1, 'value is required').max(500),
+    logoUrl: z.string().url().max(2048).optional().nullable(),
+    logoPublicId: z.string().min(1).max(512).optional().nullable(),
   })
   .strict();
 

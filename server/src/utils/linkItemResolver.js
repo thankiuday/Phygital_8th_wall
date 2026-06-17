@@ -101,6 +101,7 @@ const toPublicLinkList = (items) => {
         kind: it.kind,
         label: String(it.label || it.kind).slice(0, 80),
         href,
+        ...(it.logoUrl ? { logoUrl: it.logoUrl } : {}),
       });
     } catch {
       /* skip malformed rows — should not happen if validated on write */

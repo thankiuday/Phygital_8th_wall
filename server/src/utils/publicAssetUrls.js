@@ -73,6 +73,16 @@ const enrichPublicAssetUrls = async (payload) => {
     );
   }
 
+  if (Array.isArray(out.linkItems)) {
+    out.linkItems = await Promise.all(
+      out.linkItems.map(async (item) => {
+        const li = { ...item };
+        await signField(li, 'logoUrl');
+        return li;
+      })
+    );
+  }
+
   return out;
 };
 

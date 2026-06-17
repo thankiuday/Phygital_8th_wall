@@ -199,6 +199,8 @@ const campaignSchema = new mongoose.Schema(
           kind: { type: String, required: true },
           label: { type: String, required: true, maxlength: 80 },
           value: { type: String, required: true, maxlength: 500 },
+          logoUrl: { type: String, default: null },
+          logoPublicId: { type: String, default: null },
         },
       ],
       default: undefined,

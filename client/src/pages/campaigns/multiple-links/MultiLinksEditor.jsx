@@ -13,6 +13,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import FormInput from '../../../components/ui/FormInput';
+import LinkLogoUpload from '../../../components/campaigns/LinkLogoUpload';
 import { newRowKey } from './multiLinkFormUtils';
 
 export const MULTI_LINK_PRESETS = [
@@ -30,7 +31,7 @@ export const MULTI_LINK_PRESETS = [
 /**
  * Link list UI — presets, per-row fields, add custom. Controlled via rows / onRowsChange.
  *
- * Row shape: { key, linkId?, kind, label, value }
+ * Row shape: { key, linkId?, kind, label, value, logoUrl?, logoPublicId?, logoPreview? }
  */
 const MultiLinksEditor = ({ rows, onRowsChange, error }) => {
   const kindsInUse = useMemo(() => new Set(rows.map((r) => r.kind)), [rows]);
@@ -122,6 +123,12 @@ const MultiLinksEditor = ({ rows, onRowsChange, error }) => {
                     value={row.label}
                     onChange={(e) => updateRow(row.key, { label: e.target.value })}
                     placeholder="e.g. My portfolio"
+                  />
+                )}
+                {row.kind === 'custom' && (
+                  <LinkLogoUpload
+                    row={row}
+                    onChange={(patch) => updateRow(row.key, patch)}
                   />
                 )}
                 <FormInput
