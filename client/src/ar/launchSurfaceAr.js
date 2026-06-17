@@ -12,6 +12,7 @@ export const bootEmbeddedSurfaceAr = async ({
   campaign,
   sessionId,
   sessionPromise,
+  surfaceBackend,
   onError,
 }) => {
   window.gsap = gsap;
@@ -26,9 +27,11 @@ export const bootEmbeddedSurfaceAr = async ({
   try {
     registerReturnReloadHandlers(campaign._id, sessionId);
 
-    const [{ ARExperience }, THREE] = await Promise.all([
+    const [{ ARExperience }, threeModule] = await Promise.all([
       import('@ar-engine/experience/ARExperience.js'),
-      import('three-ar'),
+      surfaceBackend === 'eighthwall-slam'
+        ? Promise.resolve(null)
+        : import('three-ar'),
     ]);
 
     const experience = new ARExperience({
@@ -39,7 +42,11 @@ export const bootEmbeddedSurfaceAr = async ({
     });
 
     activeExperience = experience;
-    await experience.boot({ THREE, preSessionPromise: sessionPromise });
+    await experience.boot({
+      THREE: threeModule?.default || threeModule || undefined,
+      preSessionPromise: sessionPromise,
+      surfaceBackend,
+    });
     return experience;
   } catch (err) {
     onError?.(err?.message || 'Could not start surface AR.');

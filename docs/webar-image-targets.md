@@ -43,7 +43,7 @@ targets impossible without a backend compilation service**.
 
 | Platform | Open Source | Cost | Dynamic Targets | Notes |
 |---|---|---|---|---|
-| **8th Wall (Niantic)** | ❌ Closed SDK | $99/mo+ | ✅ Cloud API (paid) | Best tracking quality |
+| **8th Wall (Niantic)** | Binary SLAM + MIT framework | Free (self-hosted) | Image: pre-compiled targets | Best cross-browser SLAM on iOS |
 | **MindAR.js** | ✅ 100% open | Free | ✅ Browser runtime | Perfect for MVP |
 | **AR.js** | ✅ | Free | ❌ Pre-compiled only | Older, less accurate |
 | **Zappar** | Partial | Paid tier | ✅ | |
@@ -95,24 +95,15 @@ load time to <1s.
 
 ---
 
-## How to Upgrade to 8th Wall (When Budget Allows)
+## How to Upgrade to 8th Wall (surface mode on iOS)
 
-1. Sign up at https://www.8thwall.com/ — get an AppKey
-2. Replace MindARThree with 8th Wall's XR pipeline:
+As of 2026, 8th Wall is **free and self-hosted** at [8thwall.org](https://8thwall.org). Surface-only campaigns on iOS use the **Distributed Engine Binary** with the `slam` chunk for world tracking and tap-to-place.
 
-```html
-<!-- Replace MindAR CDN with 8th Wall -->
-<script async src="//apps.8thwall.com/xrweb?appKey=YOUR_KEY"></script>
-<script src="//cdn.8thwall.com/web/xrextras/xrextras.js"></script>
-```
+1. Install `@8thwall/engine-binary` and load it with `data-preload-chunks="slam"`.
+2. Use the Camera Pipeline Module API (`GlTextureRenderer`, `Threejs`, `XrController`).
+3. Include the required **Niantic Spatial copyright notice** in the AR experience when SLAM is active.
 
-3. Use 8th Wall's "Cloud Image Targets" API to upload each campaign's card image
-   and get back a compiled target database URL — store that URL on the Campaign
-   model as `targetDatabaseUrl`.
-
-4. Pass `targetDatabaseUrl` to the 8th Wall `imageTargets` pipeline.
-
-The rest of the Three.js scene (video plane, GSAP animations) is identical.
+Image-target mode still uses MindAR for runtime browser compilation. Migrating image targets to 8th Wall would require server-side target compilation (`.json` targets) per campaign.
 
 ---
 
@@ -131,12 +122,12 @@ The rest of the Three.js scene (video plane, GSAP animations) is identical.
 
 ## Surface mode (no printed marker)
 
-Campaigns can disable **Image target** (`requiresImageTarget: false`) in the dashboard. The AR engine then uses **WebXR immersive-ar** with **hit-test** plane detection instead of MindAR image tracking.
+Campaigns can disable **Image target** (`requiresImageTarget: false`) in the dashboard. The AR engine then uses markerless surface placement instead of MindAR image tracking.
 
 | Platform | Image target ON | Surface mode OFF |
 |---|---|---|
-| Android Chrome | Yes | WebXR AR + tap-to-place |
-| iOS Safari | Yes | Not supported — show fallback; use image target |
+| Android Chrome | MindAR | WebXR immersive-ar + hit-test tap-to-place |
+| iOS Safari / iPadOS | MindAR | 8th Wall SLAM + tap-to-place |
 | Desktop | Preview | Not supported |
 
-Surface mode skips MindAR target compilation (faster boot). Visitors tap **Start surface AR**, move the phone over a flat surface, then tap the placement indicator to play the hologram.
+Surface mode skips MindAR target compilation (faster boot). Visitors tap **Launch AR Experience**, point the phone at a flat surface, then tap the purple placement ring to play the hologram.

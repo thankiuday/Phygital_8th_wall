@@ -24,7 +24,8 @@ import ArExperienceLinkDock from '../components/ar/ArExperienceLinkDock';
 import SurfaceArHost from '../components/ar/SurfaceArHost';
 import { getArExperienceCopy } from '../constants/arExperienceCopy';
 import { createSurfaceArShell, removeSurfaceArShell } from '../ar/surfaceArShell.js';
-import { requestSurfaceSession, checkWebXrArSupported } from '@ar-engine/utils/webxr.js';
+import { resolveSurfaceArBackend } from '@ar-engine/utils/surfaceCapability.js';
+import { requestSurfaceSession } from '@ar-engine/utils/webxr.js';
 import { createArSessionId } from '@ar-engine/utils/arReturnReload.js';
 
 const STEP_ICONS_SURFACE = [ScanLine, Zap];
@@ -57,7 +58,8 @@ const ARExperiencePage = () => {
   const [error, setError] = useState('');
   const [launching, setLaunching] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [webXrSupported, setWebXrSupported] = useState(null);
+  const [surfaceArSupported, setSurfaceArSupported] = useState(null);
+  const [surfaceBackend, setSurfaceBackend] = useState(null);
   const [surfaceAr, setSurfaceAr] = useState(null);
   const [surfaceArError, setSurfaceArError] = useState('');
 
@@ -112,31 +114,55 @@ const ARExperiencePage = () => {
 
   useEffect(() => {
     if (!campaign || imageTargetOn) {
-      setWebXrSupported(null);
+      setSurfaceArSupported(null);
+      setSurfaceBackend(null);
       return;
     }
-    checkWebXrArSupported().then(setWebXrSupported);
+    resolveSurfaceArBackend().then((backend) => {
+      setSurfaceBackend(backend);
+      setSurfaceArSupported(backend === 'webxr' || backend === 'eighthwall-slam');
+    });
   }, [campaign, imageTargetOn]);
 
   const handleLaunchAR = () => {
     if (!imageTargetOn) {
       setSurfaceArError('');
       setLaunching(true);
+
+      if (surfaceBackend === 'unsupported') {
+        setLaunching(false);
+        setSurfaceArError('Surface AR is not supported on this device.');
+        return;
+      }
+
       try {
         const shell = createSurfaceArShell();
+        const backend = surfaceBackend || 'webxr';
+
+        if (backend === 'eighthwall-slam') {
+          setSurfaceAr({
+            campaign,
+            sessionId: createArSessionId(),
+            sessionPromise: null,
+            surfaceBackend: backend,
+          });
+          return;
+        }
+
         const sessionPromise = requestSurfaceSession(shell.domOverlay);
         sessionPromise.catch(() => {
           removeSurfaceArShell();
           setLaunching(false);
           setSurfaceAr(null);
           setSurfaceArError(
-            'Could not start surface AR. Use Chrome on Android and allow camera access.'
+            'Could not start surface AR. Allow camera access and try again on a supported device.'
           );
         });
         setSurfaceAr({
           campaign,
           sessionId: createArSessionId(),
           sessionPromise,
+          surfaceBackend: backend,
         });
       } catch {
         removeSurfaceArShell();
@@ -173,7 +199,7 @@ const ARExperiencePage = () => {
     text,
   }));
 
-  const surfaceLaunchBlocked = !imageTargetOn && webXrSupported === false;
+  const surfaceLaunchBlocked = !imageTargetOn && surfaceArSupported === false;
 
   const hubButton = hubHref ? (
     hubHref.startsWith('http') ? (
@@ -391,7 +417,7 @@ const ARExperiencePage = () => {
             )}
             {surfaceLaunchBlocked && (
               <p className="mb-2 text-center text-xs text-amber-200/80">
-                Surface AR needs Chrome on Android. Turn Image target on in your dashboard for other devices.
+                Surface AR needs a phone with a camera. Open this link on your mobile device.
               </p>
             )}
             {actionStack}
@@ -423,7 +449,7 @@ const ARExperiencePage = () => {
             )}
             {surfaceLaunchBlocked && (
               <p className="mb-2 text-center text-xs text-amber-200/80">
-                Surface AR needs Chrome on Android. Turn Image target on in your dashboard for other devices.
+                Surface AR needs a phone with a camera. Open this link on your mobile device.
               </p>
             )}
             {actionStack}
@@ -436,6 +462,7 @@ const ARExperiencePage = () => {
           campaign={surfaceAr.campaign}
           sessionId={surfaceAr.sessionId}
           sessionPromise={surfaceAr.sessionPromise}
+          surfaceBackend={surfaceAr.surfaceBackend}
           onClose={handleCloseSurfaceAr}
           onError={(msg) => {
             setSurfaceArError(msg);

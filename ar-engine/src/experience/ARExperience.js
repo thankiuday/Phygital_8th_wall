@@ -49,6 +49,7 @@
 
 import { startImageTargetSession } from './imageTargetSession.js';
 import { SurfaceTrackingSession, createPlacementReticle } from './surfaceTrackingSession.js';
+import { EighthWallSurfaceSession } from './eighthWallSurfaceSession.js';
 import { animateTargetFound, animateTargetLost, forceHidePlane } from './animations.js';
 import { createArEffect } from './effects/index.js';
 import { updateLoadingProgress, showError, hideLoading } from '../utils/loadingScreen.js';
@@ -67,6 +68,7 @@ import {
   checkWebXrArSupported,
   requestSurfaceSession,
 } from '../utils/webxr.js';
+import { resolveSurfaceArBackend } from '../utils/surfaceCapability.js';
 import { createSurfaceCoachingOverlay } from './surfaceCoachingOverlay.js';
 import {
   markReturnReload,
@@ -178,6 +180,7 @@ export class ARExperience {
     this._surfaceReticle  = null;
     this._surfaceScene     = null;
     this._surfaceStarting  = false;
+    this._surfaceBackend   = null;
   }
 
   _usesImageTarget() {
@@ -193,6 +196,9 @@ export class ARExperience {
 
   _getActiveCamera() {
     if (this._trackingMode === 'surface') {
+      if (this._surfaceBackend === 'eighthwall-slam') {
+        return window.XR8?.Threejs?.xrScene?.()?.camera || this._surfaceCamera;
+      }
       const renderer = this._mindarThree?.renderer;
       if (renderer?.xr?.isPresenting) {
         return renderer.xr.getCamera();
@@ -214,6 +220,12 @@ export class ARExperience {
 
   _onCoachingStartTap() {
     if (this._surfaceSession || this._surfaceStarting) return;
+
+    if (this._surfaceBackend === 'eighthwall-slam') {
+      this._showSurfaceCoaching('scanning');
+      this._startEighthWallSession();
+      return;
+    }
 
     const domOverlay = document.getElementById('ar-dom-overlay');
     const sessionPromise = requestSurfaceSession(domOverlay);
@@ -329,12 +341,17 @@ export class ARExperience {
   // ───────────────────────────────────────────────────────────────────────────
   // boot
   // ───────────────────────────────────────────────────────────────────────────
-  async boot({ THREE, preSessionPromise } = {}) {
+  async boot({ THREE, preSessionPromise, surfaceBackend } = {}) {
     const three = THREE || window.THREE;
-    if (!three) throw new Error('Three.js not found');
+    if (!three && surfaceBackend !== 'eighthwall-slam') {
+      throw new Error('Three.js not found');
+    }
 
     if (preSessionPromise) {
       this._preSessionPromise = preSessionPromise;
+    }
+    if (surfaceBackend) {
+      this._surfaceBackend = surfaceBackend;
     }
 
     this._bindLifecycle();
@@ -435,18 +452,38 @@ export class ARExperience {
     updateLoadingProgress(10, 'Preparing surface AR…');
     initGravityTracker();
 
-    const supported = await checkWebXrArSupported();
-    if (!supported) {
+    if (!this._surfaceBackend) {
+      this._surfaceBackend = await resolveSurfaceArBackend();
+    }
+
+    if (this._surfaceBackend === 'unsupported') {
       showError(
         'Surface mode unavailable',
-        'Surface AR needs WebXR on Android Chrome. Turn Image target back on in your dashboard, or open this experience on a supported device.'
+        'Surface AR needs a phone with a camera. Turn Image target back on in your dashboard, or open this experience on a supported mobile device.'
       );
       return;
     }
 
     this._trackingMode = 'surface';
-
     document.body.classList.add('ar-surface-active');
+
+    if (this._surfaceBackend === 'eighthwall-slam') {
+      await this._bootEighthWallSurfaceMode();
+      return;
+    }
+
+    await this._bootWebXrSurfaceMode(THREE);
+  }
+
+  async _bootWebXrSurfaceMode(THREE) {
+    const supported = await checkWebXrArSupported();
+    if (!supported) {
+      showError(
+        'Surface mode unavailable',
+        'WebXR is not available on this device. Try Chrome on Android or use an iPhone with surface mode.'
+      );
+      return;
+    }
 
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -492,21 +529,102 @@ export class ARExperience {
     }
   }
 
+  async _bootEighthWallSurfaceMode() {
+    this._initSurfaceCoaching();
+    updateLoadingProgress(40, 'Loading AR engine…');
+
+    try {
+      await this._startEighthWallSession();
+      updateLoadingProgress(100, 'Ready!');
+      hideLoading();
+      this._started = true;
+      if (!this._sessionStart) {
+        this._sessionStart = Date.now();
+      }
+    } catch {
+      showError(
+        'Could not start surface AR',
+        'Allow camera access and try again, or switch to Image target mode in your dashboard.'
+      );
+    }
+  }
+
+  async _startEighthWallSession() {
+    if (this._surfaceStarting) return;
+    if (this._surfaceSession) return;
+
+    this._surfaceStarting = true;
+
+    try {
+      this._surfaceSession = new EighthWallSurfaceSession({
+        container: this._container,
+        onPlaced: () => this._onSurfacePlaced(),
+        onRescan: () => this._onSurfaceRescan(),
+        onAnimate: (now) => this._animateEighthWallFrame(now),
+        onHitVisibilityChange: (visible) => this._onSurfaceHitVisibilityChange(visible),
+        onSceneReady: async ({ scene, camera, renderer, THREE }) => {
+          this._THREE = THREE;
+          this._surfaceScene = scene;
+          this._surfaceCamera = camera;
+          this._mindarThree = { renderer };
+          this._defaultPixelRatio = renderer.getPixelRatio?.()
+            ?? Math.min(window.devicePixelRatio, 2);
+
+          scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 2.5));
+          scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+
+          this._anchor = { group: new THREE.Group() };
+          this._buildScene(THREE, renderer);
+          this._anchor.group.add(this._plane);
+          if (this._effect) this._anchor.group.add(this._effect.group);
+
+          const reticle = createPlacementReticle(THREE);
+          this._surfaceReticle = reticle;
+
+          this._buildUx();
+          this._showSurfaceCoaching('scanning');
+
+          return {
+            anchorGroup: this._anchor.group,
+            reticle,
+          };
+        },
+      });
+
+      await this._surfaceSession.start();
+    } catch (err) {
+      this._surfaceSession = null;
+      throw err;
+    } finally {
+      this._surfaceStarting = false;
+    }
+  }
+
   _animateSurfaceFrame(now, renderer) {
     if (this._plane.visible && this._surfaceSession?.placed) {
       const sc = this._scratch;
       const cam = renderer.xr.getCamera();
-      cam.getWorldPosition(sc.camPos);
-      this._anchor.group.getWorldPosition(sc.anchorWorldPos);
-      sc.towardCam.subVectors(sc.camPos, sc.anchorWorldPos);
-      if (sc.towardCam.lengthSq() > 0.0001) {
-        sc.towardCam.normalize();
-        sc.billboardWorldQuat.setFromUnitVectors(sc.FWD, sc.towardCam);
-        sc.smoothBillboardQuat.slerp(sc.billboardWorldQuat, BILLBOARD_ALPHA);
-        this._anchor.group.getWorldQuaternion(sc.parentQuatInv);
-        sc.parentQuatInv.invert();
-        sc.parentQuatInv.multiply(sc.smoothBillboardQuat);
-        this._plane.quaternion.copy(sc.parentQuatInv);
+      this._billboardPlaneTowardCamera(cam, sc);
+    }
+
+    if (this._effect && this._targetVisible) {
+      this._effect.update(now ?? performance.now());
+    }
+
+    if (
+      this._videoTexture &&
+      this._videoEl?.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+    ) {
+      this._videoTexture.needsUpdate = true;
+    }
+  }
+
+  _animateEighthWallFrame(now) {
+    if (this._plane.visible && this._surfaceSession?.placed) {
+      const sc = this._scratch;
+      const cam = this._getActiveCamera();
+      if (cam) {
+        this._billboardPlaneTowardCamera(cam, sc);
       }
     }
 
@@ -519,6 +637,21 @@ export class ARExperience {
       this._videoEl?.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
     ) {
       this._videoTexture.needsUpdate = true;
+    }
+  }
+
+  _billboardPlaneTowardCamera(cam, sc) {
+    cam.getWorldPosition(sc.camPos);
+    this._anchor.group.getWorldPosition(sc.anchorWorldPos);
+    sc.towardCam.subVectors(sc.camPos, sc.anchorWorldPos);
+    if (sc.towardCam.lengthSq() > 0.0001) {
+      sc.towardCam.normalize();
+      sc.billboardWorldQuat.setFromUnitVectors(sc.FWD, sc.towardCam);
+      sc.smoothBillboardQuat.slerp(sc.billboardWorldQuat, BILLBOARD_ALPHA);
+      this._anchor.group.getWorldQuaternion(sc.parentQuatInv);
+      sc.parentQuatInv.invert();
+      sc.parentQuatInv.multiply(sc.smoothBillboardQuat);
+      this._plane.quaternion.copy(sc.parentQuatInv);
     }
   }
 
@@ -536,6 +669,13 @@ export class ARExperience {
   }
 
   _onSurfaceRescan() {
+    if (this._surfaceBackend === 'eighthwall-slam' && this._surfaceSession) {
+      this._surfaceSession.resetPlacement();
+      this._prepareForRescan();
+      this._showSurfaceCoaching('scanning');
+      return;
+    }
+
     this._surfaceSession = null;
     this._started = false;
     this._prepareForRescan();
@@ -838,6 +978,14 @@ export class ARExperience {
     } else {
       this._ui.hubToggle?.el?.classList.add('visible');
     }
+
+    if (this._surfaceBackend === 'eighthwall-slam') {
+      const notice = document.createElement('div');
+      notice.id = 'ar-xr-engine-notice';
+      notice.className = 'ar-xr-engine-notice';
+      notice.textContent = 'XR tracking © Niantic Spatial';
+      uxRoot.appendChild(notice);
+    }
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -1130,6 +1278,12 @@ export class ARExperience {
         this._prepareForRescan();
 
         if (this._trackingMode === 'surface') {
+          if (this._surfaceBackend === 'eighthwall-slam') {
+            this._sessionPaused = false;
+            this._showSurfaceCoaching('scanning');
+            await this._startEighthWallSession();
+            return;
+          }
           this._showSurfaceCoaching('starting');
           this._sessionPaused = false;
           this._started = false;

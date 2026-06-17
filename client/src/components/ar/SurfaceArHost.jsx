@@ -3,12 +3,13 @@ import { bootEmbeddedSurfaceAr, teardownEmbeddedSurfaceAr } from '../../ar/launc
 import '../../ar/surfaceArUi.css';
 
 /**
- * Fullscreen host for embedded surface WebXR launched from the landing page.
+ * Fullscreen host for embedded surface AR launched from the landing page.
  */
 const SurfaceArHost = ({
   campaign,
   sessionId,
   sessionPromise,
+  surfaceBackend,
   onClose,
   onError,
   onReady,
@@ -16,7 +17,10 @@ const SurfaceArHost = ({
   const bootedRef = useRef(false);
 
   useEffect(() => {
-    if (!campaign || !sessionPromise || bootedRef.current) return undefined;
+    const needsSession = surfaceBackend !== 'eighthwall-slam';
+    if (!campaign || bootedRef.current) return undefined;
+    if (needsSession && !sessionPromise) return undefined;
+
     bootedRef.current = true;
 
     let cancelled = false;
@@ -25,7 +29,8 @@ const SurfaceArHost = ({
       const experience = await bootEmbeddedSurfaceAr({
         campaign,
         sessionId,
-        sessionPromise,
+        sessionPromise: needsSession ? sessionPromise : null,
+        surfaceBackend,
         onError: (msg) => {
           if (!cancelled) onError?.(msg);
         },
@@ -38,7 +43,7 @@ const SurfaceArHost = ({
     return () => {
       cancelled = true;
     };
-  }, [campaign, sessionId, sessionPromise, onError, onReady]);
+  }, [campaign, sessionId, sessionPromise, surfaceBackend, onError, onReady]);
 
   useEffect(() => {
     const closeBtn = document.getElementById('surface-ar-close');
