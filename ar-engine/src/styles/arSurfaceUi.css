@@ -362,7 +362,8 @@ body.ar-surface-active {
   z-index: 46;
 }
 
-.ar-surface-coaching.ios-surface.state-ready .ar-surface-coaching-reticle {
+.ar-surface-coaching.ios-surface.state-ready .ar-surface-coaching-reticle,
+.ar-surface-coaching.ios-surface.state-scanning.ios-ready-latched .ar-surface-coaching-reticle {
   display: block;
 }
 
@@ -633,8 +634,11 @@ body.ar-surface-active {
   visibility: hidden;
   transition: opacity 0.15s ease;
   transform: translateZ(0);
+  transform-origin: 50% 100%;
   -webkit-transform: translateZ(0);
+  -webkit-transform-origin: 50% 100%;
   background: transparent;
+  will-change: left, top, width, height;
 }
 
 .ar-ew-dom-hologram.visible {

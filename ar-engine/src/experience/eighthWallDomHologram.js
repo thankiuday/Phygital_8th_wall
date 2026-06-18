@@ -1,15 +1,18 @@
 /**
  * eighthWallDomHologram — iOS 8th Wall hologram as a surface-anchored overlay.
- *
- * Uses a dedicated display <video> (always visible) plus an optional canvas for
- * side-by-side alpha. Projects the SLAM anchor each frame with a safe default
- * layout so the hologram is never zero-sized.
  */
 
-const PORTRAIT_ASPECT = 9 / 16;
-const DEFAULT_HEIGHT_RATIO = 0.58;
-const SIZE_GAIN = 1.22;
-const SMOOTH_ALPHA = 0.24;
+const DEFAULT_HEIGHT_RATIO = 0.72;
+/** Extra scale so DOM size matches Android WebXR perceived size on phone. */
+const DISPLAY_SCALE = 1.55;
+const MIN_VIEWPORT_HEIGHT_RATIO = 0.58;
+const MAX_VIEWPORT_HEIGHT_RATIO = 0.94;
+const POSITION_ALPHA = 0.11;
+const SIZE_ALPHA = 0.08;
+const MAX_POS_DELTA_PX = 20;
+const MAX_SIZE_DELTA_PX = 14;
+const HOLD_FRAMES_ON_MISS = 10;
+const COMPOSITE_EVERY_N_FRAMES = 2;
 
 const cloneVideoForDisplay = (sourceVideo) => {
   const v = document.createElement('video');
@@ -43,7 +46,13 @@ const getCameraVerticalFovRad = (camera) => {
   return (60 * Math.PI) / 180;
 };
 
-const tryCompositeSideBySide = (ctx, maskCtx, maskCanvas, videoEl, canvas) => {
+const clampStep = (current, target, maxStep) => {
+  const delta = target - current;
+  if (Math.abs(delta) <= maxStep) return target;
+  return current + Math.sign(delta) * maxStep;
+};
+
+const tryCompositeSideBySide = (ctx, maskCtx, videoEl, canvas) => {
   if (!videoEl || videoEl.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return false;
   const vw = videoEl.videoWidth;
   const vh = videoEl.videoHeight;
@@ -53,8 +62,8 @@ const tryCompositeSideBySide = (ctx, maskCtx, maskCanvas, videoEl, canvas) => {
   if (canvas.width !== hw || canvas.height !== vh) {
     canvas.width = hw;
     canvas.height = vh;
-    maskCanvas.width = hw;
-    maskCanvas.height = vh;
+    maskCtx.canvas.width = hw;
+    maskCtx.canvas.height = vh;
   }
 
   ctx.clearRect(0, 0, hw, vh);
@@ -76,6 +85,7 @@ const tryCompositeSideBySide = (ctx, maskCtx, maskCanvas, videoEl, canvas) => {
  * @param {{
  *   domRoot: HTMLElement,
  *   sourceVideoEl: HTMLVideoElement,
+ *   planeWidth: number,
  *   planeHeight: number,
  *   sideBySideAlpha?: boolean,
  * }} opts
@@ -83,10 +93,12 @@ const tryCompositeSideBySide = (ctx, maskCtx, maskCanvas, videoEl, canvas) => {
 export const createEighthWallDomHologram = ({
   domRoot,
   sourceVideoEl,
+  planeWidth,
   planeHeight,
   sideBySideAlpha = false,
 }) => {
   const host = document.getElementById('surface-ar-shell') || domRoot;
+  const planeAspect = planeWidth / planeHeight;
 
   const wrap = document.createElement('div');
   wrap.id = 'ar-ew-dom-hologram';
@@ -123,55 +135,57 @@ export const createEighthWallDomHologram = ({
 
   let active = false;
   let hasLayout = false;
-  let alphaCanvasReady = false;
+  let compositeTick = 0;
+  let displayPlayPromise = null;
+  let missFrames = 0;
+  let lastGoodLayout = null;
   const smooth = { left: 0, top: 0, width: 0, height: 0 };
 
   const scratch = {
-    bottom: null,
-    top: null,
-    localUp: null,
-    quat: null,
-    scale: null,
-    pos: null,
-    projectedBottom: null,
-    projectedTop: null,
+    localBL: null,
+    localBR: null,
+    localTL: null,
+    localTR: null,
+    world: null,
+    projected: null,
   };
 
-  const syncDisplayVideo = () => {
+  const mirrorPlaybackState = () => {
     if (!sourceVideoEl || !displayVideo) return;
+    displayVideo.muted = sourceVideoEl.muted;
+    displayVideo.loop = sourceVideoEl.loop;
     if (displayVideo.src !== sourceVideoEl.src) {
       displayVideo.src = sourceVideoEl.src;
     }
-    displayVideo.muted = sourceVideoEl.muted;
-    if (
-      sourceVideoEl.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
-      && Math.abs(displayVideo.currentTime - sourceVideoEl.currentTime) > 0.15
-    ) {
-      try {
-        displayVideo.currentTime = sourceVideoEl.currentTime;
-      } catch {
-        // ignore seek during startup
-      }
-    }
-    if (!sourceVideoEl.paused && displayVideo.paused) {
-      displayVideo.play().catch(() => {});
+    if (sourceVideoEl.paused) {
+      displayPlayPromise = null;
+      if (!displayVideo.paused) displayVideo.pause();
+    } else if (displayVideo.paused && !displayPlayPromise) {
+      displayPlayPromise = displayVideo.play()
+        .catch(() => {})
+        .finally(() => { displayPlayPromise = null; });
     }
   };
 
   const setAlphaMode = (useCanvas) => {
-    alphaCanvasReady = useCanvas;
     canvas.hidden = !useCanvas;
     displayVideo.style.opacity = useCanvas ? '0' : '1';
   };
 
-  const updateVideoFrame = () => {
-    syncDisplayVideo();
+  const updateVideoFrame = (forceComposite = false) => {
+    mirrorPlaybackState();
     if (!sideBySideAlpha) {
       setAlphaMode(false);
       return;
     }
+
+    compositeTick += 1;
+    if (!forceComposite && compositeTick % COMPOSITE_EVERY_N_FRAMES !== 0) {
+      return;
+    }
+
     try {
-      if (tryCompositeSideBySide(ctx, maskCtx, maskCanvas, sourceVideoEl, canvas)) {
+      if (tryCompositeSideBySide(ctx, maskCtx, sourceVideoEl, canvas)) {
         setAlphaMode(true);
       } else {
         setAlphaMode(false);
@@ -183,13 +197,13 @@ export const createEighthWallDomHologram = ({
 
   const applyLayout = (bottomX, bottomY, heightPx, immediate = false) => {
     const vp = getViewport();
-    let h = Math.max(vp.height * 0.38, heightPx * SIZE_GAIN);
-    h = Math.min(vp.height * 0.9, h);
-    let w = h * PORTRAIT_ASPECT;
-    const maxW = vp.width * 0.94;
+    let h = Math.max(vp.height * MIN_VIEWPORT_HEIGHT_RATIO, heightPx * DISPLAY_SCALE);
+    h = Math.min(vp.height * MAX_VIEWPORT_HEIGHT_RATIO, h);
+    let w = h * planeAspect;
+    const maxW = vp.width * 0.96;
     if (w > maxW) {
       w = maxW;
-      h = w / PORTRAIT_ASPECT;
+      h = w / planeAspect;
     }
 
     const targetLeft = bottomX - w / 2;
@@ -202,10 +216,20 @@ export const createEighthWallDomHologram = ({
       smooth.height = h;
       hasLayout = true;
     } else {
-      smooth.left += (targetLeft - smooth.left) * SMOOTH_ALPHA;
-      smooth.top += (targetTop - smooth.top) * SMOOTH_ALPHA;
-      smooth.width += (w - smooth.width) * SMOOTH_ALPHA;
-      smooth.height += (h - smooth.height) * SMOOTH_ALPHA;
+      let nextLeft = smooth.left + (targetLeft - smooth.left) * POSITION_ALPHA;
+      let nextTop = smooth.top + (targetTop - smooth.top) * POSITION_ALPHA;
+      let nextW = smooth.width + (w - smooth.width) * SIZE_ALPHA;
+      let nextH = smooth.height + (h - smooth.height) * SIZE_ALPHA;
+
+      nextLeft = clampStep(smooth.left, nextLeft, MAX_POS_DELTA_PX);
+      nextTop = clampStep(smooth.top, nextTop, MAX_POS_DELTA_PX);
+      nextW = clampStep(smooth.width, nextW, MAX_SIZE_DELTA_PX);
+      nextH = clampStep(smooth.height, nextH, MAX_SIZE_DELTA_PX);
+
+      smooth.left = nextLeft;
+      smooth.top = nextTop;
+      smooth.width = nextW;
+      smooth.height = nextH;
     }
 
     wrap.style.width = `${smooth.width}px`;
@@ -222,62 +246,117 @@ export const createEighthWallDomHologram = ({
     applyLayout(x, y, h, immediate);
   };
 
-  const applyTrackedLayout = (THREE, camera, anchorGroup) => {
-    if (!THREE || !camera || !anchorGroup) return false;
+  const holdOrDefault = (immediate = false) => {
+    if (lastGoodLayout) {
+      applyLayout(
+        lastGoodLayout.bottomX,
+        lastGoodLayout.bottomY,
+        lastGoodLayout.heightPx,
+        immediate,
+      );
+      return Boolean(lastGoodLayout);
+    }
+    applyDefaultLayout(immediate);
+    return false;
+  };
 
-    if (!scratch.bottom) {
-      scratch.bottom = new THREE.Vector3();
-      scratch.top = new THREE.Vector3();
-      scratch.localUp = new THREE.Vector3(0, 1, 0);
-      scratch.quat = new THREE.Quaternion();
-      scratch.scale = new THREE.Vector3();
-      scratch.pos = new THREE.Vector3();
-      scratch.projectedBottom = new THREE.Vector3();
-      scratch.projectedTop = new THREE.Vector3();
+  const projectPlaneScreenBounds = (THREE, camera, anchorGroup) => {
+    if (!THREE || !camera || !anchorGroup) return null;
+
+    if (!scratch.localBL) {
+      const halfW = planeWidth / 2;
+      scratch.localBL = new THREE.Vector3(-halfW, 0, 0);
+      scratch.localBR = new THREE.Vector3(halfW, 0, 0);
+      scratch.localTL = new THREE.Vector3(-halfW, planeHeight, 0);
+      scratch.localTR = new THREE.Vector3(halfW, planeHeight, 0);
+      scratch.world = new THREE.Vector3();
+      scratch.projected = new THREE.Vector3();
     }
 
     camera.updateMatrixWorld?.(true);
     anchorGroup.updateMatrixWorld?.(true);
 
-    scratch.bottom.setFromMatrixPosition(anchorGroup.matrixWorld);
-    anchorGroup.matrixWorld.decompose(scratch.pos, scratch.quat, scratch.scale);
-    scratch.top
-      .copy(scratch.localUp)
-      .applyQuaternion(scratch.quat)
-      .multiplyScalar(planeHeight)
-      .add(scratch.bottom);
+    const corners = [
+      scratch.localBL,
+      scratch.localBR,
+      scratch.localTL,
+      scratch.localTR,
+    ];
+    const vp = getViewport();
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    let valid = 0;
 
-    scratch.projectedBottom.copy(scratch.bottom).project(camera);
-    scratch.projectedTop.copy(scratch.top).project(camera);
+    for (const local of corners) {
+      scratch.world.copy(local).applyMatrix4(anchorGroup.matrixWorld);
+      scratch.projected.copy(scratch.world).project(camera);
+      if (scratch.projected.z > 1.05) continue;
+
+      const sx = vp.offsetLeft + (scratch.projected.x * 0.5 + 0.5) * vp.width;
+      const sy = vp.offsetTop + (-scratch.projected.y * 0.5 + 0.5) * vp.height;
+      if (!Number.isFinite(sx) || !Number.isFinite(sy)) continue;
+
+      minX = Math.min(minX, sx);
+      maxX = Math.max(maxX, sx);
+      minY = Math.min(minY, sy);
+      maxY = Math.max(maxY, sy);
+      valid += 1;
+    }
+
+    if (valid < 2) return null;
+
+    const bottomX = (minX + maxX) * 0.5;
+    const bottomY = maxY;
+    let heightPx = Math.max(16, maxY - minY);
+    if (!Number.isFinite(heightPx) || heightPx < 16) return null;
+
+    return { bottomX, bottomY, heightPx };
+  };
+
+  const applyTrackedLayout = (THREE, camera, anchorGroup) => {
+    const bounds = projectPlaneScreenBounds(THREE, camera, anchorGroup);
+
+    if (bounds) {
+      missFrames = 0;
+      lastGoodLayout = bounds;
+      applyLayout(bounds.bottomX, bounds.bottomY, bounds.heightPx, !hasLayout);
+      return true;
+    }
+
+    missFrames += 1;
+    if (missFrames <= HOLD_FRAMES_ON_MISS) {
+      return holdOrDefault(!hasLayout);
+    }
 
     const vp = getViewport();
-    const bottomX = vp.offsetLeft + (scratch.projectedBottom.x * 0.5 + 0.5) * vp.width;
-    const bottomY = vp.offsetTop + (-scratch.projectedBottom.y * 0.5 + 0.5) * vp.height;
-    const topY = vp.offsetTop + (-scratch.projectedTop.y * 0.5 + 0.5) * vp.height;
-
-    let heightPx = Math.abs(bottomY - topY);
-    if (!Number.isFinite(heightPx) || heightPx < 12) {
-      const dist = camera.position.distanceTo(scratch.bottom);
-      if (!Number.isFinite(dist) || dist < 0.08) {
-        applyDefaultLayout(false);
-        return false;
-      }
+    if (!scratch.world) {
+      scratch.world = new THREE.Vector3();
+      scratch.projected = new THREE.Vector3();
+    }
+    scratch.world.setFromMatrixPosition(anchorGroup.matrixWorld);
+    const dist = camera.position.distanceTo(scratch.world);
+    if (Number.isFinite(dist) && dist >= 0.08) {
       const vFov = getCameraVerticalFovRad(camera);
-      heightPx = ((planeHeight / dist) / Math.tan(vFov / 2)) * vp.height;
+      const heightPx = ((planeHeight / dist) / Math.tan(vFov / 2)) * vp.height;
+      scratch.projected.copy(scratch.world).project(camera);
+      const bottomX = vp.offsetLeft + (scratch.projected.x * 0.5 + 0.5) * vp.width;
+      const bottomY = vp.offsetTop + (-scratch.projected.y * 0.5 + 0.5) * vp.height;
+      if (Number.isFinite(bottomX) && Number.isFinite(bottomY) && scratch.projected.z <= 1.05) {
+        missFrames = 0;
+        lastGoodLayout = { bottomX, bottomY, heightPx };
+        applyLayout(bottomX, bottomY, heightPx, !hasLayout);
+        return true;
+      }
     }
 
-    if (scratch.projectedBottom.z > 1 && scratch.projectedTop.z > 1) {
-      applyDefaultLayout(false);
-      return false;
-    }
-
-    applyLayout(bottomX, bottomY, heightPx, !hasLayout);
-    return true;
+    return holdOrDefault(!hasLayout);
   };
 
   const reveal = () => {
     applyDefaultLayout(true);
-    updateVideoFrame();
+    updateVideoFrame(true);
     wrap.classList.add('visible');
     displayVideo.play().catch(() => {});
     sourceVideoEl.play?.().catch(() => {});
@@ -290,6 +369,9 @@ export const createEighthWallDomHologram = ({
     showAtScreen() {
       active = true;
       hasLayout = false;
+      missFrames = 0;
+      lastGoodLayout = null;
+      compositeTick = 0;
       reveal();
     },
 
@@ -300,14 +382,35 @@ export const createEighthWallDomHologram = ({
     hide() {
       active = false;
       hasLayout = false;
-      alphaCanvasReady = false;
+      missFrames = 0;
+      lastGoodLayout = null;
       wrap.classList.remove('visible');
       displayVideo.pause();
     },
 
+    setPlaying(shouldPlay) {
+      if (!active) return;
+      if (shouldPlay) {
+        try {
+          displayVideo.currentTime = sourceVideoEl.currentTime;
+        } catch {
+          // ignore seek errors on iOS
+        }
+        sourceVideoEl.play().then(() => {
+          displayVideo.play().catch(() => {});
+          updateVideoFrame(true);
+        }).catch(() => {});
+      } else {
+        sourceVideoEl.pause();
+        displayVideo.pause();
+        displayPlayPromise = null;
+      }
+    },
+
     syncFromSource() {
       if (!active) return;
-      updateVideoFrame();
+      mirrorPlaybackState();
+      updateVideoFrame(true);
     },
 
     update(THREE, camera, anchorGroup) {
@@ -318,7 +421,7 @@ export const createEighthWallDomHologram = ({
       if (THREE && camera && anchorGroup) {
         applyTrackedLayout(THREE, camera, anchorGroup);
       } else if (!hasLayout) {
-        applyDefaultLayout(false);
+        holdOrDefault(true);
       }
 
       wrap.classList.add('visible');
@@ -327,6 +430,8 @@ export const createEighthWallDomHologram = ({
     destroy() {
       active = false;
       hasLayout = false;
+      missFrames = 0;
+      lastGoodLayout = null;
       displayVideo.pause();
       displayVideo.removeAttribute('src');
       displayVideo.load();

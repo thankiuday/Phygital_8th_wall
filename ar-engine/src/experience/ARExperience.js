@@ -249,6 +249,19 @@ export class ARExperience {
   _showSurfaceCoaching(state) {
     this._initSurfaceCoaching();
     this._coaching?.setState(state);
+    this._syncIosCoachingLatch(state);
+  }
+
+  _syncIosCoachingLatch(state = this._coaching?.state) {
+    const root = this._coaching?.root;
+    if (!root || this._surfaceBackend !== 'eighthwall-slam') return;
+    const latched = Boolean(
+      this._surfaceSession?.readyLatched
+      && state !== 'placed'
+      && state !== 'hidden'
+      && state !== 'starting'
+    );
+    root.classList.toggle('ios-ready-latched', latched);
   }
 
   _syncSurfaceSessionUi(placed) {
@@ -318,16 +331,21 @@ export class ARExperience {
         clearTimeout(this._iosCoachingHideTimer);
         this._iosCoachingHideTimer = null;
       }
-      if (visible) {
+      if (visible || this._surfaceSession?.readyLatched) {
         this._showSurfaceCoaching('ready');
+        this._syncIosCoachingLatch('ready');
         return;
       }
       this._iosCoachingHideTimer = setTimeout(() => {
         this._iosCoachingHideTimer = null;
-        if (!this._surfaceSession?.placed && !this._surfaceSession?.hitVisible) {
+        if (
+          !this._surfaceSession?.placed
+          && !this._surfaceSession?.hitVisible
+          && !this._surfaceSession?.readyLatched
+        ) {
           this._showSurfaceCoaching('scanning');
         }
-      }, 450);
+      }, 900);
       return;
     }
 
@@ -1053,9 +1071,18 @@ export class ARExperience {
     this._videoEl.addEventListener('playing', onPlaying);
     this._videoEl.addEventListener('canplay', onCanPlay);
     this._videoEl.addEventListener('stalled', onStalled);
-    this._videoEl.addEventListener('play',    () => this._refreshPlayIcon());
-    this._videoEl.addEventListener('pause',   () => this._refreshPlayIcon());
-    this._videoEl.addEventListener('volumechange', () => this._refreshMuteIcon());
+    this._videoEl.addEventListener('play', () => {
+      this._refreshPlayIcon();
+      this._domHologram?.syncFromSource?.();
+    });
+    this._videoEl.addEventListener('pause', () => {
+      this._refreshPlayIcon();
+      this._domHologram?.syncFromSource?.();
+    });
+    this._videoEl.addEventListener('volumechange', () => {
+      this._refreshMuteIcon();
+      this._domHologram?.syncFromSource?.();
+    });
 
     this._ui._videoListeners = { onWaiting, onPlaying, onCanPlay, onStalled };
 
@@ -1592,10 +1619,24 @@ export class ARExperience {
   _togglePlayPause() {
     const v = this._videoEl;
     if (!v) return;
-    if (v.paused) {
-      v.play().catch(() => {});
+
+    const willPlay = v.paused || v.ended;
+    if (willPlay) {
+      v.play().then(() => {
+        this._domHologram?.setPlaying?.(true);
+        this._refreshPlayIcon();
+      }).catch(() => {
+        v.muted = true;
+        v.play().then(() => {
+          this._domHologram?.setPlaying?.(true);
+          this._refreshPlayIcon();
+          this._refreshMuteIcon();
+        }).catch(() => {});
+      });
     } else {
       v.pause();
+      this._domHologram?.setPlaying?.(false);
+      this._refreshPlayIcon();
     }
   }
 

@@ -21,11 +21,11 @@ import { getHitTestNormFromClient } from './surfaceHitUtils.js';
 
 const MIN_SCAN_BEFORE_READY_MS = 1500;
 const GROUND_FALLBACK_AFTER_MS = 2500;
-const MIN_STABLE_FEATURE_FRAMES = 4;
-const MIN_STABLE_GROUND_FRAMES = 8;
-const MISS_FRAMES_TO_HIDE = 14;
-const MISS_FRAMES_BEFORE_DECAY = 5;
-const POSE_CACHE_MS = 2000;
+const MIN_STABLE_FEATURE_FRAMES = 3;
+const MIN_STABLE_GROUND_FRAMES = 5;
+const MISS_FRAMES_TO_HIDE = 36;
+const MISS_FRAMES_BEFORE_DECAY = 12;
+const POSE_CACHE_MS = 5000;
 const MIN_PLACEMENT_DISTANCE = 0.2;
 const MAX_PLACEMENT_DISTANCE = 6;
 
@@ -174,6 +174,11 @@ export class EighthWallSurfaceSession {
     this._scratchMatrix = null;
     this._lastPlacementScreen = null;
     this._paused = false;
+    this._readyLatched = false;
+  }
+
+  get readyLatched() {
+    return this._readyLatched;
   }
 
   get lastPlacementScreen() {
@@ -427,11 +432,17 @@ export class EighthWallSurfaceSession {
 
       const placementReady = this._stableHitCount >= requiredStable;
 
-      if (placementReady && hit && inRange) {
-        const lifted = liftPlacementMatrix(window.THREE, hit.matrix);
+      if ((placementReady && hit && inRange) || this._readyLatched) {
+        if (placementReady && hit && inRange) {
+          this._readyLatched = true;
+          const lifted = liftPlacementMatrix(window.THREE, hit.matrix);
+          applyMatrixToReticle(this._reticle, lifted);
+          this._cachePose(lifted);
+        } else if (this._readyLatched && this._cachedPose && this._scratchMatrix) {
+          this._scratchMatrix.fromArray(this._cachedPose);
+          applyMatrixToReticle(this._reticle, this._scratchMatrix);
+        }
         this._reticle.visible = true;
-        applyMatrixToReticle(this._reticle, lifted);
-        this._cachePose(lifted);
         this._setHitVisible(true);
       } else if (this._missCount >= MISS_FRAMES_TO_HIDE) {
         this._reticle.visible = false;
@@ -451,13 +462,16 @@ export class EighthWallSurfaceSession {
       this._scanStartedAt = performance.now();
       this._stableHitCount = 0;
       this._missCount = 0;
+      this._readyLatched = false;
       return;
     }
     if (event.touches.length !== 1) return;
 
     const cacheFresh = this._cachedPose
       && (performance.now() - this._cachedPoseTs) < POSE_CACHE_MS;
-    const canPlace = this._reticle.visible || (this._hitVisible && cacheFresh);
+    const canPlace = this._reticle.visible
+      || this._readyLatched
+      || (this._hitVisible && cacheFresh);
     if (!canPlace) return;
 
     event.preventDefault();
@@ -513,6 +527,7 @@ export class EighthWallSurfaceSession {
     this._scanStartedAt = performance.now();
     this._cachedPose = null;
     this._lastPlacementScreen = null;
+    this._readyLatched = false;
     if (this._reticle) this._reticle.visible = false;
     if (this._anchorGroup) {
       resetGroupTransform(this._anchorGroup);
