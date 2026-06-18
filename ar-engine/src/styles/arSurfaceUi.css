@@ -623,6 +623,33 @@ body.ar-surface-active {
   z-index: 0;
 }
 
+/* ── iOS 8th Wall DOM hologram (screen-projected video) ───────────────── */
+.ar-ew-dom-hologram {
+  position: fixed;
+  z-index: 44;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+
+.ar-ew-dom-hologram.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.ar-ew-dom-hologram-video,
+.ar-ew-dom-hologram-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: transparent;
+}
+
 /* ── Buffer spinner ────────────────────────────────────────────────────── */
 #ar-buffer {
   position: fixed;

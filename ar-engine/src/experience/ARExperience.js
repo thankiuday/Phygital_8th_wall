@@ -81,6 +81,7 @@ import {
   billboardHologramTowardCameraWithScratch,
   createEighthWallCanvasVideoTexture,
 } from './eighthWallVideoSurface.js';
+import { createEighthWallDomHologram } from './eighthWallDomHologram.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Scene constants
@@ -136,6 +137,7 @@ export class ARExperience {
     this._videoEl      = null;
     this._videoTexture = null;
     this._eighthWallCanvasUpdate = null;
+    this._domHologram = null;
 
     // Scene meshes
     this._plane        = null;   // video quad (billboard quaternion each frame)
@@ -619,6 +621,14 @@ export class ARExperience {
 
         this._buildUx();
         this._configureEighthWallVideoPlane();
+        const domRoot = document.getElementById('ar-dom-overlay') || document.body;
+        this._domHologram = createEighthWallDomHologram({
+          domRoot,
+          videoEl: this._videoEl,
+          planeWidth: PLANE_WIDTH,
+          planeHeight: PLANE_HEIGHT,
+          sideBySideAlpha: this._iosShaderActive,
+        });
         this._showSurfaceCoaching('scanning');
 
         return {
@@ -670,22 +680,24 @@ export class ARExperience {
 
   _animateEighthWallFrame(now) {
     if (this._surfaceSession?.placed) {
-      const cam = this._getActiveCamera();
       const THREE = this._THREE || window.THREE;
-      if (cam && this._plane && THREE) {
+      const cam = this._getActiveCamera();
+      if (this._domHologram && THREE && cam && this._anchor?.group) {
+        this._domHologram.update(THREE, cam, this._anchor.group);
+      } else if (cam && this._plane && THREE) {
         if (this._plane.parent === this._surfaceScene) {
           billboardHologramTowardCameraWithScratch(THREE, this._plane, cam);
         } else {
           this._billboardPlaneTowardCamera(cam, this._scratch);
         }
-      }
-      if (this._eighthWallCanvasUpdate) {
-        this._eighthWallCanvasUpdate();
-      } else if (
-        this._videoTexture &&
-        this._videoEl?.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
-      ) {
-        this._videoTexture.needsUpdate = true;
+        if (this._eighthWallCanvasUpdate) {
+          this._eighthWallCanvasUpdate();
+        } else if (
+          this._videoTexture &&
+          this._videoEl?.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+        ) {
+          this._videoTexture.needsUpdate = true;
+        }
       }
     }
 
@@ -1195,13 +1207,20 @@ export class ARExperience {
 
     if (this._surfaceBackend === 'eighthwall-slam') {
       this._anchor?.group?.updateMatrixWorld?.(true);
-      attachHologramToScene(this._surfaceScene, this._plane);
+      if (this._plane) this._plane.visible = false;
       const THREE = this._THREE || window.THREE;
-      if (camera && THREE) {
-        billboardHologramTowardCameraWithScratch(THREE, this._plane, camera);
+      const camera = this._getActiveCamera();
+      if (this._domHologram && THREE && camera && this._anchor?.group) {
+        this._domHologram.show();
+        this._domHologram.update(THREE, camera, this._anchor.group);
+      } else {
+        attachHologramToScene(this._surfaceScene, this._plane);
+        if (camera && THREE) {
+          billboardHologramTowardCameraWithScratch(THREE, this._plane, camera);
+        }
+        showSurfaceHologram(this._plane, { preservePosition: true });
+        this._eighthWallCanvasUpdate?.();
       }
-      showSurfaceHologram(this._plane, { preservePosition: true });
-      this._eighthWallCanvasUpdate?.();
     } else {
       animateTargetFound(this._plane);
     }
@@ -1236,6 +1255,7 @@ export class ARExperience {
    */
   _reparentSurfaceHologramToAnchor() {
     if (!this._anchor?.group || !this._plane) return;
+    this._domHologram?.hide();
     if (this._plane.parent !== this._anchor.group) {
       this._anchor.group.add(this._plane);
       this._plane.position.set(0, 0, 0);
@@ -1633,6 +1653,9 @@ export class ARExperience {
 
     this._coaching?.destroy();
     this._coaching = null;
+
+    this._domHologram?.destroy();
+    this._domHologram = null;
 
     // Remove DOM overlays
     this._ui.linkOverlay?.destroy();

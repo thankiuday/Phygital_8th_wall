@@ -172,6 +172,28 @@ const queryFeatureHitAtNorm = (THREE, hitTestFn, normX, normY) => {
 };
 
 /**
+ * Hit-test at a single screen-normalized point (tap / DOM reticle).
+ */
+export const queryPlacementHitAtScreen = (
+  THREE,
+  hitTestFn,
+  camera,
+  normX,
+  normY,
+  { allowGround = false } = {},
+) => {
+  const featureHit = queryFeatureHitAtNorm(THREE, hitTestFn, normX, normY);
+  if (featureHit) return featureHit;
+
+  if (allowGround) {
+    const groundHit = raycastHorizontalGround(THREE, camera, normX, normY);
+    if (groundHit) return { ...groundHit, source: 'ground' };
+  }
+
+  return null;
+};
+
+/**
  * Sample screen points — SLAM feature points first; y=0 ground only when allowed.
  * @returns {{ matrix: THREE.Matrix4, score: number, distance: number, source: 'feature'|'ground' } | null}
  */

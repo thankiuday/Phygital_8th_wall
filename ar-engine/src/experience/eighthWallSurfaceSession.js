@@ -13,6 +13,7 @@ import {
   isPlacementUiTarget,
   liftPlacementMatrix,
   queryPlacementHit,
+  queryPlacementHitAtScreen,
   resetGroupTransform,
 } from './eighthWallSurfaceHitUtils.js';
 
@@ -454,7 +455,26 @@ export class EighthWallSurfaceSession {
     event.preventDefault();
     event.stopPropagation();
 
-    if (this._reticle.visible) {
+    const touch = event.touches[0];
+    const normX = touch.clientX / window.innerWidth;
+    const normY = touch.clientY / window.innerHeight;
+    const scanElapsed = performance.now() - this._sceneReadyAt;
+    const allowGround = scanElapsed >= GROUND_FALLBACK_AFTER_MS;
+    const hitTest = this._XR8?.XrController?.hitTest?.bind(this._XR8.XrController);
+    const camera = this._XR8?.Threejs?.xrScene?.()?.camera;
+    const tapHit = queryPlacementHitAtScreen(
+      window.THREE,
+      hitTest,
+      camera,
+      normX,
+      normY,
+      { allowGround },
+    );
+
+    if (tapHit) {
+      const lifted = liftPlacementMatrix(window.THREE, tapHit.matrix);
+      applyMatrixToGroup(this._anchorGroup, lifted);
+    } else if (this._reticle.visible) {
       applyMatrixToGroup(this._anchorGroup, this._reticle.matrix);
     } else if (this._cachedPose && this._scratchMatrix) {
       this._scratchMatrix.fromArray(this._cachedPose);
