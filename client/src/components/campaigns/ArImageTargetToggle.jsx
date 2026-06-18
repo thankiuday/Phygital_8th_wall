@@ -1,7 +1,5 @@
 import { useState } from 'react';
 import { Layers, ScanLine } from 'lucide-react';
-import SurfaceArIosNoticeModal from './SurfaceArIosNoticeModal.jsx';
-import { SURFACE_AR_IOS_TOGGLE_NOTICE } from '../../constants/surfaceArIosCopy.js';
 
 /**
  * Toggle for AR campaigns: image marker required vs surface-only placement.
@@ -18,11 +16,12 @@ const ArImageTargetToggle = ({
   variant = 'card',
 }) => {
   const [busy, setBusy] = useState(false);
-  const [iosNoticeOpen, setIosNoticeOpen] = useState(false);
-  const [pendingValue, setPendingValue] = useState(null);
   const on = value !== false;
 
-  const applyChange = async (next) => {
+  const handleToggle = async (e) => {
+    e.stopPropagation();
+    if (disabled || busy) return;
+    const next = !on;
     setBusy(true);
     try {
       await onChange(next);
@@ -31,33 +30,12 @@ const ArImageTargetToggle = ({
     }
   };
 
-  const handleToggle = async (e) => {
-    e.stopPropagation();
-    if (disabled || busy) return;
-    const next = !on;
-    if (!next) {
-      setPendingValue(false);
-      setIosNoticeOpen(true);
-      return;
-    }
-    await applyChange(next);
-  };
-
-  const confirmIosNotice = async () => {
-    setIosNoticeOpen(false);
-    if (pendingValue === false) {
-      await applyChange(false);
-    }
-    setPendingValue(null);
-  };
-
   const Icon = on ? ScanLine : Layers;
   const helper = on ? 'Required' : 'Surface only';
 
   if (variant === 'settings') {
     return (
-      <>
-        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)]/60 p-3.5">
+      <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)]/60 p-3.5">
         <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-500/12 text-brand-400">
           <Icon size={18} aria-hidden />
         </div>
@@ -66,7 +44,7 @@ const ArImageTargetToggle = ({
           <p className="mt-0.5 text-xs leading-relaxed text-[var(--text-muted)]">
             {on
               ? 'Visitors must point their camera at your printed card or poster before the hologram plays.'
-              : 'Visitors place the hologram on any flat surface — no printed marker needed. Available on Android today; iOS support is coming soon.'}
+              : 'Visitors place the hologram on any flat surface — no printed marker needed. Works on Android and iPhone.'}
           </p>
         </div>
         <button
@@ -89,19 +67,10 @@ const ArImageTargetToggle = ({
           />
         </button>
       </label>
-        <SurfaceArIosNoticeModal
-          open={iosNoticeOpen}
-          title={SURFACE_AR_IOS_TOGGLE_NOTICE.title}
-          body={SURFACE_AR_IOS_TOGGLE_NOTICE.body}
-          confirmLabel={SURFACE_AR_IOS_TOGGLE_NOTICE.confirm}
-          onConfirm={confirmIosNotice}
-        />
-      </>
     );
   }
 
   return (
-    <>
     <div
       className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-color)]/80 bg-[var(--surface-2)]/50 px-3 py-2.5"
       onClick={(e) => e.stopPropagation()}
@@ -137,14 +106,6 @@ const ArImageTargetToggle = ({
         />
       </button>
     </div>
-      <SurfaceArIosNoticeModal
-        open={iosNoticeOpen}
-        title={SURFACE_AR_IOS_TOGGLE_NOTICE.title}
-        body={SURFACE_AR_IOS_TOGGLE_NOTICE.body}
-        confirmLabel={SURFACE_AR_IOS_TOGGLE_NOTICE.confirm}
-        onConfirm={confirmIosNotice}
-      />
-    </>
   );
 };
 
