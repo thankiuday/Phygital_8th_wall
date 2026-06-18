@@ -14,9 +14,10 @@ import {
   liftPlacementMatrix,
   queryPlacementHit,
   queryPlacementHitAtScreen,
+  queryTapPlacementHit,
   resetGroupTransform,
 } from './eighthWallSurfaceHitUtils.js';
-import { getHitTestNormFromClient, placeAnchorInFrontOfCamera } from './surfaceHitUtils.js';
+import { getHitTestNormFromClient } from './surfaceHitUtils.js';
 
 const MIN_SCAN_BEFORE_READY_MS = 1500;
 const GROUND_FALLBACK_AFTER_MS = 2500;
@@ -465,17 +466,14 @@ export class EighthWallSurfaceSession {
     const screenNorm = getHitTestNormFromClient(touch.clientX, touch.clientY);
     const normX = screenNorm.x;
     const normY = screenNorm.y;
-    const scanElapsed = performance.now() - this._sceneReadyAt;
-    const allowGround = scanElapsed >= GROUND_FALLBACK_AFTER_MS;
     const hitTest = this._XR8?.XrController?.hitTest?.bind(this._XR8.XrController);
     const camera = this._XR8?.Threejs?.xrScene?.()?.camera;
-    const tapHit = queryPlacementHitAtScreen(
+    const tapHit = queryTapPlacementHit(
       window.THREE,
       hitTest,
       camera,
       normX,
       normY,
-      { allowGround },
     );
 
     let placed = false;
@@ -489,9 +487,6 @@ export class EighthWallSurfaceSession {
     } else if (this._cachedPose && this._scratchMatrix) {
       this._scratchMatrix.fromArray(this._cachedPose);
       applyMatrixToGroup(this._anchorGroup, this._scratchMatrix);
-      placed = true;
-    } else if (camera && window.THREE) {
-      placeAnchorInFrontOfCamera(window.THREE, camera, this._anchorGroup);
       placed = true;
     }
 

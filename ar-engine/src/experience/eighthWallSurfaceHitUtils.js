@@ -173,6 +173,7 @@ const queryFeatureHitAtNorm = (THREE, hitTestFn, normX, normY) => {
 
 /**
  * Hit-test at a single screen-normalized point (tap / DOM reticle).
+ * On tap-to-place, ground plane is always allowed so floor/desk placement works.
  */
 export const queryPlacementHitAtScreen = (
   THREE,
@@ -180,17 +181,61 @@ export const queryPlacementHitAtScreen = (
   camera,
   normX,
   normY,
-  { allowGround = false } = {},
+  { allowGround = false, preferCloser = false } = {},
 ) => {
   const featureHit = queryFeatureHitAtNorm(THREE, hitTestFn, normX, normY);
-  if (featureHit) return featureHit;
+  let groundHit = null;
 
   if (allowGround) {
-    const groundHit = raycastHorizontalGround(THREE, camera, normX, normY);
-    if (groundHit) return { ...groundHit, source: 'ground' };
+    const ground = raycastHorizontalGround(THREE, camera, normX, normY);
+    if (ground) groundHit = { ...ground, source: 'ground' };
   }
 
-  return null;
+  if (featureHit && groundHit && preferCloser) {
+    const fd = featureHit.distance ?? Infinity;
+    const gd = groundHit.distance ?? Infinity;
+    return fd <= gd ? featureHit : groundHit;
+  }
+
+  return featureHit || groundHit || null;
+};
+
+/**
+ * Tap placement — tries center + nearby samples; always allows ground fallback.
+ */
+export const queryTapPlacementHit = (
+  THREE,
+  hitTestFn,
+  camera,
+  normX,
+  normY,
+) => {
+  const offsets = [
+    [0, 0],
+    [0.03, 0],
+    [-0.03, 0],
+    [0, 0.03],
+    [0, -0.03],
+  ];
+
+  let best = null;
+
+  for (const [dx, dy] of offsets) {
+    const x = Math.min(1, Math.max(0, normX + dx));
+    const y = Math.min(1, Math.max(0, normY + dy));
+    const hit = queryPlacementHitAtScreen(THREE, hitTestFn, camera, x, y, {
+      allowGround: true,
+      preferCloser: true,
+    });
+    if (!hit) continue;
+
+    const dist = hit.distance ?? Infinity;
+    if (!best || dist < (best.distance ?? Infinity)) {
+      best = hit;
+    }
+  }
+
+  return best;
 };
 
 /**

@@ -625,6 +625,7 @@ export class ARExperience {
         this._domHologram = createEighthWallDomHologram({
           domRoot,
           sourceVideoEl: this._videoEl,
+          planeWidth: PLANE_WIDTH,
           planeHeight: PLANE_HEIGHT,
           sideBySideAlpha: this._iosShaderActive,
         });
@@ -1209,9 +1210,8 @@ export class ARExperience {
       if (this._plane) this._plane.visible = false;
       const THREE = this._THREE || window.THREE;
       const camera = this._getActiveCamera();
-      const screen = this._surfaceSession?.lastPlacementScreen;
       if (this._domHologram) {
-        this._domHologram.showAtScreen(screen?.normX, screen?.normY);
+        this._domHologram.showAtScreen();
         if (THREE && camera && this._anchor?.group) {
           this._domHologram.update(THREE, camera, this._anchor.group);
         }
