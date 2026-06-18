@@ -12,12 +12,14 @@ import {
   applyMatrixToReticle,
   isPlacementUiTarget,
   liftPlacementMatrix,
-  queryBestSurfaceHit,
+  queryPlacementHit,
   resetGroupTransform,
 } from './eighthWallSurfaceHitUtils.js';
 
-const SLAM_WARMUP_MS = 800;
-const MIN_STABLE_HIT_FRAMES = 4;
+const MIN_SCAN_BEFORE_READY_MS = 1500;
+const GROUND_FALLBACK_AFTER_MS = 2500;
+const MIN_STABLE_FEATURE_FRAMES = 4;
+const MIN_STABLE_GROUND_FRAMES = 8;
 const MISS_FRAMES_TO_HIDE = 14;
 const MISS_FRAMES_BEFORE_DECAY = 5;
 const POSE_CACHE_MS = 2000;
@@ -160,6 +162,7 @@ export class EighthWallSurfaceSession {
     this._sceneReadyResolve = null;
     this._sceneReadyReject = null;
     this._unbindEmbeddedCanvas = null;
+    this._sceneReadyAt = 0;
     this._scanStartedAt = 0;
     this._stableHitCount = 0;
     this._missCount = 0;
@@ -220,15 +223,20 @@ export class EighthWallSurfaceSession {
   }
 
   /**
-   * Query SLAM feature points and fall back to the y=0 ground plane raycast.
+   * Query SLAM feature points; y=0 ground plane only after a long scan delay.
    */
   _queryBestSurfaceHit() {
     const hitTest = this._XR8?.XrController?.hitTest?.bind(this._XR8.XrController);
     const THREE = window.THREE;
     const camera = this._XR8?.Threejs?.xrScene?.()?.camera;
-    if (!THREE || !camera) return null;
+    if (!THREE || !camera || !this._sceneReadyAt) return null;
 
-    return queryBestSurfaceHit(THREE, hitTest, camera);
+    const scanElapsed = performance.now() - this._sceneReadyAt;
+    if (scanElapsed < MIN_SCAN_BEFORE_READY_MS) return null;
+
+    return queryPlacementHit(THREE, hitTest, camera, {
+      allowGround: scanElapsed >= GROUND_FALLBACK_AFTER_MS,
+    });
   }
 
   /**
@@ -360,6 +368,7 @@ export class EighthWallSurfaceSession {
 
       document.getElementById('ar-dom-overlay')?.classList.add('placement-scanning');
 
+      this._sceneReadyAt = performance.now();
       this._running = true;
       this._sceneReadyResolve?.();
     } catch (err) {
@@ -388,15 +397,17 @@ export class EighthWallSurfaceSession {
     }
 
     if (!this._placed) {
-      const warmedUp = performance.now() - this._scanStartedAt >= SLAM_WARMUP_MS;
-      const hit = warmedUp ? this._queryBestSurfaceHit() : null;
+      const hit = this._queryBestSurfaceHit();
       const inRange = this._isHitInRange(hit);
+      const requiredStable = hit?.source === 'ground'
+        ? MIN_STABLE_GROUND_FRAMES
+        : MIN_STABLE_FEATURE_FRAMES;
 
       if (hit && inRange) {
         this._missCount = 0;
         this._stableHitCount = Math.min(
           this._stableHitCount + 1,
-          MIN_STABLE_HIT_FRAMES,
+          requiredStable,
         );
       } else {
         this._missCount = Math.min(this._missCount + 1, MISS_FRAMES_TO_HIDE);
@@ -405,7 +416,7 @@ export class EighthWallSurfaceSession {
         }
       }
 
-      const placementReady = this._stableHitCount >= MIN_STABLE_HIT_FRAMES;
+      const placementReady = this._stableHitCount >= requiredStable;
 
       if (placementReady && hit && inRange) {
         const lifted = liftPlacementMatrix(window.THREE, hit.matrix);

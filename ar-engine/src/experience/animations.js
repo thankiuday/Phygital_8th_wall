@@ -30,6 +30,22 @@
 
 const g = () => window.gsap;
 
+/**
+ * Instantly show the hologram plane (used on iOS surface place + gsap fallback).
+ * @param {THREE.Mesh} plane
+ */
+export const showSurfaceHologram = (plane) => {
+  if (!plane) return;
+  const gsap = g();
+  gsap?.killTweensOf([plane.scale, plane.material]);
+  plane.visible = true;
+  plane.scale.set(1, 1, 1);
+  plane.position.set(0, 0, 0);
+  if (plane.material) {
+    plane.material.opacity = 1;
+  }
+};
+
 // Handles for active idle tweens so they can be killed cleanly on exit
 const _active = { scale: null };
 
@@ -44,7 +60,12 @@ const _active = { scale: null };
  */
 export const animateTargetFound = (plane) => {
   const gsap = g();
-  if (!gsap) return;
+  if (!plane) return;
+
+  if (!gsap) {
+    showSurfaceHologram(plane);
+    return;
+  }
 
   // Kill any tweens that may still be in flight (e.g. rapid re-detection)
   gsap.killTweensOf([plane.scale, plane.material]);

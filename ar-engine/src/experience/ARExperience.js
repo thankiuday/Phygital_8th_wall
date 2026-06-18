@@ -51,7 +51,7 @@ import { startImageTargetSession } from './imageTargetSession.js';
 import { SurfaceTrackingSession, createPlacementReticle } from './surfaceTrackingSession.js';
 import { EighthWallSurfaceSession } from './eighthWallSurfaceSession.js';
 import { takeGestureEighthWallSession } from './eighthWallGestureBoot.js';
-import { animateTargetFound, animateTargetLost, forceHidePlane } from './animations.js';
+import { animateTargetFound, animateTargetLost, forceHidePlane, showSurfaceHologram } from './animations.js';
 import { createArEffect } from './effects/index.js';
 import { updateLoadingProgress, showError, hideLoading } from '../utils/loadingScreen.js';
 import { updateSession } from '../services/campaignLoader.js';
@@ -612,6 +612,7 @@ export class ARExperience {
         this._surfaceReticle = reticle;
 
         this._buildUx();
+        this._configureEighthWallVideoPlane();
         this._showSurfaceCoaching('scanning');
 
         return {
@@ -662,10 +663,10 @@ export class ARExperience {
   }
 
   _animateEighthWallFrame(now) {
-    if (this._plane.visible && this._surfaceSession?.placed) {
+    if (this._surfaceSession?.placed) {
       const sc = this._scratch;
       const cam = this._getActiveCamera();
-      if (cam) {
+      if (cam && this._plane) {
         this._billboardPlaneTowardCamera(cam, sc);
       }
     }
@@ -722,6 +723,22 @@ export class ARExperience {
     this._started = false;
     this._prepareForRescan();
     this._showSurfaceCoaching('starting');
+  }
+
+  _configureEighthWallVideoPlane() {
+    if (!this._plane) return;
+    this._plane.renderOrder = 1000;
+    if (this._plane.material) {
+      this._plane.material.depthTest = false;
+      this._plane.material.depthWrite = false;
+    }
+  }
+
+  _billboardSurfacePlaneNow() {
+    const cam = this._getActiveCamera();
+    const sc = this._scratch;
+    if (!cam || !sc || !this._anchor?.group || !this._plane) return;
+    this._billboardPlaneTowardCamera(cam, sc);
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -1132,6 +1149,11 @@ export class ARExperience {
     }
 
     this._playWithAudio();
+
+    if (this._surfaceBackend === 'eighthwall-slam') {
+      this._billboardSurfacePlaneNow();
+      showSurfaceHologram(this._plane);
+    }
     animateTargetFound(this._plane);
 
     // Base effect rises alongside the video entrance — same tick, same anchor

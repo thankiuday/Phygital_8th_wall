@@ -7,7 +7,7 @@ import { applyMatrixToGroup, resetGroupTransform } from './surfaceHitUtils.js';
 export { applyMatrixToGroup, resetGroupTransform };
 
 export const MIN_HORIZONTAL_SCORE = 0.2;
-export const SURFACE_LIFT_M = 0.012;
+export const SURFACE_LIFT_M = 0.04;
 
 /** Screen samples — floor (lower frame) and table height (mid frame). */
 export const SURFACE_HIT_SAMPLE_NORMS = [
@@ -164,29 +164,43 @@ const raycastHorizontalGround = (THREE, camera, normX, normY) => {
   return { matrix: mat, score: 1, distance };
 };
 
-const querySurfaceHitAtNorm = (THREE, hitTestFn, camera, normX, normY) => {
-  if (!THREE) return null;
-
-  if (hitTestFn) {
-    const results = hitTestFn(normX, normY, ['FEATURE_POINT']);
-    const fromFeatures = pickBestHorizontalHit(THREE, results);
-    if (fromFeatures) return fromFeatures;
-  }
-
-  return raycastHorizontalGround(THREE, camera, normX, normY);
+const queryFeatureHitAtNorm = (THREE, hitTestFn, normX, normY) => {
+  if (!hitTestFn) return null;
+  const results = hitTestFn(normX, normY, ['FEATURE_POINT']);
+  const hit = pickBestHorizontalHit(THREE, results);
+  return hit ? { ...hit, source: 'feature' } : null;
 };
 
 /**
- * Sample multiple screen points and return the best horizontal hit.
+ * Sample screen points — SLAM feature points first; y=0 ground only when allowed.
+ * @returns {{ matrix: THREE.Matrix4, score: number, distance: number, source: 'feature'|'ground' } | null}
  */
-export const queryBestSurfaceHit = (THREE, hitTestFn, camera, norms = SURFACE_HIT_SAMPLE_NORMS) => {
-  let best = null;
+export const queryPlacementHit = (
+  THREE,
+  hitTestFn,
+  camera,
+  { allowGround = false, norms = SURFACE_HIT_SAMPLE_NORMS } = {},
+) => {
+  let bestFeature = null;
+  let bestGround = null;
 
   for (const [normX, normY] of norms) {
-    const hit = querySurfaceHitAtNorm(THREE, hitTestFn, camera, normX, normY);
-    if (!hit) continue;
-    if (!best || hit.score > best.score) best = hit;
+    const featureHit = queryFeatureHitAtNorm(THREE, hitTestFn, normX, normY);
+    if (featureHit && (!bestFeature || featureHit.score > bestFeature.score)) {
+      bestFeature = featureHit;
+    }
+
+    if (allowGround) {
+      const groundHit = raycastHorizontalGround(THREE, camera, normX, normY);
+      if (groundHit && (!bestGround || groundHit.score > bestGround.score)) {
+        bestGround = { ...groundHit, source: 'ground' };
+      }
+    }
   }
 
-  return best;
+  return bestFeature || bestGround || null;
 };
+
+/** @deprecated Use queryPlacementHit */
+export const queryBestSurfaceHit = (THREE, hitTestFn, camera, norms = SURFACE_HIT_SAMPLE_NORMS) =>
+  queryPlacementHit(THREE, hitTestFn, camera, { allowGround: true, norms });
