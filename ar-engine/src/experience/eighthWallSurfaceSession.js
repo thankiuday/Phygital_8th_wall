@@ -11,12 +11,12 @@ import {
   POSE_CACHE_MS,
   applyMatrixToGroup,
   getHitTestNormFromClient,
-  pickBestHorizontalHit,
+  queryBestSurfaceHit,
   resetGroupTransform,
 } from './surfaceHitUtils.js';
 
-const SLAM_WARMUP_MS = 1200;
-const MIN_STABLE_HIT_FRAMES = 8;
+const SLAM_WARMUP_MS = 600;
+const MIN_STABLE_HIT_FRAMES = 3;
 const MIN_PLACEMENT_DISTANCE = 0.2;
 const MAX_PLACEMENT_DISTANCE = 6;
 
@@ -209,17 +209,15 @@ export class EighthWallSurfaceSession {
   }
 
   /**
-   * Query SLAM feature points at normalized screen coords (0–1, like Android hit-test).
-   * @param {number} normX
-   * @param {number} normY
+   * Query SLAM feature points and fall back to the y=0 ground plane raycast.
    */
-  _querySurfaceHit(normX, normY) {
-    const hitTest = this._XR8?.XrController?.hitTest;
+  _queryBestSurfaceHit() {
+    const hitTest = this._XR8?.XrController?.hitTest?.bind(this._XR8.XrController);
     const THREE = window.THREE;
-    if (!hitTest || !THREE) return null;
+    const camera = this._XR8?.Threejs?.xrScene?.()?.camera;
+    if (!THREE || !camera) return null;
 
-    const results = hitTest(normX, normY, ['FEATURE_POINT']);
-    return pickBestHorizontalHit(THREE, results);
+    return queryBestSurfaceHit(THREE, hitTest, camera);
   }
 
   /**
@@ -329,11 +327,6 @@ export class EighthWallSurfaceSession {
         scene.add(this._reticle);
       }
 
-      // Non-zero camera height improves SLAM scale (8th Wall recommendation).
-      if (camera.position.y < 0.5) {
-        camera.position.y = 1.4;
-      }
-
       this._XR8.XrController.updateCameraProjectionMatrix({
         origin: camera.position,
         facing: camera.quaternion,
@@ -374,7 +367,7 @@ export class EighthWallSurfaceSession {
 
     if (!this._placed) {
       const warmedUp = performance.now() - this._scanStartedAt >= SLAM_WARMUP_MS;
-      const hit = warmedUp ? this._querySurfaceHit(0.5, 0.5) : null;
+      const hit = warmedUp ? this._queryBestSurfaceHit() : null;
       const inRange = this._isHitInRange(hit);
 
       if (hit && inRange) {
@@ -383,7 +376,7 @@ export class EighthWallSurfaceSession {
           MIN_STABLE_HIT_FRAMES,
         );
       } else {
-        this._stableHitCount = 0;
+        this._stableHitCount = Math.max(0, this._stableHitCount - 1);
       }
 
       if (hit && inRange && this._stableHitCount >= MIN_STABLE_HIT_FRAMES) {
@@ -392,7 +385,7 @@ export class EighthWallSurfaceSession {
         this._reticle.updateMatrixWorld(true);
         this._cachePose(hit.matrix);
         this._setHitVisible(true);
-      } else {
+      } else if (this._stableHitCount === 0) {
         this._reticle.visible = false;
         this._setHitVisible(false);
       }
@@ -427,7 +420,10 @@ export class EighthWallSurfaceSession {
     } else {
       const touch = event.touches[0];
       const { x, y } = getHitTestNormFromClient(touch.clientX, touch.clientY);
-      const hit = this._querySurfaceHit(x, y);
+      const hitTest = this._XR8?.XrController?.hitTest?.bind(this._XR8.XrController);
+      const THREE = window.THREE;
+      const camera = this._XR8?.Threejs?.xrScene?.()?.camera;
+      const hit = queryBestSurfaceHit(THREE, hitTest, camera, [[x, y]]);
       if (!hit || !this._isHitInRange(hit)) return;
       applyMatrixToGroup(this._anchorGroup, hit.matrix);
     }

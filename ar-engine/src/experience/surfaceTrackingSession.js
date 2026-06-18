@@ -9,8 +9,8 @@ import {
   resetGroupTransform,
 } from './surfaceHitUtils.js';
 
-const RETICLE_OUTER = 0.2;
-const RETICLE_INNER = 0.14;
+const RETICLE_OUTER = 0.28;
+const RETICLE_INNER = 0.2;
 
 /**
  * @param {object} THREE
