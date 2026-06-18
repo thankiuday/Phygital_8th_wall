@@ -40,14 +40,18 @@ export const bootEmbeddedSurfaceAr = async ({
   try {
     registerReturnReloadHandlers(campaign._id, sessionId);
 
-    const [{ ARExperience }, threeModule] = await Promise.all([
-      import('@ar-engine/experience/ARExperience.js'),
-      import('three-ar'),
-    ]);
+    const isEighthWall = surfaceBackend === 'eighthwall-slam';
+    const { ARExperience } = await import('@ar-engine/experience/ARExperience.js');
 
-    const THREE = threeModule?.default || threeModule;
-    if (THREE && !window.THREE) {
-      window.THREE = THREE;
+    let THREE = window.THREE;
+    if (!isEighthWall) {
+      const threeModule = await import('three-ar');
+      THREE = threeModule?.default || threeModule;
+      if (THREE && !window.THREE) {
+        window.THREE = THREE;
+      }
+    } else if (!THREE) {
+      throw new Error('Three.js is still loading. Wait a moment and try again.');
     }
 
     const experience = new ARExperience({
@@ -59,7 +63,7 @@ export const bootEmbeddedSurfaceAr = async ({
 
     activeExperience = experience;
     await experience.boot({
-      THREE: THREE || window.THREE,
+      THREE: isEighthWall ? window.THREE : (THREE || window.THREE),
       preSessionPromise: sessionPromise,
       surfaceBackend,
     });

@@ -76,6 +76,11 @@ import {
   hasPendingReturnReload,
   consumeReturnReload,
 } from '../utils/arReturnReload.js';
+import {
+  attachHologramToScene,
+  billboardHologramTowardCameraWithScratch,
+  createEighthWallCanvasVideoTexture,
+} from './eighthWallVideoSurface.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Scene constants
@@ -130,6 +135,7 @@ export class ARExperience {
     this._anchor       = null;
     this._videoEl      = null;
     this._videoTexture = null;
+    this._eighthWallCanvasUpdate = null;
 
     // Scene meshes
     this._plane        = null;   // video quad (billboard quaternion each frame)
@@ -664,12 +670,18 @@ export class ARExperience {
 
   _animateEighthWallFrame(now) {
     if (this._surfaceSession?.placed) {
-      const sc = this._scratch;
       const cam = this._getActiveCamera();
-      if (cam && this._plane) {
-        this._billboardPlaneTowardCamera(cam, sc);
+      const THREE = this._THREE || window.THREE;
+      if (cam && this._plane && THREE) {
+        if (this._plane.parent === this._surfaceScene) {
+          billboardHologramTowardCameraWithScratch(THREE, this._plane, cam);
+        } else {
+          this._billboardPlaneTowardCamera(cam, this._scratch);
+        }
       }
-      if (
+      if (this._eighthWallCanvasUpdate) {
+        this._eighthWallCanvasUpdate();
+      } else if (
         this._videoTexture &&
         this._videoEl?.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
       ) {
@@ -736,9 +748,32 @@ export class ARExperience {
     if (mat.uniforms?.opacity) {
       mat.uniforms.opacity.value = 1;
     }
-    // Opaque-enough pixels still draw when iOS WebGL alpha upload is flaky.
-    if (!this._iosShaderActive && mat.alphaTest === undefined) {
-      mat.alphaTest = 0.02;
+    // VideoTexture uploads often fail on 8th Wall's iOS WebGL — paint frames to canvas.
+    this._setupEighthWallCanvasVideo();
+    // Without videoUrlIos, WebM alpha is invisible on iOS — draw opaque video instead.
+    if (!this._iosShaderActive && mat.isMeshBasicMaterial) {
+      mat.transparent = false;
+      mat.opacity = 1;
+    }
+  }
+
+  _setupEighthWallCanvasVideo() {
+    const THREE = this._THREE || window.THREE;
+    if (!THREE || !this._videoEl || this._eighthWallCanvasUpdate) return;
+
+    const { texture, update } = createEighthWallCanvasVideoTexture(THREE, this._videoEl);
+    this._eighthWallCanvasUpdate = update;
+    const prev = this._videoTexture;
+    this._videoTexture = texture;
+
+    const mat = this._plane.material;
+    if (mat?.uniforms?.map) {
+      mat.uniforms.map.value = texture;
+    } else if (mat) {
+      mat.map = texture;
+    }
+    if (prev?.isVideoTexture) {
+      prev.dispose();
     }
   }
 
@@ -1159,9 +1194,14 @@ export class ARExperience {
     this._playWithAudio();
 
     if (this._surfaceBackend === 'eighthwall-slam') {
-      this._billboardSurfacePlaneNow();
-      showSurfaceHologram(this._plane);
       this._anchor?.group?.updateMatrixWorld?.(true);
+      attachHologramToScene(this._surfaceScene, this._plane);
+      const THREE = this._THREE || window.THREE;
+      if (camera && THREE) {
+        billboardHologramTowardCameraWithScratch(THREE, this._plane, camera);
+      }
+      showSurfaceHologram(this._plane, { preservePosition: true });
+      this._eighthWallCanvasUpdate?.();
     } else {
       animateTargetFound(this._plane);
     }
@@ -1194,8 +1234,20 @@ export class ARExperience {
   /**
    * Reset UI/video to scanning state so MindAR can re-acquire the target.
    */
+  _reparentSurfaceHologramToAnchor() {
+    if (!this._anchor?.group || !this._plane) return;
+    if (this._plane.parent !== this._anchor.group) {
+      this._anchor.group.add(this._plane);
+      this._plane.position.set(0, 0, 0);
+      this._plane.quaternion.set(0, 0, 0, 1);
+    }
+  }
+
   _prepareForRescan() {
     if (this._trackingMode === 'surface') {
+      if (this._surfaceBackend === 'eighthwall-slam') {
+        this._reparentSurfaceHologramToAnchor();
+      }
       this._setScanningOverlayVisible(false);
       this._syncSurfaceSessionUi(false);
       if (!this._surfaceSession?.placed) {
