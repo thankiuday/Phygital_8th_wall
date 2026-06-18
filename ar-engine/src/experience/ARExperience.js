@@ -669,17 +669,16 @@ export class ARExperience {
       if (cam && this._plane) {
         this._billboardPlaneTowardCamera(cam, sc);
       }
+      if (
+        this._videoTexture &&
+        this._videoEl?.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+      ) {
+        this._videoTexture.needsUpdate = true;
+      }
     }
 
     if (this._effect && this._targetVisible) {
       this._effect.update(now ?? performance.now());
-    }
-
-    if (
-      this._videoTexture &&
-      this._videoEl?.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
-    ) {
-      this._videoTexture.needsUpdate = true;
     }
   }
 
@@ -727,10 +726,19 @@ export class ARExperience {
 
   _configureEighthWallVideoPlane() {
     if (!this._plane) return;
+    this._plane.frustumCulled = false;
     this._plane.renderOrder = 1000;
-    if (this._plane.material) {
-      this._plane.material.depthTest = false;
-      this._plane.material.depthWrite = false;
+    const mat = this._plane.material;
+    if (!mat) return;
+    mat.depthTest = false;
+    mat.depthWrite = false;
+    mat.transparent = true;
+    if (mat.uniforms?.opacity) {
+      mat.uniforms.opacity.value = 1;
+    }
+    // Opaque-enough pixels still draw when iOS WebGL alpha upload is flaky.
+    if (!this._iosShaderActive && mat.alphaTest === undefined) {
+      mat.alphaTest = 0.02;
     }
   }
 
@@ -1153,8 +1161,10 @@ export class ARExperience {
     if (this._surfaceBackend === 'eighthwall-slam') {
       this._billboardSurfacePlaneNow();
       showSurfaceHologram(this._plane);
+      this._anchor?.group?.updateMatrixWorld?.(true);
+    } else {
+      animateTargetFound(this._plane);
     }
-    animateTargetFound(this._plane);
 
     // Base effect rises alongside the video entrance — same tick, same anchor
     // pose, so they always appear together and stay aligned. Only shown when

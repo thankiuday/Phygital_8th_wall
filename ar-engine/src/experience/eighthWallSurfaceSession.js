@@ -460,6 +460,7 @@ export class EighthWallSurfaceSession {
       this._scratchMatrix.fromArray(this._cachedPose);
       applyMatrixToGroup(this._anchorGroup, this._scratchMatrix);
     }
+    this._anchorGroup?.updateMatrixWorld?.(true);
 
     this._onPrimeVideo?.();
 

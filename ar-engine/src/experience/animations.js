@@ -38,11 +38,15 @@ export const showSurfaceHologram = (plane) => {
   if (!plane) return;
   const gsap = g();
   gsap?.killTweensOf([plane.scale, plane.material]);
+  _stopFloat();
   plane.visible = true;
   plane.scale.set(1, 1, 1);
   plane.position.set(0, 0, 0);
   if (plane.material) {
     plane.material.opacity = 1;
+    if (plane.material.uniforms?.opacity) {
+      plane.material.uniforms.opacity.value = 1;
+    }
   }
 };
 

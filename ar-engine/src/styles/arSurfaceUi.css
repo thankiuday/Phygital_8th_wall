@@ -242,9 +242,26 @@ body.ar-surface-active {
   padding: 24px 22px;
 }
 
-.ar-surface-coaching.state-ready {
+.ar-surface-coaching.ios-surface.state-ready {
+  align-items: flex-start;
+  padding-top: 0;
+}
+
+.ar-surface-coaching.state-ready:not(.ios-surface) {
   align-items: center;
   padding-top: calc(var(--ar-safe-top) + 52px);
+}
+
+.ar-surface-coaching.ios-surface.state-ready .ar-surface-coaching-content {
+  position: fixed;
+  top: calc(var(--ar-safe-top) + 52px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: auto;
+  max-width: min(92vw, 340px);
+  padding: 12px 18px;
+  border-radius: 999px;
+  z-index: 47;
 }
 
 .ar-surface-coaching.state-ready .ar-surface-coaching-content {
@@ -330,7 +347,7 @@ body.ar-surface-active {
   display: none;
   position: fixed;
   left: 50%;
-  bottom: 38%;
+  bottom: 34%;
   width: 72px;
   height: 72px;
   margin: 0;
