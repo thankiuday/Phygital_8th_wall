@@ -18,17 +18,22 @@ const STATE_CLASS = {
  * @param {{
  *   domRoot: HTMLElement,
  *   markUrl?: string,
+ *   iosDomReticle?: boolean,
  *   onStartTap?: () => void,
  * }} opts
  */
 export const createSurfaceCoachingOverlay = ({
   domRoot,
   markUrl = '/phygital-mark.png',
+  iosDomReticle = false,
   onStartTap,
 }) => {
   const el = document.createElement('div');
   el.id = 'ar-surface-coaching';
   el.className = 'ar-surface-coaching state-hidden';
+  if (iosDomReticle) {
+    el.classList.add('ios-surface');
+  }
   el.setAttribute('aria-live', 'polite');
   el.innerHTML = `
     <div class="ar-surface-coaching-vignette" aria-hidden="true"></div>
@@ -41,6 +46,7 @@ export const createSurfaceCoachingOverlay = ({
       <p class="ar-surface-coaching-message" id="ar-surface-coaching-message"></p>
       <p class="ar-surface-coaching-tap" id="ar-surface-coaching-tap">Tap to start camera</p>
     </div>
+    ${iosDomReticle ? '<div class="ar-surface-coaching-reticle" aria-hidden="true"></div>' : ''}
   `;
   domRoot.appendChild(el);
 

@@ -218,6 +218,7 @@ export class ARExperience {
 
     this._coaching = createSurfaceCoachingOverlay({
       domRoot,
+      iosDomReticle: this._surfaceBackend === 'eighthwall-slam',
       onStartTap: () => this._onCoachingStartTap(),
     });
   }
@@ -565,6 +566,7 @@ export class ARExperience {
       onRescan: () => this._onSurfaceRescan(),
       onAnimate: (now) => this._animateEighthWallFrame(now),
       onHitVisibilityChange: (visible) => this._onSurfaceHitVisibilityChange(visible),
+      onPrimeVideo: () => this._primeVideoPlayback(),
       onSceneReady: async ({ scene, camera, renderer, THREE }) => {
         this._THREE = THREE;
         this._surfaceScene = scene;
@@ -1384,6 +1386,17 @@ export class ARExperience {
     window.removeEventListener('pageshow', this._onPageShow);
     window.removeEventListener('pagehide', this._onPageHide);
     window.removeEventListener('focus', this._onWindowFocus);
+  }
+
+  /**
+   * Muted play inside the placement tap gesture — required on iOS before async work.
+   */
+  _primeVideoPlayback() {
+    if (this._surfaceBackend !== 'eighthwall-slam') return;
+    const v = this._videoEl;
+    if (!v) return;
+    v.muted = true;
+    v.play().catch(() => {});
   }
 
   /**

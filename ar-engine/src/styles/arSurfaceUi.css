@@ -136,6 +136,14 @@ body.ar-surface-active {
   pointer-events: auto;
 }
 
+/* During iOS surface scanning, hub/controls must not steal placement taps */
+#ar-dom-overlay.placement-scanning #ar-controls,
+#ar-dom-overlay.placement-scanning #ar-hub-toggle,
+#ar-dom-overlay.placement-scanning #ar-link-dock {
+  visibility: hidden;
+  pointer-events: none !important;
+}
+
 /* Hide legacy duplicate hint — coaching handles copy */
 #ar-surface-place-hint {
   display: none !important;
@@ -297,6 +305,35 @@ body.ar-surface-active {
   font-size: clamp(11px, 3.2vw, 12px);
   color: var(--ar-violet);
   font-weight: 600;
+}
+
+/* Screen-space purple ring — iOS 8th Wall SLAM only (ready state backup) */
+.ar-surface-coaching.ios-surface .ar-surface-coaching-reticle {
+  display: none;
+  position: fixed;
+  left: 50%;
+  bottom: 38%;
+  width: 72px;
+  height: 72px;
+  margin: 0;
+  transform: translate(-50%, 50%);
+  border: 3px solid #c4b5fd;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 6px rgba(167, 139, 250, 0.18),
+    0 0 24px rgba(167, 139, 250, 0.45);
+  animation: ar-coaching-reticle-pulse 1.6s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 46;
+}
+
+.ar-surface-coaching.ios-surface.state-ready .ar-surface-coaching-reticle {
+  display: block;
+}
+
+@keyframes ar-coaching-reticle-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.95; }
+  50% { transform: scale(1.06); opacity: 1; }
 }
 
 /* ── Controls pill ─────────────────────────────────────────────────────── */

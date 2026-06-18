@@ -8,15 +8,16 @@
 import { loadEighthWallEngine } from './loadEighthWallEngine.js';
 import { createPlacementReticle } from './surfaceTrackingSession.js';
 import {
-  POSE_CACHE_MS,
   applyMatrixToGroup,
-  getHitTestNormFromClient,
+  applyMatrixToReticle,
+  isPlacementUiTarget,
+  liftPlacementMatrix,
   queryBestSurfaceHit,
   resetGroupTransform,
-} from './surfaceHitUtils.js';
+} from './eighthWallSurfaceHitUtils.js';
 
-const SLAM_WARMUP_MS = 600;
-const MIN_STABLE_HIT_FRAMES = 3;
+const SLAM_WARMUP_MS = 500;
+const MIN_STABLE_HIT_FRAMES = 2;
 const MIN_PLACEMENT_DISTANCE = 0.2;
 const MAX_PLACEMENT_DISTANCE = 6;
 
@@ -112,6 +113,7 @@ const registerPlacementPipeline = (XR8, XRExtras) => {
  *   onRescan?: () => void,
  *   onAnimate?: (time: number) => void,
  *   onHitVisibilityChange?: (visible: boolean) => void,
+ *   onPrimeVideo?: () => void,
  *   onSceneReady?: (ctx: {
  *     scene: THREE.Scene,
  *     camera: THREE.Camera,
@@ -129,6 +131,7 @@ export class EighthWallSurfaceSession {
     onRescan,
     onAnimate,
     onHitVisibilityChange,
+    onPrimeVideo,
     onSceneReady,
   } = {}) {
     this._container = container;
@@ -138,12 +141,14 @@ export class EighthWallSurfaceSession {
     this._onRescan = onRescan;
     this._onAnimate = onAnimate;
     this._onHitVisibilityChange = onHitVisibilityChange;
+    this._onPrimeVideo = onPrimeVideo;
     this._onSceneReady = onSceneReady;
 
     this._placed = false;
     this._hitVisible = false;
     this._canvas = null;
     this._touchHandler = null;
+    this._shellTouchHandler = null;
     this._touchMoveHandler = null;
     this._XR8 = null;
     this._running = false;
@@ -172,12 +177,14 @@ export class EighthWallSurfaceSession {
     onRescan,
     onAnimate,
     onHitVisibilityChange,
+    onPrimeVideo,
     onSceneReady,
   } = {}) {
     if (onPlaced) this._onPlaced = onPlaced;
     if (onRescan) this._onRescan = onRescan;
     if (onAnimate) this._onAnimate = onAnimate;
     if (onHitVisibilityChange) this._onHitVisibilityChange = onHitVisibilityChange;
+    if (onPrimeVideo) this._onPrimeVideo = onPrimeVideo;
     if (onSceneReady) this._onSceneReady = onSceneReady;
 
     if (this._pendingSceneCtx && onSceneReady) {
@@ -335,8 +342,19 @@ export class EighthWallSurfaceSession {
       this._touchHandler = (event) => this._onTouchStart(event);
       this._touchMoveHandler = (event) => event.preventDefault();
 
-      this._canvas.addEventListener('touchstart', this._touchHandler, true);
+      const touchRoot =
+        document.getElementById('surface-ar-shell')
+        || document.getElementById('ar-dom-overlay')
+        || this._container;
+
+      this._shellTouchHandler = this._touchHandler;
+      touchRoot.addEventListener('touchstart', this._shellTouchHandler, {
+        capture: true,
+        passive: false,
+      });
       this._canvas.addEventListener('touchmove', this._touchMoveHandler, { passive: false });
+
+      document.getElementById('ar-dom-overlay')?.classList.add('placement-scanning');
 
       this._running = true;
       this._sceneReadyResolve?.();
@@ -380,10 +398,10 @@ export class EighthWallSurfaceSession {
       }
 
       if (hit && inRange && this._stableHitCount >= MIN_STABLE_HIT_FRAMES) {
+        const lifted = liftPlacementMatrix(window.THREE, hit.matrix);
         this._reticle.visible = true;
-        this._reticle.matrix.copy(hit.matrix);
-        this._reticle.updateMatrixWorld(true);
-        this._cachePose(hit.matrix);
+        applyMatrixToReticle(this._reticle, lifted);
+        this._cachePose(lifted);
         this._setHitVisible(true);
       } else if (this._stableHitCount === 0) {
         this._reticle.visible = false;
@@ -396,6 +414,7 @@ export class EighthWallSurfaceSession {
 
   _onTouchStart(event) {
     if (this._placed) return;
+    if (isPlacementUiTarget(event.target)) return;
 
     if (event.touches.length === 2) {
       this._XR8?.XrController?.recenter?.();
@@ -404,33 +423,19 @@ export class EighthWallSurfaceSession {
       return;
     }
     if (event.touches.length !== 1) return;
-
-    const cacheFresh = this._cachedPose
-      && (performance.now() - this._cachedPoseTs) < POSE_CACHE_MS;
-    const canPlace = this._reticle.visible || cacheFresh;
-    if (!canPlace) return;
+    if (!this._reticle.visible) return;
 
     event.preventDefault();
+    event.stopPropagation();
 
-    if (this._reticle.visible) {
-      applyMatrixToGroup(this._anchorGroup, this._reticle.matrix);
-    } else if (this._cachedPose && this._scratchMatrix) {
-      this._scratchMatrix.fromArray(this._cachedPose);
-      applyMatrixToGroup(this._anchorGroup, this._scratchMatrix);
-    } else {
-      const touch = event.touches[0];
-      const { x, y } = getHitTestNormFromClient(touch.clientX, touch.clientY);
-      const hitTest = this._XR8?.XrController?.hitTest?.bind(this._XR8.XrController);
-      const THREE = window.THREE;
-      const camera = this._XR8?.Threejs?.xrScene?.()?.camera;
-      const hit = queryBestSurfaceHit(THREE, hitTest, camera, [[x, y]]);
-      if (!hit || !this._isHitInRange(hit)) return;
-      applyMatrixToGroup(this._anchorGroup, hit.matrix);
-    }
+    applyMatrixToGroup(this._anchorGroup, this._reticle.matrix);
+
+    this._onPrimeVideo?.();
 
     this._placed = true;
     this._reticle.visible = false;
     this._setHitVisible(false);
+    document.getElementById('ar-dom-overlay')?.classList.remove('placement-scanning');
     this._onPlaced?.();
   }
 
@@ -444,6 +449,7 @@ export class EighthWallSurfaceSession {
     if (this._anchorGroup) {
       resetGroupTransform(this._anchorGroup);
     }
+    document.getElementById('ar-dom-overlay')?.classList.add('placement-scanning');
     this._onRescan?.();
   }
 
@@ -457,8 +463,12 @@ export class EighthWallSurfaceSession {
     }
 
     if (this._canvas) {
-      if (this._touchHandler) {
-        this._canvas.removeEventListener('touchstart', this._touchHandler, true);
+      if (this._shellTouchHandler) {
+        const touchRoot =
+          document.getElementById('surface-ar-shell')
+          || document.getElementById('ar-dom-overlay')
+          || this._container;
+        touchRoot.removeEventListener('touchstart', this._shellTouchHandler, true);
       }
       if (this._touchMoveHandler) {
         this._canvas.removeEventListener('touchmove', this._touchMoveHandler);
