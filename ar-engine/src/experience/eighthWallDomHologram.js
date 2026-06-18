@@ -1,166 +1,217 @@
 /**
- * eighthWallDomHologram — screen-projected HTML hologram for iOS 8th Wall.
+ * eighthWallDomHologram — iOS 8th Wall hologram as an HTML video overlay.
  *
- * 8th Wall's WebGL stack often fails to composite video textures on iOS Safari
- * even when audio and DOM UI work. This overlay paints the same <video> into
- * screen space using the SLAM anchor pose each frame.
+ * WebGL video planes are unreliable on 8th Wall + iOS Safari. A dedicated
+ * display <video> (separate from any WebGL texture source) is positioned at
+ * the tap point first, then tracks the SLAM anchor when projection is stable.
  */
 
-const PLANE_ASPECT = 9 / 16;
+const PLANE_ASPECT = 16 / 9;
+
+const defaultScreenNorm = () => ({ x: 0.5, y: 0.66 });
+
+const cloneVideoForDisplay = (sourceVideo) => {
+  const v = document.createElement('video');
+  v.src = sourceVideo.src;
+  v.loop = sourceVideo.loop;
+  v.muted = sourceVideo.muted;
+  v.playsInline = true;
+  v.crossOrigin = sourceVideo.crossOrigin || 'anonymous';
+  v.setAttribute('webkit-playsinline', 'true');
+  v.disableRemotePlayback = true;
+  v.preload = 'auto';
+  v.className = 'ar-ew-dom-hologram-video';
+  v.load();
+  return v;
+};
+
+const applyFixedScreenLayout = (wrap, normX, normY) => {
+  const vv = window.visualViewport;
+  const vw = vv?.width ?? window.innerWidth;
+  const vh = vv?.height ?? window.innerHeight;
+  const ox = vv?.offsetLeft ?? 0;
+  const oy = vv?.offsetTop ?? 0;
+
+  const width = Math.min(vw * 0.72, 320);
+  const height = width * PLANE_ASPECT;
+  const x = ox + normX * vw;
+  const y = oy + normY * vh;
+
+  wrap.style.width = `${width}px`;
+  wrap.style.height = `${height}px`;
+  wrap.style.left = `${x - width / 2}px`;
+  wrap.style.top = `${y - height}px`;
+};
 
 /**
  * @param {{
  *   domRoot: HTMLElement,
- *   videoEl: HTMLVideoElement,
- *   planeWidth: number,
+ *   sourceVideoEl: HTMLVideoElement,
  *   planeHeight: number,
  *   sideBySideAlpha?: boolean,
  * }} opts
  */
 export const createEighthWallDomHologram = ({
   domRoot,
-  videoEl,
-  planeWidth,
+  sourceVideoEl,
   planeHeight,
   sideBySideAlpha = false,
 }) => {
+  const host = document.getElementById('surface-ar-shell') || domRoot;
+
   const wrap = document.createElement('div');
   wrap.id = 'ar-ew-dom-hologram';
   wrap.className = 'ar-ew-dom-hologram';
   wrap.setAttribute('aria-hidden', 'true');
 
-  let displayEl = videoEl;
-  let canvas = null;
-  let ctx = null;
-  let maskCanvas = null;
-  let maskCtx = null;
+  const displayVideo = cloneVideoForDisplay(sourceVideoEl);
+  let displayEl = displayVideo;
 
   if (sideBySideAlpha) {
-    canvas = document.createElement('canvas');
-    canvas.className = 'ar-ew-dom-hologram-canvas';
-    displayEl = canvas;
-    ctx = canvas.getContext('2d', { alpha: true });
-    maskCanvas = document.createElement('canvas');
-    maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
-  } else {
-    videoEl.classList.add('ar-ew-dom-hologram-video');
-    videoEl.remove();
+    const sbs = document.createElement('div');
+    sbs.className = 'ar-ew-dom-hologram-sbs';
+    sbs.appendChild(displayVideo);
+    displayEl = sbs;
   }
 
   wrap.appendChild(displayEl);
-  domRoot.appendChild(wrap);
+  host.appendChild(wrap);
+
+  sourceVideoEl.addEventListener('loadeddata', () => {
+    if (displayVideo.src !== sourceVideoEl.src) {
+      displayVideo.src = sourceVideoEl.src;
+      displayVideo.load();
+    }
+  });
+
+  let active = false;
+  let screenNorm = defaultScreenNorm();
+  let useTrackedLayout = false;
 
   const scratch = {
     bottom: null,
     projected: null,
   };
 
-  const compositeSideBySide = () => {
-    if (!ctx || !videoEl || videoEl.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
-    const vw = videoEl.videoWidth;
-    const vh = videoEl.videoHeight;
-    if (!vw || !vh) return;
-
-    const hw = Math.floor(vw / 2);
-    if (canvas.width !== hw || canvas.height !== vh) {
-      canvas.width = hw;
-      canvas.height = vh;
-      maskCanvas.width = hw;
-      maskCanvas.height = vh;
+  const syncDisplayVideo = () => {
+    if (!sourceVideoEl || !displayVideo) return;
+    if (displayVideo.src !== sourceVideoEl.src) {
+      displayVideo.src = sourceVideoEl.src;
     }
-
-    ctx.drawImage(videoEl, 0, 0, hw, vh, 0, 0, hw, vh);
-    maskCtx.drawImage(videoEl, hw, 0, hw, vh, 0, 0, hw, vh);
-
-    const rgb = ctx.getImageData(0, 0, hw, vh);
-    const mask = maskCtx.getImageData(0, 0, hw, vh);
-    const px = rgb.data;
-    const mx = mask.data;
-    for (let i = 0; i < px.length; i += 4) {
-      px[i + 3] = mx[i];
+    if (
+      sourceVideoEl.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+      && Math.abs(displayVideo.currentTime - sourceVideoEl.currentTime) > 0.12
+    ) {
+      try {
+        displayVideo.currentTime = sourceVideoEl.currentTime;
+      } catch {
+        // ignore seek errors during startup
+      }
     }
-    ctx.putImageData(rgb, 0, 0);
-  };
-
-  const updateVideoFrame = () => {
-    if (sideBySideAlpha) {
-      compositeSideBySide();
+    if (!sourceVideoEl.paused && displayVideo.paused) {
+      displayVideo.play().catch(() => {});
     }
   };
 
-  /**
-   * @param {object} THREE
-   * @param {THREE.Camera} camera
-   * @param {THREE.Object3D} anchorGroup
-   */
-  const update = (THREE, camera, anchorGroup) => {
-    if (!THREE || !camera || !anchorGroup) return;
-
+  const applyTrackedLayout = (THREE, camera, anchorGroup) => {
     if (!scratch.bottom) {
       scratch.bottom = new THREE.Vector3();
       scratch.projected = new THREE.Vector3();
     }
 
+    camera.updateMatrixWorld?.(true);
+    anchorGroup.updateMatrixWorld?.(true);
     anchorGroup.getWorldPosition(scratch.bottom);
 
     const dist = camera.position.distanceTo(scratch.bottom);
-    if (!Number.isFinite(dist) || dist < 0.05) {
-      wrap.classList.remove('visible');
-      return;
-    }
+    if (!Number.isFinite(dist) || dist < 0.15) return false;
 
     scratch.projected.copy(scratch.bottom).project(camera);
-    if (scratch.projected.z > 1) {
-      wrap.classList.remove('visible');
-      return;
+    if (!Number.isFinite(scratch.projected.z) || scratch.projected.z > 1) {
+      return false;
     }
 
+    const vv = window.visualViewport;
+    const vw = vv?.width ?? window.innerWidth;
+    const vh = vv?.height ?? window.innerHeight;
+    const ox = vv?.offsetLeft ?? 0;
+    const oy = vv?.offsetTop ?? 0;
+
     const vFov = (camera.fov ?? 60) * (Math.PI / 180);
-    const heightPx = (planeHeight / dist) / Math.tan(vFov / 2) * window.innerHeight;
-    const widthPx = heightPx * PLANE_ASPECT;
+    const heightPx = (planeHeight / dist) / Math.tan(vFov / 2) * vh;
+    const widthPx = heightPx / PLANE_ASPECT;
 
-    const x = (scratch.projected.x * 0.5 + 0.5) * window.innerWidth;
-    const y = (-scratch.projected.y * 0.5 + 0.5) * window.innerHeight;
+    const x = ox + (scratch.projected.x * 0.5 + 0.5) * vw;
+    const y = oy + (-scratch.projected.y * 0.5 + 0.5) * vh;
 
-    wrap.style.width = `${Math.max(24, widthPx)}px`;
-    wrap.style.height = `${Math.max(42, heightPx)}px`;
+    wrap.style.width = `${Math.max(48, widthPx)}px`;
+    wrap.style.height = `${Math.max(85, heightPx)}px`;
     wrap.style.left = `${x - widthPx / 2}px`;
     wrap.style.top = `${y - heightPx}px`;
+    return true;
+  };
 
-    updateVideoFrame();
+  const reveal = () => {
+    syncDisplayVideo();
     wrap.classList.add('visible');
+    displayVideo.play().catch(() => {});
   };
 
   return {
     root: wrap,
+    getDisplayVideo: () => displayVideo,
+
+    showAtScreen(normX, normY) {
+      active = true;
+      useTrackedLayout = false;
+      screenNorm = {
+        x: Number.isFinite(normX) ? normX : 0.5,
+        y: Number.isFinite(normY) ? normY : 0.66,
+      };
+      applyFixedScreenLayout(wrap, screenNorm.x, screenNorm.y);
+      reveal();
+    },
 
     show() {
-      wrap.classList.add('visible');
-      if (!sideBySideAlpha) {
-        videoEl.style.display = '';
-      }
-      updateVideoFrame();
+      this.showAtScreen(screenNorm.x, screenNorm.y);
     },
 
     hide() {
+      active = false;
+      useTrackedLayout = false;
       wrap.classList.remove('visible');
-      if (!sideBySideAlpha) {
-        videoEl.style.display = 'none';
-      }
+      displayVideo.pause();
     },
 
-    update,
-    updateVideoFrame,
+    syncFromSource() {
+      if (!active) return;
+      displayVideo.muted = sourceVideoEl.muted;
+      syncDisplayVideo();
+    },
 
-    destroy() {
-      wrap.remove();
-      if (!sideBySideAlpha) {
-        videoEl.classList.remove('ar-ew-dom-hologram-video');
-        videoEl.style.display = 'none';
-        if (!videoEl.parentElement || videoEl.parentElement === wrap) {
-          document.body.appendChild(videoEl);
+    update(THREE, camera, anchorGroup) {
+      if (!active) return;
+
+      syncDisplayVideo();
+
+      if (THREE && camera && anchorGroup) {
+        const tracked = applyTrackedLayout(THREE, camera, anchorGroup);
+        if (tracked) {
+          useTrackedLayout = true;
+        } else if (!useTrackedLayout) {
+          applyFixedScreenLayout(wrap, screenNorm.x, screenNorm.y);
         }
       }
+
+      wrap.classList.add('visible');
+    },
+
+    destroy() {
+      active = false;
+      displayVideo.pause();
+      displayVideo.removeAttribute('src');
+      displayVideo.load();
+      wrap.remove();
     },
   };
 };

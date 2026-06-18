@@ -624,8 +624,7 @@ export class ARExperience {
         const domRoot = document.getElementById('ar-dom-overlay') || document.body;
         this._domHologram = createEighthWallDomHologram({
           domRoot,
-          videoEl: this._videoEl,
-          planeWidth: PLANE_WIDTH,
+          sourceVideoEl: this._videoEl,
           planeHeight: PLANE_HEIGHT,
           sideBySideAlpha: this._iosShaderActive,
         });
@@ -1210,10 +1209,13 @@ export class ARExperience {
       if (this._plane) this._plane.visible = false;
       const THREE = this._THREE || window.THREE;
       const camera = this._getActiveCamera();
-      if (this._domHologram && THREE && camera && this._anchor?.group) {
-        this._domHologram.show();
-        this._domHologram.update(THREE, camera, this._anchor.group);
-      } else {
+      const screen = this._surfaceSession?.lastPlacementScreen;
+      if (this._domHologram) {
+        this._domHologram.showAtScreen(screen?.normX, screen?.normY);
+        if (THREE && camera && this._anchor?.group) {
+          this._domHologram.update(THREE, camera, this._anchor.group);
+        }
+      } else if (this._plane) {
         attachHologramToScene(this._surfaceScene, this._plane);
         if (camera && THREE) {
           billboardHologramTowardCameraWithScratch(THREE, this._plane, camera);
@@ -1521,6 +1523,7 @@ export class ARExperience {
     if (!v) return;
     v.muted = true;
     v.play().catch(() => {});
+    this._domHologram?.syncFromSource?.();
   }
 
   /**
@@ -1534,10 +1537,12 @@ export class ARExperience {
     v.muted = false;
     v.play().then(() => {
       this._refreshMuteIcon();
+      this._domHologram?.syncFromSource?.();
     }).catch(() => {
       v.muted = true;
       v.play().catch(() => {});
       this._refreshMuteIcon();
+      this._domHologram?.syncFromSource?.();
     });
   }
 
@@ -1556,6 +1561,7 @@ export class ARExperience {
     if (!v) return;
     v.muted = !v.muted;
     if (!v.muted && v.paused) v.play().catch(() => {});
+    this._domHologram?.syncFromSource?.();
   }
 
   _toggleFullscreen() {

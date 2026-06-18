@@ -16,6 +16,7 @@ import {
   queryPlacementHitAtScreen,
   resetGroupTransform,
 } from './eighthWallSurfaceHitUtils.js';
+import { getHitTestNormFromClient, placeAnchorInFrontOfCamera } from './surfaceHitUtils.js';
 
 const MIN_SCAN_BEFORE_READY_MS = 1500;
 const GROUND_FALLBACK_AFTER_MS = 2500;
@@ -170,6 +171,11 @@ export class EighthWallSurfaceSession {
     this._cachedPose = null;
     this._cachedPoseTs = 0;
     this._scratchMatrix = null;
+    this._lastPlacementScreen = null;
+  }
+
+  get lastPlacementScreen() {
+    return this._lastPlacementScreen;
   }
 
   get placed() {
@@ -456,8 +462,9 @@ export class EighthWallSurfaceSession {
     event.stopPropagation();
 
     const touch = event.touches[0];
-    const normX = touch.clientX / window.innerWidth;
-    const normY = touch.clientY / window.innerHeight;
+    const screenNorm = getHitTestNormFromClient(touch.clientX, touch.clientY);
+    const normX = screenNorm.x;
+    const normY = screenNorm.y;
     const scanElapsed = performance.now() - this._sceneReadyAt;
     const allowGround = scanElapsed >= GROUND_FALLBACK_AFTER_MS;
     const hitTest = this._XR8?.XrController?.hitTest?.bind(this._XR8.XrController);
@@ -471,15 +478,26 @@ export class EighthWallSurfaceSession {
       { allowGround },
     );
 
+    let placed = false;
     if (tapHit) {
       const lifted = liftPlacementMatrix(window.THREE, tapHit.matrix);
       applyMatrixToGroup(this._anchorGroup, lifted);
+      placed = true;
     } else if (this._reticle.visible) {
       applyMatrixToGroup(this._anchorGroup, this._reticle.matrix);
+      placed = true;
     } else if (this._cachedPose && this._scratchMatrix) {
       this._scratchMatrix.fromArray(this._cachedPose);
       applyMatrixToGroup(this._anchorGroup, this._scratchMatrix);
+      placed = true;
+    } else if (camera && window.THREE) {
+      placeAnchorInFrontOfCamera(window.THREE, camera, this._anchorGroup);
+      placed = true;
     }
+
+    if (!placed) return;
+
+    this._lastPlacementScreen = { normX, normY };
     this._anchorGroup?.updateMatrixWorld?.(true);
 
     this._onPrimeVideo?.();
@@ -498,6 +516,7 @@ export class EighthWallSurfaceSession {
     this._missCount = 0;
     this._scanStartedAt = performance.now();
     this._cachedPose = null;
+    this._lastPlacementScreen = null;
     if (this._reticle) this._reticle.visible = false;
     if (this._anchorGroup) {
       resetGroupTransform(this._anchorGroup);

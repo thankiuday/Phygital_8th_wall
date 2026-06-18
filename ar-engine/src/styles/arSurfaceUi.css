@@ -626,14 +626,15 @@ body.ar-surface-active {
 /* ── iOS 8th Wall DOM hologram (screen-projected video) ───────────────── */
 .ar-ew-dom-hologram {
   position: fixed;
-  z-index: 44;
+  z-index: 10050;
   pointer-events: none;
   overflow: hidden;
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.18s ease;
   transform: translateZ(0);
   -webkit-transform: translateZ(0);
+  border-radius: 4px;
 }
 
 .ar-ew-dom-hologram.visible {
@@ -641,13 +642,29 @@ body.ar-surface-active {
   visibility: visible;
 }
 
-.ar-ew-dom-hologram-video,
-.ar-ew-dom-hologram-canvas {
+.ar-ew-dom-hologram-video {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
   background: transparent;
+}
+
+.ar-ew-dom-hologram-sbs {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.ar-ew-dom-hologram-sbs .ar-ew-dom-hologram-video {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 200%;
+  max-width: none;
+  object-fit: cover;
 }
 
 /* ── Buffer spinner ────────────────────────────────────────────────────── */

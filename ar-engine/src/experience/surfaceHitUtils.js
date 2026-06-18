@@ -50,6 +50,24 @@ export const composeHitMatrix = (THREE, position, rotation) => {
 };
 
 /** @param {THREE.Group} group */
+export const placeAnchorInFrontOfCamera = (THREE, camera, anchorGroup, distance = 1.35) => {
+  if (!THREE || !camera || !anchorGroup) return;
+
+  camera.updateMatrixWorld(true);
+  const camPos = new THREE.Vector3();
+  const forward = new THREE.Vector3();
+  camera.getWorldPosition(camPos);
+  camera.getWorldDirection(forward);
+
+  const pos = camPos.clone().add(forward.multiplyScalar(distance));
+  pos.y = Math.min(pos.y, camPos.y - 0.05);
+
+  const mat = new THREE.Matrix4();
+  mat.compose(pos, new THREE.Quaternion(), new THREE.Vector3(1, 1, 1));
+  applyMatrixToGroup(anchorGroup, mat);
+};
+
+/** @param {THREE.Group} group */
 export const applyMatrixToGroup = (group, matrix) => {
   group.matrixAutoUpdate = false;
   group.matrix.copy(matrix);
