@@ -628,7 +628,7 @@ body.ar-surface-active {
   position: fixed;
   z-index: 10050;
   pointer-events: none;
-  overflow: hidden;
+  overflow: visible;
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.15s ease;
@@ -642,12 +642,35 @@ body.ar-surface-active {
   visibility: visible;
 }
 
-.ar-ew-dom-hologram-canvas {
+.ar-ew-dom-hologram-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.ar-ew-dom-hologram-video {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
   background: transparent;
+}
+
+.ar-ew-dom-hologram-video-sbs {
+  width: 200%;
+  max-width: none;
+  object-fit: cover;
+}
+
+.ar-ew-dom-hologram-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: transparent;
+  pointer-events: none;
 }
 
 /* ── Buffer spinner ────────────────────────────────────────────────────── */

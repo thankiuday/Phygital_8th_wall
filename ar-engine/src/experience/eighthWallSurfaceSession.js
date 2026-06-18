@@ -173,6 +173,7 @@ export class EighthWallSurfaceSession {
     this._cachedPoseTs = 0;
     this._scratchMatrix = null;
     this._lastPlacementScreen = null;
+    this._paused = false;
   }
 
   get lastPlacementScreen() {
@@ -520,6 +521,41 @@ export class EighthWallSurfaceSession {
     this._onRescan?.();
   }
 
+  /** Soft pause — keep canvas and SLAM session alive (tab switch / background). */
+  pause() {
+    if (this._paused) return Promise.resolve();
+    this._paused = true;
+    this._running = false;
+    try {
+      this._XR8?.pause?.();
+    } catch {
+      // ignore
+    }
+    return Promise.resolve();
+  }
+
+  /** Resume after soft pause. */
+  resume() {
+    if (!this._paused || !this._XR8) return Promise.resolve();
+    const resumeFn = this._XR8.resume?.bind(this._XR8);
+    if (!resumeFn) {
+      this._paused = false;
+      this._running = true;
+      return Promise.resolve();
+    }
+    return Promise.resolve(resumeFn()).then(() => {
+      this._paused = false;
+      this._running = true;
+    }).catch(() => {
+      this._paused = false;
+      this._running = true;
+    });
+  }
+
+  get paused() {
+    return this._paused;
+  }
+
   async destroy() {
     this._running = false;
     this._unbindEmbeddedCanvas?.();
@@ -544,6 +580,7 @@ export class EighthWallSurfaceSession {
 
     try {
       this._XR8?.pause?.();
+      this._XR8?.stop?.();
     } catch {
       // ignore
     }
@@ -552,6 +589,7 @@ export class EighthWallSurfaceSession {
     this._canvas = null;
     this._XR8 = null;
     this._cameraStarted = false;
+    this._paused = false;
   }
 }
 

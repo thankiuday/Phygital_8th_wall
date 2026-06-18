@@ -1322,6 +1322,13 @@ export class ARExperience {
   }
 
   _isCameraFeedActive() {
+    if (this._surfaceBackend === 'eighthwall-slam') {
+      if (this._surfaceSession?.paused) return false;
+      const xr8 = window.XR8;
+      if (xr8?.isPaused?.()) return false;
+      const canvas = this._container?.querySelector('canvas.eighthwall-camerafeed, #camerafeed');
+      return Boolean(canvas && canvas.parentElement);
+    }
     const video = this._container?.querySelector('video');
     return !!(video && video.readyState >= 2 && video.videoWidth > 0);
   }
@@ -1353,8 +1360,6 @@ export class ARExperience {
    */
   _pauseSession() {
     if (this._destroyed || !this._mindarThree || this._sessionPaused) return;
-    // If the user opened an external link, never resume into a dead camera —
-    // a full reload will run when they come back.
     if (this._hasPendingReturnReload()) return;
 
     this._sessionPaused = true;
@@ -1368,8 +1373,18 @@ export class ARExperience {
       this._setScanningOverlayVisible(true);
     }
     this._forceHideScene();
+    this._domHologram?.hide();
     this._videoEl?.pause();
     this._refreshPlayIcon();
+
+    if (
+      this._trackingMode === 'surface'
+      && this._surfaceBackend === 'eighthwall-slam'
+      && this._surfaceSession
+    ) {
+      this._pauseTask = this._surfaceSession.pause();
+      return;
+    }
 
     this._pauseTask = (async () => {
       if (this._trackingMode === 'surface' && this._surfaceSession) {
@@ -1422,6 +1437,34 @@ export class ARExperience {
         if (document.visibilityState === 'hidden') return;
         if (this._tryReturnReload()) return;
         if (this._hasPendingReturnReload()) return;
+
+        if (
+          this._trackingMode === 'surface'
+          && this._surfaceBackend === 'eighthwall-slam'
+          && this._surfaceSession
+        ) {
+          await this._surfaceSession.resume();
+          this._sessionPaused = false;
+
+          if (this._surfaceSession.placed) {
+            this._targetVisible = true;
+            this._domHologram?.showAtScreen();
+            this._playWithAudio();
+            const THREE = this._THREE || window.THREE;
+            const cam = this._getActiveCamera();
+            if (this._domHologram && THREE && cam && this._anchor?.group) {
+              this._domHologram.update(THREE, cam, this._anchor.group);
+            }
+            this._ui.controls?.classList.add('visible');
+            this._syncSurfaceSessionUi(true);
+          } else {
+            this._prepareForRescan();
+            this._showSurfaceCoaching('scanning');
+          }
+
+          this._watchCameraRecovery();
+          return;
+        }
 
         this._prepareForRescan();
 
