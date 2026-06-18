@@ -303,6 +303,26 @@ export class ARExperience {
   _onSurfaceHitVisibilityChange(visible) {
     if (this._surfaceSession?.placed) return;
     this._setSurfacePlaceHintVisible(false);
+
+    // iOS SLAM: debounce hide so coaching UI does not flicker while scanning.
+    if (this._surfaceBackend === 'eighthwall-slam') {
+      if (this._iosCoachingHideTimer) {
+        clearTimeout(this._iosCoachingHideTimer);
+        this._iosCoachingHideTimer = null;
+      }
+      if (visible) {
+        this._showSurfaceCoaching('ready');
+        return;
+      }
+      this._iosCoachingHideTimer = setTimeout(() => {
+        this._iosCoachingHideTimer = null;
+        if (!this._surfaceSession?.placed && !this._surfaceSession?.hitVisible) {
+          this._showSurfaceCoaching('scanning');
+        }
+      }, 450);
+      return;
+    }
+
     this._showSurfaceCoaching(visible ? 'ready' : 'scanning');
   }
 

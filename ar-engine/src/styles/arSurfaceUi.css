@@ -181,6 +181,24 @@ body.ar-surface-active {
   pointer-events: none;
 }
 
+/* iOS: compact scanning pill — no logo / sweep line flicker */
+.ar-surface-coaching.ios-surface.state-scanning .ar-surface-coaching-mark,
+.ar-surface-coaching.ios-surface.state-scanning .ar-surface-coaching-brand,
+.ar-surface-coaching.ios-surface.state-scanning .ar-surface-coaching-scan {
+  display: none;
+}
+
+.ar-surface-coaching.ios-surface.state-scanning .ar-surface-coaching-content {
+  width: auto;
+  max-width: min(92vw, 340px);
+  padding: 12px 18px;
+  border-radius: 999px;
+}
+
+.ar-surface-coaching.ios-surface.state-scanning .ar-surface-coaching-vignette {
+  display: none;
+}
+
 .ar-surface-coaching.state-scanning .ar-surface-coaching-vignette,
 .ar-surface-coaching.state-ready .ar-surface-coaching-vignette {
   background: radial-gradient(
