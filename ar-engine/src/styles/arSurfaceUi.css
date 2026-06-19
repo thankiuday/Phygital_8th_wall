@@ -347,11 +347,11 @@ body.ar-surface-active {
   display: none;
   position: fixed;
   left: 50%;
-  bottom: 34%;
+  top: 66%;
   width: 72px;
   height: 72px;
   margin: 0;
-  transform: translate(-50%, 50%);
+  transform: translate(-50%, -50%);
   border: 3px solid #c4b5fd;
   border-radius: 50%;
   box-shadow:
@@ -360,6 +360,7 @@ body.ar-surface-active {
   animation: ar-coaching-reticle-pulse 1.6s ease-in-out infinite;
   pointer-events: none;
   z-index: 46;
+  visibility: hidden;
 }
 
 .ar-surface-coaching.ios-surface.state-ready .ar-surface-coaching-reticle,
@@ -368,8 +369,18 @@ body.ar-surface-active {
 }
 
 @keyframes ar-coaching-reticle-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.95; }
-  50% { transform: scale(1.06); opacity: 1; }
+  0%, 100% {
+    opacity: 0.88;
+    box-shadow:
+      0 0 0 6px rgba(167, 139, 250, 0.18),
+      0 0 24px rgba(167, 139, 250, 0.45);
+  }
+  50% {
+    opacity: 1;
+    box-shadow:
+      0 0 0 8px rgba(167, 139, 250, 0.24),
+      0 0 28px rgba(167, 139, 250, 0.55);
+  }
 }
 
 /* ── Controls pill ─────────────────────────────────────────────────────── */

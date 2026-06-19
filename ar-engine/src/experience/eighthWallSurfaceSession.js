@@ -175,10 +175,16 @@ export class EighthWallSurfaceSession {
     this._lastPlacementScreen = null;
     this._paused = false;
     this._readyLatched = false;
+    /** iOS: keep 3D ring matrix for placement but never render WebGL reticle (DOM ring only). */
+    this._iosDomReticleOnly = true;
   }
 
   get readyLatched() {
     return this._readyLatched;
+  }
+
+  get reticle() {
+    return this._reticle;
   }
 
   get lastPlacementScreen() {
@@ -442,10 +448,12 @@ export class EighthWallSurfaceSession {
           this._scratchMatrix.fromArray(this._cachedPose);
           applyMatrixToReticle(this._reticle, this._scratchMatrix);
         }
-        this._reticle.visible = true;
+        if (this._reticle) {
+          this._reticle.visible = !this._iosDomReticleOnly;
+        }
         this._setHitVisible(true);
       } else if (this._missCount >= MISS_FRAMES_TO_HIDE) {
-        this._reticle.visible = false;
+        if (this._reticle) this._reticle.visible = false;
         this._setHitVisible(false);
       }
     }
@@ -469,7 +477,7 @@ export class EighthWallSurfaceSession {
 
     const cacheFresh = this._cachedPose
       && (performance.now() - this._cachedPoseTs) < POSE_CACHE_MS;
-    const canPlace = this._reticle.visible
+    const canPlace = this._hitVisible
       || this._readyLatched
       || (this._hitVisible && cacheFresh);
     if (!canPlace) return;
@@ -496,7 +504,7 @@ export class EighthWallSurfaceSession {
       const lifted = liftPlacementMatrix(window.THREE, tapHit.matrix);
       applyMatrixToGroup(this._anchorGroup, lifted);
       placed = true;
-    } else if (this._reticle.visible) {
+    } else if (this._hitVisible || this._readyLatched) {
       applyMatrixToGroup(this._anchorGroup, this._reticle.matrix);
       placed = true;
     } else if (this._cachedPose && this._scratchMatrix) {

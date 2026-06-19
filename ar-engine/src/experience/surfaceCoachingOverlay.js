@@ -52,6 +52,7 @@ export const createSurfaceCoachingOverlay = ({
 
   const messageEl = el.querySelector('#ar-surface-coaching-message');
   const tapEl = el.querySelector('#ar-surface-coaching-tap');
+  const reticleEl = el.querySelector('.ar-surface-coaching-reticle');
 
   let state = 'hidden';
 
@@ -107,6 +108,22 @@ export const createSurfaceCoachingOverlay = ({
       }
 
       el.setAttribute('aria-hidden', next === 'hidden' ? 'true' : 'false');
+    },
+
+    updateReticleScreenPosition(x, y, visible = true) {
+      if (!reticleEl) return;
+      if (!visible || !Number.isFinite(x) || !Number.isFinite(y)) {
+        reticleEl.style.visibility = 'hidden';
+        return;
+      }
+      reticleEl.style.visibility = 'visible';
+      reticleEl.style.left = `${x}px`;
+      reticleEl.style.top = `${y}px`;
+      reticleEl.style.bottom = 'auto';
+    },
+
+    hideReticle() {
+      if (reticleEl) reticleEl.style.visibility = 'hidden';
     },
 
     destroy() {
