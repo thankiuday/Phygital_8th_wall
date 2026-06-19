@@ -6,7 +6,7 @@ import { applyMatrixToGroup, resetGroupTransform } from './surfaceHitUtils.js';
 
 export { applyMatrixToGroup, resetGroupTransform };
 
-export const MIN_HORIZONTAL_SCORE = 0.2;
+export const MIN_HORIZONTAL_SCORE = 0.32;
 export const SURFACE_LIFT_M = 0.04;
 
 /** Screen samples — floor (lower frame) and table height (mid frame). */
@@ -263,6 +263,10 @@ export const queryPlacementHit = (
         bestGround = { ...groundHit, source: 'ground' };
       }
     }
+  }
+
+  if (allowGround && cameraPointsAtGround(THREE, camera) && bestGround) {
+    return bestGround;
   }
 
   return bestFeature || bestGround || null;

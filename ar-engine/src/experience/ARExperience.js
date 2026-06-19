@@ -94,6 +94,8 @@ const PLANE_HEIGHT = PLANE_WIDTH * (16 / 9);   // ≈ 1.156
 
 const IOS_WEBGL_CONFIRM_FRAMES = 15;
 const IOS_WEBGL_FAIL_FRAMES = 30;
+/** iOS 8th Wall WebGL video is unreliable — always use DOM hologram for display. */
+const IOS_HOLOGRAM_USE_DOM_ONLY = true;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Smoothing levers — tune to dial responsiveness vs stability.
@@ -280,16 +282,51 @@ export class ARExperience {
     if (!this._scratch.reticleWorld) {
       this._scratch.reticleWorld = new THREE.Vector3();
       this._scratch.reticleProjected = new THREE.Vector3();
+      this._scratch.reticleScreen = { x: 0, y: 0, ready: false };
     }
 
     reticle.updateMatrixWorld?.(true);
     this._scratch.reticleWorld.setFromMatrixPosition(reticle.matrixWorld);
     const screen = worldToScreen(camera, this._scratch.reticleWorld, this._scratch.reticleProjected);
-    if (screen) {
-      this._coaching?.updateReticleScreenPosition(screen.x, screen.y, true);
-    } else {
+    if (!screen) {
       this._coaching?.hideReticle?.();
+      this._scratch.reticleScreen.ready = false;
+      return;
     }
+
+    const vp = window.visualViewport;
+    const vw = vp?.width ?? window.innerWidth;
+    const vh = vp?.height ?? window.innerHeight;
+    const ox = vp?.offsetLeft ?? 0;
+    const oy = vp?.offsetTop ?? 0;
+    const margin = 40;
+    if (
+      screen.x < ox + margin
+      || screen.x > ox + vw - margin
+      || screen.y < oy + margin
+      || screen.y > oy + vh - margin
+    ) {
+      this._coaching?.hideReticle?.();
+      return;
+    }
+
+    const rs = this._scratch.reticleScreen;
+    if (!rs.ready) {
+      rs.x = screen.x;
+      rs.y = screen.y;
+      rs.ready = true;
+    } else {
+      const jump = Math.hypot(screen.x - rs.x, screen.y - rs.y);
+      if (jump > 140) {
+        rs.x = screen.x;
+        rs.y = screen.y;
+      } else {
+        rs.x += (screen.x - rs.x) * 0.18;
+        rs.y += (screen.y - rs.y) * 0.18;
+      }
+    }
+
+    this._coaching?.updateReticleScreenPosition(rs.x, rs.y, true);
   }
 
   _resetIosHologramPath() {
@@ -772,7 +809,11 @@ export class ARExperience {
 
     if (!this._surfaceSession?.placed) {
       this._syncIosCoachingReticle(cam);
-    } else if (this._iosHologramPath === 'dom') {
+    } else if (
+      IOS_HOLOGRAM_USE_DOM_ONLY
+      || this._iosHologramPath === 'dom'
+    ) {
+      if (this._plane) this._plane.visible = false;
       if (this._domHologram && THREE && cam && this._anchor?.group) {
         this._domHologram.update(THREE, cam, this._anchor.group, this._plane);
       }
@@ -1340,19 +1381,35 @@ export class ARExperience {
 
     if (this._surfaceBackend === 'eighthwall-slam') {
       this._anchor?.group?.updateMatrixWorld?.(true);
-      this._resetIosHologramPath();
-      this._domHologram?.hide();
 
       const THREE = this._THREE || window.THREE;
       const camera = this._getActiveCamera();
+      const tapNorm = this._surfaceSession?.lastPlacementScreen;
 
       if (this._plane) {
-        this._reparentSurfaceHologramToAnchor();
-        showSurfaceHologram(this._plane, { preservePosition: true });
-        if (camera && THREE) {
-          this._billboardPlaneTowardCamera(camera, this._scratch);
+        this._plane.visible = false;
+      }
+
+      if (IOS_HOLOGRAM_USE_DOM_ONLY) {
+        this._iosHologramPath = 'dom';
+        this._domHologram?.showAtPlacement?.({
+          tapNorm,
+          THREE,
+          camera,
+          anchorGroup: this._anchor?.group,
+          planeMesh: this._plane,
+        });
+      } else {
+        this._resetIosHologramPath();
+        this._domHologram?.hide();
+        if (this._plane) {
+          this._reparentSurfaceHologramToAnchor();
+          showSurfaceHologram(this._plane, { preservePosition: true });
+          if (camera && THREE) {
+            this._billboardPlaneTowardCamera(camera, this._scratch);
+          }
+          this._eighthWallCanvasUpdate?.();
         }
-        this._eighthWallCanvasUpdate?.();
       }
     } else {
       animateTargetFound(this._plane);
@@ -1401,6 +1458,9 @@ export class ARExperience {
         this._resetIosHologramPath();
         this._domHologram?.hide();
         this._reparentSurfaceHologramToAnchor();
+        if (this._scratch?.reticleScreen) {
+          this._scratch.reticleScreen.ready = false;
+        }
       }
       this._setScanningOverlayVisible(false);
       this._syncSurfaceSessionUi(false);
@@ -1582,7 +1642,9 @@ export class ARExperience {
             this._targetVisible = true;
             this._playWithAudio();
 
-            if (this._iosHologramPath === 'dom') {
+            if (IOS_HOLOGRAM_USE_DOM_ONLY || this._iosHologramPath === 'dom') {
+              this._iosHologramPath = 'dom';
+              if (this._plane) this._plane.visible = false;
               const THREE = this._THREE || window.THREE;
               const cam = this._getActiveCamera();
               const tapNorm = this._surfaceSession.lastPlacementScreen;
@@ -1594,22 +1656,14 @@ export class ARExperience {
                 anchorGroup: this._anchor?.group,
                 planeMesh: this._plane,
               });
+              if (this._domHologram && THREE && cam && this._anchor?.group) {
+                this._domHologram.update(THREE, cam, this._anchor.group, this._plane);
+              }
             } else if (this._plane) {
               this._reparentSurfaceHologramToAnchor();
               showSurfaceHologram(this._plane, { preservePosition: true });
             }
 
-            const THREE = this._THREE || window.THREE;
-            const cam = this._getActiveCamera();
-            if (
-              this._iosHologramPath === 'dom'
-              && this._domHologram
-              && THREE
-              && cam
-              && this._anchor?.group
-            ) {
-              this._domHologram.update(THREE, cam, this._anchor.group, this._plane);
-            }
             this._ui.controls?.classList.add('visible');
             this._syncSurfaceSessionUi(true);
           } else {

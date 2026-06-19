@@ -85,7 +85,9 @@ export const createEighthWallDomHologram = ({
   planeHeight,
   sideBySideAlpha = false,
 }) => {
-  const host = document.getElementById('surface-ar-shell') || domRoot;
+  const host = document.getElementById('ar-dom-overlay')
+    || document.getElementById('surface-ar-shell')
+    || domRoot;
   const planeAspect = planeWidth / planeHeight;
 
   const wrap = document.createElement('div');
@@ -224,17 +226,21 @@ export const createEighthWallDomHologram = ({
   };
 
   const seedFromTap = (tapNorm, THREE, camera, anchorGroup) => {
-    if (!tapNorm || !THREE || !camera || !anchorGroup) return false;
+    if (!tapNorm) return false;
 
     const vp = getVisualViewport();
     const tap = normToScreen(tapNorm.normX, tapNorm.normY, vp);
-    if (!scratch.world) scratch.world = new THREE.Vector3();
-    if (!scratch.projected) scratch.projected = new THREE.Vector3();
+    let heightPx = vp.height * 0.52;
 
-    anchorGroup.updateMatrixWorld?.(true);
-    scratch.world.setFromMatrixPosition(anchorGroup.matrixWorld);
-    const heightPx = estimateScreenHeightPx(planeHeight, camera, scratch.world, vp);
-    if (!Number.isFinite(heightPx) || heightPx < 16) return false;
+    if (THREE && camera && anchorGroup) {
+      if (!scratch.world) scratch.world = new THREE.Vector3();
+      anchorGroup.updateMatrixWorld?.(true);
+      scratch.world.setFromMatrixPosition(anchorGroup.matrixWorld);
+      const estimated = estimateScreenHeightPx(planeHeight, camera, scratch.world, vp);
+      if (Number.isFinite(estimated) && estimated >= 16) {
+        heightPx = estimated;
+      }
+    }
 
     const layout = { bottomX: tap.x, bottomY: tap.y, heightPx };
     lastGoodLayout = layout;
@@ -335,11 +341,9 @@ export const createEighthWallDomHologram = ({
       lastGoodLayout = null;
       compositeTick = 0;
 
-      if (tapNorm && THREE && camera && anchorGroup) {
+      if (tapNorm) {
         seedFromTap(tapNorm, THREE, camera, anchorGroup);
-      }
-
-      if (!hasLayout && THREE && camera && (planeMesh || anchorGroup)) {
+      } else if (!hasLayout && THREE && camera && (planeMesh || anchorGroup)) {
         applyTrackedLayout(THREE, camera, planeMesh, anchorGroup);
       }
 

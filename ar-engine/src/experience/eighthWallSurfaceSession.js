@@ -20,9 +20,9 @@ import {
 import { getHitTestNormFromClient } from './surfaceHitUtils.js';
 
 const MIN_SCAN_BEFORE_READY_MS = 1500;
-const GROUND_FALLBACK_AFTER_MS = 2500;
-const MIN_STABLE_FEATURE_FRAMES = 3;
-const MIN_STABLE_GROUND_FRAMES = 5;
+const GROUND_FALLBACK_AFTER_MS = 1200;
+const MIN_STABLE_FEATURE_FRAMES = 5;
+const MIN_STABLE_GROUND_FRAMES = 4;
 const MISS_FRAMES_TO_HIDE = 36;
 const MISS_FRAMES_BEFORE_DECAY = 12;
 const POSE_CACHE_MS = 5000;
@@ -362,7 +362,7 @@ export class EighthWallSurfaceSession {
       if (!this._anchorGroup.parent) {
         scene.add(this._anchorGroup);
       }
-      if (!this._reticle.parent) {
+      if (!this._iosDomReticleOnly && !this._reticle.parent) {
         scene.add(this._reticle);
       }
 
