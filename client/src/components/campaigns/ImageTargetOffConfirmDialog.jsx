@@ -1,23 +1,36 @@
+import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Layers, ScanLine } from 'lucide-react';
 
 /**
  * Confirm turning Image target OFF — explains Android surface vs iPhone marker.
+ * Portaled to document.body so it is not clipped by campaign card stacking contexts.
  */
 const ImageTargetOffConfirmDialog = ({ open, onCancel, onConfirm, busy = false }) => {
-  if (!open) return null;
+  useEffect(() => {
+    if (!open || typeof document === 'undefined') return undefined;
 
-  return (
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open]);
+
+  if (!open || typeof document === 'undefined') return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-[120] flex items-end justify-center p-4 sm:items-center"
+      className="fixed inset-0 z-[10000] flex items-end justify-center p-4 sm:items-center"
       role="presentation"
       onClick={onCancel}
     >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" aria-hidden />
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-md" aria-hidden />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="image-target-off-title"
-        className="relative z-10 w-full max-w-md rounded-2xl border border-[var(--border-color)] bg-[var(--surface-1)] p-5 shadow-2xl sm:p-6"
+        className="relative z-10 w-full max-w-md rounded-2xl border border-[var(--border-color)] bg-[var(--surface-solid)] p-5 shadow-2xl sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <h2
@@ -71,7 +84,8 @@ const ImageTargetOffConfirmDialog = ({ open, onCancel, onConfirm, busy = false }
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 
