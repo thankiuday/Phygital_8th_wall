@@ -74,6 +74,11 @@ export const canPreviewAr = (campaign) => {
 export const hasPrintAsset = (campaign) =>
   isArMediaType(campaign?.campaignType) && !!campaign?.targetImageUrl;
 
+/** True when campaign has a print marker (composited or original upload). */
+export const campaignHasPrintMarker = (campaign) =>
+  isArMediaType(campaign?.campaignType)
+  && Boolean(campaign?.targetImageUrl || campaign?.targetImageOriginalUrl);
+
 export const isDigitalBusinessCard = (campaign) =>
   campaign?.campaignType === 'digital-business-card';
 

@@ -8,7 +8,7 @@ import useCampaignStore from '../../store/useCampaignStore';
 import EditCampaignModal from '../../components/ui/EditCampaignModal';
 import Icon3D, { ICON3D_PRESETS } from '../../components/ui/Icon3D';
 import { CampaignListCard, CampaignListSkeletonCard } from '../../components/campaigns/CampaignListCard';
-import { digitalCardEditUrl } from '../../utils/campaignActions';
+import { digitalCardEditUrl, campaignHasPrintMarker } from '../../utils/campaignActions';
 
 const EMPTY_COPY = {
   title: 'No digital business cards yet',
@@ -74,12 +74,12 @@ const PersonalizedIdentityPage = () => {
   };
 
   const handleToggleImageTarget = async (campaign, requiresImageTarget) => {
-    if (requiresImageTarget === false && !campaign.targetImageUrl) {
+    if (requiresImageTarget === false && !campaignHasPrintMarker(campaign)) {
       showToast('Upload a print marker before disabling Image target.');
       return;
     }
     const result = await updateCampaignInList(campaign._id, { requiresImageTarget });
-    if (!result.success) showToast(result.message);
+    if (!result.success) showToast(result.message || 'Update failed');
   };
 
   const handleDelete = async (campaign) => {

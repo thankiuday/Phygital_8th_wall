@@ -13,6 +13,7 @@ import CampaignThumbnail from '../ui/CampaignThumbnail';
 import { arEffectLabel } from '../../constants/arEffects';
 import {
   arPreviewUrl,
+  campaignHasPrintMarker,
   campaignTypeLabel,
   canPreviewAr,
   hasPrintAsset,
@@ -258,7 +259,7 @@ export const CampaignListCard = ({
           <ArImageTargetToggle
             value={campaign.requiresImageTarget !== false}
             onChange={(next) => onToggleImageTarget(campaign, next)}
-            canDisableImageTarget={Boolean(campaign.targetImageUrl)}
+            canDisableImageTarget={campaignHasPrintMarker(campaign)}
           />
         )}
 

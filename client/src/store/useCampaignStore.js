@@ -399,6 +399,7 @@ const useCampaignStore = create((set, get) => ({
   },
 
   updateCampaignInList: async (id, updates) => {
+    const previous = get().campaigns.find((c) => c._id === id);
     set((s) => ({
       campaigns: s.campaigns.map((c) =>
         (c._id === id ? { ...c, ...updates } : c)
@@ -410,9 +411,18 @@ const useCampaignStore = create((set, get) => ({
         campaigns: s.campaigns.map((c) => (c._id === id ? updated : c)),
       }));
       return { success: true, campaign: updated };
-    } catch {
-      get().fetchCampaigns();
-      return { success: false, message: 'Update failed' };
+    } catch (err) {
+      if (previous) {
+        set((s) => ({
+          campaigns: s.campaigns.map((c) => (c._id === id ? previous : c)),
+        }));
+      } else {
+        get().fetchCampaigns();
+      }
+      return {
+        success: false,
+        message: err?.response?.data?.message || 'Update failed',
+      };
     }
   },
 

@@ -28,7 +28,7 @@ const ArExperiencePanel = ({ campaign, arProduct }) => {
         description={
           imageTargetOn
             ? 'Visitors scan your printed marker before the hologram plays. Toggle off from Edit or the campaign card for surface placement on Android.'
-            : 'Android: flat surface placement. iPhone: scans your printed marker.'
+            : 'Android: flat surface placement. iPhone: scans your printed marker (iOS surface coming soon).'
         }
       />
 

@@ -22,6 +22,7 @@ import ArEffectPicker from '../campaigns/ArEffectPicker';
 import ArImageTargetToggle from '../campaigns/ArImageTargetToggle';
 import { campaignService } from '../../services/campaignService';
 import { isArMediaType } from '../../constants/arMediaProducts';
+import { campaignHasPrintMarker } from '../../utils/campaignActions';
 import { AR_VIDEO_MAX_DURATION_SEC } from '../../constants/arVideoLimits';
 
 const ACCEPTED_VIDEO_TYPES = 'video/*,.mp4,.webm,.mov,.m4v';
@@ -507,7 +508,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
       }
     }
 
-    if (isArMedia && !requiresImageTarget && !campaign.targetImageUrl) {
+    if (isArMedia && !requiresImageTarget && !campaignHasPrintMarker(campaign)) {
       setRequiresImageTarget(true);
       setError(
         'Upload a print marker before disabling Image target. iPhone visitors still scan the marker when Android uses surface placement.',
@@ -885,7 +886,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
                       variant="settings"
                       value={requiresImageTarget}
                       onChange={setRequiresImageTarget}
-                      canDisableImageTarget={Boolean(campaign.targetImageUrl)}
+                      canDisableImageTarget={campaignHasPrintMarker(campaign)}
                     />
                   </div>
 

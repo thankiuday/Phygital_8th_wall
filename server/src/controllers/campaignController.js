@@ -946,6 +946,7 @@ const CAMPAIGN_LIST_VIEW_FIELDS = [
   'linkItems',
   'preciseGeoAnalytics',
   'analytics',
+  'requiresImageTarget',
   'createdAt',
   'updatedAt',
 ];
@@ -1053,6 +1054,8 @@ const updateCampaign = async (req, res) => {
       'docItems',
       'videoPublicId',
       'videoIosPublicId',
+      'targetImageUrl',
+      'targetImageOriginalUrl',
       'analytics.linkClickTotals',
       'analytics.docOpenTotals',
       'analytics.videoPlayTotals',
@@ -1222,7 +1225,7 @@ const updateCampaign = async (req, res) => {
       if (req.body.requiresImageTarget === false) {
         const targetUrl = patchTargetImageUrl !== undefined
           ? patchTargetImageUrl
-          : existing.targetImageUrl;
+          : (existing.targetImageUrl || existing.targetImageOriginalUrl);
         if (!targetUrl || String(targetUrl).trim() === '') {
           throw new AppError(
             'Upload a print marker before disabling Image target. iPhone visitors still scan the marker when Android uses surface placement.',
