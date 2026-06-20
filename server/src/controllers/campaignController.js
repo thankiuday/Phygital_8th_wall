@@ -1219,6 +1219,17 @@ const updateCampaign = async (req, res) => {
       updates.arEffect = req.body.arEffect;
     }
     if (req.body.requiresImageTarget !== undefined) {
+      if (req.body.requiresImageTarget === false) {
+        const targetUrl = patchTargetImageUrl !== undefined
+          ? patchTargetImageUrl
+          : existing.targetImageUrl;
+        if (!targetUrl || String(targetUrl).trim() === '') {
+          throw new AppError(
+            'Upload a print marker before disabling Image target. iPhone visitors still scan the marker when Android uses surface placement.',
+            400,
+          );
+        }
+      }
       updates.requiresImageTarget = !!req.body.requiresImageTarget;
     }
   }

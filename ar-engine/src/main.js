@@ -13,7 +13,7 @@ import './styles/arSurfaceUi.css';
 import { loadCampaign, recordScan } from './services/campaignLoader.js';
 import { ARExperience } from './experience/ARExperience.js';
 import { updateLoadingProgress, showError } from './utils/loadingScreen.js';
-import { getLoadingHint } from './utils/arTargetCopy.js';
+import { getLoadingHint, effectiveUsesImageTarget } from './utils/arTargetCopy.js';
 import {
   createArSessionId,
   registerReturnReloadHandlers,
@@ -52,7 +52,7 @@ const init = async () => {
     return;
   }
 
-  if (!campaign.targetImageUrl && campaign.requiresImageTarget !== false) {
+  if (!campaign.targetImageUrl && effectiveUsesImageTarget(campaign)) {
     showError('Campaign is incomplete.', 'Target image or video is missing.');
     return;
   }
@@ -66,7 +66,7 @@ const init = async () => {
   if (loadingHint) {
     loadingHint.textContent = getLoadingHint(
       campaign.campaignType,
-      campaign.requiresImageTarget !== false,
+      effectiveUsesImageTarget(campaign),
     );
   }
 

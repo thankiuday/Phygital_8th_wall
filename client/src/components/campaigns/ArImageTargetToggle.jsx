@@ -7,21 +7,25 @@ import { Layers, ScanLine } from 'lucide-react';
  * @param {boolean} value — true = requires printed image target
  * @param {(next: boolean) => void | Promise<void>} onChange
  * @param {boolean} [disabled]
+ * @param {boolean} [canDisableImageTarget] — false when no targetImageUrl (surface off blocked)
  * @param {'card' | 'settings'} [variant]
  */
 const ArImageTargetToggle = ({
   value,
   onChange,
   disabled = false,
+  canDisableImageTarget = true,
   variant = 'card',
 }) => {
   const [busy, setBusy] = useState(false);
   const on = value !== false;
+  const surfaceOffBlocked = on && !canDisableImageTarget;
 
   const handleToggle = async (e) => {
     e.stopPropagation();
     if (disabled || busy) return;
     const next = !on;
+    if (next === false && !canDisableImageTarget) return;
     setBusy(true);
     try {
       await onChange(next);
@@ -31,7 +35,12 @@ const ArImageTargetToggle = ({
   };
 
   const Icon = on ? ScanLine : Layers;
-  const helper = on ? 'Required' : 'Surface only';
+  const helper = on
+    ? (surfaceOffBlocked ? 'Marker required for iPhone' : 'Required')
+    : 'Surface on Android';
+
+  const offDescription =
+    'Android: place on a flat surface with no printed marker. iPhone: scans your printed marker.';
 
   if (variant === 'settings') {
     return (
@@ -44,21 +53,26 @@ const ArImageTargetToggle = ({
           <p className="mt-0.5 text-xs leading-relaxed text-[var(--text-muted)]">
             {on
               ? 'Visitors must point their camera at your printed card or poster before the hologram plays.'
-              : 'Visitors place the hologram on any flat surface — no printed marker needed. Works on Android and iPhone.'}
+              : offDescription}
           </p>
+          {surfaceOffBlocked && (
+            <p className="mt-1.5 text-xs leading-relaxed text-amber-300/90">
+              Upload a print marker before you can turn this off — iPhone still uses image tracking.
+            </p>
+          )}
         </div>
         <button
           type="button"
           role="switch"
           aria-checked={on}
           aria-label={on ? 'Image target required' : 'Surface mode only'}
-          disabled={disabled || busy}
+          disabled={disabled || busy || surfaceOffBlocked}
           onClick={handleToggle}
           className={`relative mt-1 inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-colors ${
             on
               ? 'border-brand-500/50 bg-brand-500/30'
               : 'border-[var(--border-color)] bg-[var(--surface-3)]'
-          } ${disabled || busy ? 'opacity-50' : ''}`}
+          } ${disabled || busy || surfaceOffBlocked ? 'opacity-50' : ''}`}
         >
           <span
             className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
@@ -91,13 +105,13 @@ const ArImageTargetToggle = ({
         role="switch"
         aria-checked={on}
         aria-label={on ? 'Image target required' : 'Surface mode only'}
-        disabled={disabled || busy}
+        disabled={disabled || busy || surfaceOffBlocked}
         onClick={handleToggle}
         className={`relative inline-flex h-7 min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full border px-1 transition-colors ${
           on
             ? 'border-brand-500/50 bg-brand-500/25'
             : 'border-[var(--border-color)] bg-[var(--surface-3)]'
-        } ${disabled || busy ? 'opacity-50' : ''}`}
+        } ${disabled || busy || surfaceOffBlocked ? 'opacity-50' : ''}`}
       >
         <span
           className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${

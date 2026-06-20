@@ -74,6 +74,10 @@ const PersonalizedIdentityPage = () => {
   };
 
   const handleToggleImageTarget = async (campaign, requiresImageTarget) => {
+    if (requiresImageTarget === false && !campaign.targetImageUrl) {
+      showToast('Upload a print marker before disabling Image target.');
+      return;
+    }
     const result = await updateCampaignInList(campaign._id, { requiresImageTarget });
     if (!result.success) showToast(result.message);
   };

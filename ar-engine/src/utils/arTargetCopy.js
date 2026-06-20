@@ -2,7 +2,15 @@
  * arTargetCopy — dynamic hints for image-target vs surface placement modes.
  */
 
+import { isApplePlaybackEngine } from './platform.js';
+
 export const usesImageTarget = (campaign) => campaign?.requiresImageTarget !== false;
+
+/** Runtime mode: iOS uses image tracking even when campaign is surface-only. */
+export const effectiveUsesImageTarget = (campaign) => {
+  if (usesImageTarget(campaign)) return true;
+  return isApplePlaybackEngine();
+};
 
 export const getArTargetNoun = (campaignType) =>
   (campaignType === 'ar-poster' ? 'poster' : 'business card');

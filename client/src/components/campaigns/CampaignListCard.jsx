@@ -258,6 +258,7 @@ export const CampaignListCard = ({
           <ArImageTargetToggle
             value={campaign.requiresImageTarget !== false}
             onChange={(next) => onToggleImageTarget(campaign, next)}
+            canDisableImageTarget={Boolean(campaign.targetImageUrl)}
           />
         )}
 

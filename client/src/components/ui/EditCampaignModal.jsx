@@ -507,6 +507,14 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
       }
     }
 
+    if (isArMedia && !requiresImageTarget && !campaign.targetImageUrl) {
+      setRequiresImageTarget(true);
+      setError(
+        'Upload a print marker before disabling Image target. iPhone visitors still scan the marker when Android uses surface placement.',
+      );
+      return;
+    }
+
     setSaving(true);
     setError('');
     setLinkError('');
@@ -877,6 +885,7 @@ const EditCampaignModal = ({ campaign, onSave, onClose }) => {
                       variant="settings"
                       value={requiresImageTarget}
                       onChange={setRequiresImageTarget}
+                      canDisableImageTarget={Boolean(campaign.targetImageUrl)}
                     />
                   </div>
 

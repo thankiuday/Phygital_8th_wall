@@ -64,6 +64,7 @@ import {
   getScanImageAlt,
   getScanTitle,
   usesImageTarget,
+  effectiveUsesImageTarget,
 } from '../utils/arTargetCopy.js';
 import {
   checkWebXrArSupported,
@@ -205,7 +206,7 @@ export class ARExperience {
   }
 
   _usesImageTarget() {
-    return usesImageTarget(this._campaign);
+    return effectiveUsesImageTarget(this._campaign);
   }
 
   _getUxRoot() {

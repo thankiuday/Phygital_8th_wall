@@ -26,6 +26,7 @@ import { getArExperienceCopy } from '../constants/arExperienceCopy';
 import { createSurfaceArShell, removeSurfaceArShell } from '../ar/surfaceArShell.js';
 import { bootEmbeddedSurfaceAr } from '../ar/launchSurfaceAr.js';
 import { resolveSurfaceArBackend } from '@ar-engine/utils/surfaceCapability.js';
+import { effectiveUsesImageTarget } from '@ar-engine/utils/arTargetCopy.js';
 import { requestSurfaceSession } from '@ar-engine/utils/webxr.js';
 import { createArSessionId } from '@ar-engine/utils/arReturnReload.js';
 import { preloadEighthWallEngine, isEighthWallEngineReady } from '@ar-engine/experience/loadEighthWallEngine.js';
@@ -114,10 +115,12 @@ const ARExperiencePage = () => {
     };
   }, [campaignId]);
 
-  const imageTargetOn = campaign?.requiresImageTarget !== false;
+  const effectiveImageTargetOn = campaign
+    ? effectiveUsesImageTarget(campaign)
+    : true;
 
   useEffect(() => {
-    if (!campaign || imageTargetOn) {
+    if (!campaign || effectiveImageTargetOn) {
       setSurfaceArSupported(null);
       setSurfaceBackend(null);
       setEighthWallReady(false);
@@ -134,10 +137,10 @@ const ARExperiencePage = () => {
         setEighthWallReady(true);
       }
     });
-  }, [campaign, imageTargetOn]);
+  }, [campaign, effectiveImageTargetOn]);
 
   const handleLaunchAR = () => {
-    if (!imageTargetOn) {
+    if (!effectiveImageTargetOn) {
       setSurfaceArError('');
       setLaunching(true);
 
@@ -235,15 +238,15 @@ const ARExperiencePage = () => {
       ? `/open/${campaign.ownerHandle}/${campaign.hubSlug}`
       : null);
 
-  const experienceCopy = getArExperienceCopy(campaign?.campaignType, imageTargetOn);
-  const stepIcons = imageTargetOn ? [ScanLine, Camera, Zap] : STEP_ICONS_SURFACE;
+  const experienceCopy = getArExperienceCopy(campaign?.campaignType, effectiveImageTargetOn);
+  const stepIcons = effectiveImageTargetOn ? [ScanLine, Camera, Zap] : STEP_ICONS_SURFACE;
   const howToSteps = experienceCopy.steps.map((text, i) => ({
     icon: stepIcons[i] || Zap,
     text,
   }));
 
-  const surfaceLaunchBlocked = !imageTargetOn && surfaceArSupported === false;
-  const surfaceEnginePreparing = !imageTargetOn
+  const surfaceLaunchBlocked = !effectiveImageTargetOn && surfaceArSupported === false;
+  const surfaceEnginePreparing = !effectiveImageTargetOn
     && surfaceBackend === 'eighthwall-slam'
     && !eighthWallReady;
 
@@ -391,7 +394,7 @@ const ARExperiencePage = () => {
         <section className="pt-2 text-center">
           <div className="relative mx-auto w-fit max-w-[min(100%,12.5rem)]">
             <div className="overflow-hidden rounded-2xl border border-violet-500/20 bg-white/[0.03] p-1 shadow-[0_0_28px_rgba(124,58,237,0.1)]">
-              {imageTargetOn ? (
+              {effectiveImageTargetOn ? (
                 <CampaignThumbnail
                   campaign={campaign}
                   alt={campaign?.campaignName || experienceCopy.target}
