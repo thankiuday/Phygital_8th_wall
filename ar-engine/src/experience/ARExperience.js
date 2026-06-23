@@ -57,6 +57,7 @@ import { updateLoadingProgress, showError, hideLoading } from '../utils/loadingS
 import { updateSession } from '../services/campaignLoader.js';
 import { isApplePlaybackEngine } from '../utils/platform.js';
 import { initGravityTracker, getUpVector } from '../utils/gravity.js';
+import { bindArTap } from '../utils/bindArTap.js';
 import { buildLinkOverlay } from './buildLinkOverlay.js';
 import { buildHubToggle } from './buildHubToggle.js';
 import {
@@ -549,6 +550,7 @@ export class ARExperience {
     }
 
     this._trackingMode = 'image';
+    document.body.classList.add('ar-session-active');
     this._mindarThree = session.mindarThree;
     const { renderer, scene, camera } = session;
     this._anchor = session.anchor;
@@ -1187,9 +1189,11 @@ export class ARExperience {
     const btnMute = controls.querySelector('[data-action="mute"]');
     const btnFs   = controls.querySelector('[data-action="fullscreen"]');
 
-    btnPlay.addEventListener('click', () => this._togglePlayPause());
-    btnMute.addEventListener('click', () => this._toggleMute());
-    btnFs.addEventListener('click',   () => this._toggleFullscreen());
+    const tapUnbinds = [
+      bindArTap(btnPlay, () => this._togglePlayPause()),
+      bindArTap(btnMute, () => this._toggleMute()),
+      bindArTap(btnFs, () => this._toggleFullscreen()),
+    ];
 
     // Buffer spinner (hidden by default)
     const buffer = document.createElement('div');
@@ -1217,6 +1221,7 @@ export class ARExperience {
     this._ui.btnFs     = btnFs;
     this._ui.buffer    = buffer;
     this._ui.watermark = watermark;
+    this._ui._tapUnbinds = tapUnbinds;
 
     // Buffer state listeners on the video element
     const onWaiting = () => this._ui.buffer.classList.add('visible');
@@ -1889,7 +1894,7 @@ export class ARExperience {
   // ───────────────────────────────────────────────────────────────────────────
   async destroy() {
     this._destroyed = true;
-    document.body.classList.remove('ar-surface-active');
+    document.body.classList.remove('ar-surface-active', 'ar-session-active');
     this._unbindLifecycle();
 
     if (this._sessionStart) {
@@ -1941,6 +1946,7 @@ export class ARExperience {
     this._domHologram = null;
 
     // Remove DOM overlays
+    this._ui._tapUnbinds?.forEach((unbind) => unbind());
     this._ui.linkOverlay?.destroy();
     this._ui.hubToggle?.destroy();
     this._ui.controls?.remove();

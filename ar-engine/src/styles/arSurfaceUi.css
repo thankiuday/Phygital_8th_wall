@@ -3,6 +3,8 @@
  * Scoped under .surface-ar-shell for embed; also applies globally on ar-engine page.
  */
 
+#ar-dom-overlay,
+body.ar-session-active,
 .surface-ar-shell,
 body.ar-surface-active {
   --ar-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -11,12 +13,17 @@ body.ar-surface-active {
   --ar-safe-bottom: max(12px, env(safe-area-inset-bottom, 0px));
   --ar-safe-left: max(12px, env(safe-area-inset-left, 0px));
   --ar-controls-bottom: calc(var(--ar-safe-bottom) + 16px);
-  --ar-dock-bottom: calc(var(--ar-controls-bottom) + 68px);
+  --ar-dock-bottom: calc(var(--ar-controls-bottom) + 72px);
   --ar-glass: rgba(12, 8, 24, 0.78);
   --ar-glass-border: rgba(167, 139, 250, 0.28);
   --ar-violet: #a78bfa;
   font-family: var(--ar-font);
   -webkit-tap-highlight-color: transparent;
+}
+
+body.ar-session-active,
+body.ar-surface-active {
+  touch-action: manipulation;
 }
 
 /* ── Shell ─────────────────────────────────────────────────────────────── */
@@ -127,14 +134,13 @@ body.ar-surface-active {
   inset: 0;
   z-index: 10050;
   pointer-events: none;
-  transform: translateZ(0);
-  -webkit-transform: translateZ(0);
+  isolation: isolate;
 }
 
-#ar-dom-overlay #ar-controls,
-#ar-dom-overlay #ar-hub-toggle,
-#ar-dom-overlay #ar-link-dock,
-#ar-dom-overlay #ar-buffer,
+#ar-dom-overlay #ar-controls.visible,
+#ar-dom-overlay #ar-hub-toggle.visible,
+#ar-dom-overlay #ar-link-dock.visible,
+#ar-dom-overlay #ar-buffer.visible,
 #ar-dom-overlay .ar-surface-coaching.state-starting {
   pointer-events: auto;
 }
@@ -390,6 +396,7 @@ body.ar-surface-active {
 #ar-controls {
   position: fixed;
   left: 50%;
+  bottom: max(28px, calc(env(safe-area-inset-bottom, 12px) + 16px));
   bottom: var(--ar-controls-bottom);
   transform: translate(-50%, 10px);
   z-index: 10052;
@@ -405,6 +412,7 @@ body.ar-surface-active {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
   opacity: 0;
   pointer-events: none;
+  touch-action: manipulation;
   transition: opacity 0.35s ease, transform 0.35s ease;
 }
 
@@ -427,6 +435,8 @@ body.ar-surface-active {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   transition: background 0.15s ease, transform 0.1s ease;
 }
 
@@ -439,13 +449,16 @@ body.ar-surface-active {
 #ar-link-dock {
   position: fixed;
   left: 50%;
+  bottom: max(100px, calc(env(safe-area-inset-bottom, 12px) + 88px));
   bottom: var(--ar-dock-bottom);
   transform: translateX(-50%);
   z-index: 10051;
   width: min(94vw, 380px);
+  padding: 0 max(12px, env(safe-area-inset-left, 0px));
   padding: 0 var(--ar-safe-left);
   opacity: 0;
   pointer-events: none;
+  touch-action: manipulation;
   transition: opacity 0.3s ease, transform 0.3s ease;
   display: flex;
   justify-content: center;
@@ -503,6 +516,8 @@ body.ar-surface-active {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   padding: 0;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
   transition: transform 0.12s ease;
@@ -530,7 +545,9 @@ body.ar-surface-active {
 /* ── Hub toggle ────────────────────────────────────────────────────────── */
 #ar-hub-toggle {
   position: fixed;
+  top: max(12px, env(safe-area-inset-top, 0px));
   top: var(--ar-safe-top);
+  left: max(12px, env(safe-area-inset-left, 0px));
   left: var(--ar-safe-left);
   right: auto;
   z-index: 10053;
@@ -539,7 +556,7 @@ body.ar-surface-active {
   justify-content: center;
   gap: 6px;
   min-height: 44px;
-  max-width: calc(100vw - 72px);
+  max-width: calc(100vw - 24px);
   padding: 10px 14px;
   border-radius: 999px;
   border: 1px solid rgba(124, 58, 237, 0.45);
@@ -553,6 +570,9 @@ body.ar-surface-active {
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
   opacity: 0;
   pointer-events: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   transition: opacity 0.3s ease, transform 0.12s ease;
 }
 

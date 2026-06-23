@@ -2,6 +2,8 @@
  * buildHubToggle — persistent "View profile hub" button (mirror of hub Launch hologram).
  */
 
+import { bindArTap } from '../utils/bindArTap.js';
+
 const HUB_ICON_SVG = `
   <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
     <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -27,15 +29,22 @@ export const buildHubToggle = (hubPageUrl, onBeforeLeave, parent) => {
   btn.setAttribute('aria-label', 'View profile hub');
   btn.innerHTML = `${HUB_ICON_SVG}<span>View profile hub</span>`;
 
-  btn.addEventListener('click', (e) => {
-    e.preventDefault();
+  const navigate = () => {
     onBeforeLeave?.();
     window.location.href = hubPageUrl;
+  };
+
+  const unbindTap = bindArTap(btn, (e) => {
+    e.preventDefault();
+    navigate();
   });
 
   (parent || document.body).appendChild(btn);
 
-  const destroy = () => btn.remove();
+  const destroy = () => {
+    unbindTap();
+    btn.remove();
+  };
 
   return { el: btn, destroy };
 };

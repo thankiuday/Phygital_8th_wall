@@ -473,17 +473,22 @@
 
       /* WebXR dom-overlay root — in-session UI composited over immersive AR */
       #ar-dom-overlay {
+        --ar-safe-top: max(12px, env(safe-area-inset-top, 0px));
+        --ar-safe-right: max(12px, env(safe-area-inset-right, 0px));
+        --ar-safe-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+        --ar-safe-left: max(12px, env(safe-area-inset-left, 0px));
+        --ar-controls-bottom: calc(var(--ar-safe-bottom) + 16px);
+        --ar-dock-bottom: calc(var(--ar-controls-bottom) + 72px);
         position: fixed;
         inset: 0;
         z-index: 10050;
         pointer-events: none;
-        transform: translateZ(0);
-        -webkit-transform: translateZ(0);
+        isolation: isolate;
+        -webkit-tap-highlight-color: transparent;
       }
-      #ar-dom-overlay #ar-controls,
-      #ar-dom-overlay #ar-hub-toggle,
-      #ar-dom-overlay #ar-link-dock,
-      #ar-dom-overlay #ar-buffer {
+      #ar-dom-overlay #ar-controls.visible,
+      #ar-dom-overlay #ar-hub-toggle.visible,
+      #ar-dom-overlay #ar-link-dock.visible {
         pointer-events: auto;
       }
 
@@ -496,7 +501,8 @@
       #ar-controls {
         position: fixed;
         left: 50%;
-        bottom: max(28px, env(safe-area-inset-bottom, 12px) + 16px);
+        bottom: max(28px, calc(env(safe-area-inset-bottom, 12px) + 16px));
+        bottom: var(--ar-controls-bottom);
         transform: translate(-50%, 8px);
         z-index: 10052;
         display: flex;
@@ -513,6 +519,7 @@
           inset 0 1px 0 rgba(255, 255, 255, 0.06);
         opacity: 0;
         pointer-events: none;
+        touch-action: manipulation;
         transition: opacity 0.35s ease, transform 0.35s ease;
       }
       #ar-controls.visible {
@@ -531,6 +538,8 @@
         align-items: center;
         justify-content: center;
         cursor: pointer;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
         transition: background-color 0.15s ease, transform 0.1s ease;
       }
       #ar-controls .ar-ctrl:hover,
@@ -608,13 +617,16 @@
       #ar-link-dock {
         position: fixed;
         left: 50%;
-        bottom: calc(max(28px, env(safe-area-inset-bottom, 12px) + 16px) + 72px);
+        bottom: max(100px, calc(env(safe-area-inset-bottom, 12px) + 88px));
+        bottom: var(--ar-dock-bottom);
         transform: translateX(-50%);
         z-index: 10051;
         width: min(92vw, 360px);
-        padding: 0 max(8px, env(safe-area-inset-left, 8px));
+        padding: 0 max(12px, env(safe-area-inset-left, 0px));
+        padding: 0 var(--ar-safe-left);
         opacity: 0;
         pointer-events: none;
+        touch-action: manipulation;
         transition: opacity 0.3s ease;
         display: flex;
         justify-content: center;
@@ -670,6 +682,8 @@
         align-items: center;
         justify-content: center;
         cursor: pointer;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
         padding: 0;
         opacity: 0;
         transition: box-shadow 0.15s ease;
@@ -690,11 +704,13 @@
         display: block;
       }
 
-      /* Hub switch — compact top-right pill */
+      /* Hub switch — compact top-left pill */
       #ar-hub-toggle {
         position: fixed;
-        top: max(12px, env(safe-area-inset-top, 12px));
-        left: max(12px, env(safe-area-inset-left, 12px));
+        top: max(12px, env(safe-area-inset-top, 0px));
+        top: var(--ar-safe-top);
+        left: max(12px, env(safe-area-inset-left, 0px));
+        left: var(--ar-safe-left);
         right: auto;
         transform: none;
         z-index: 10053;
@@ -702,8 +718,8 @@
         align-items: center;
         justify-content: center;
         gap: 6px;
-        min-height: 40px;
-        max-width: calc(100vw - 80px);
+        min-height: 44px;
+        max-width: calc(100vw - 24px);
         padding: 8px 14px;
         border-radius: 999px;
         border: 1px solid rgba(124, 58, 237, 0.5);
@@ -716,6 +732,8 @@
         -webkit-backdrop-filter: blur(14px) saturate(160%);
         box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
         cursor: pointer;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
         transition: background-color 0.15s ease, transform 0.1s ease, opacity 0.3s ease;
         opacity: 0;
         pointer-events: none;

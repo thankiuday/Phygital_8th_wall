@@ -4,6 +4,7 @@
 
 import { getLinkIconSvg, getLinkAccent } from '../utils/hubLinkIcons.js';
 import { recordLinkClick } from '../services/campaignLoader.js';
+import { bindArTap } from '../utils/bindArTap.js';
 
 const STAGGER_SEC = 0.3;
 
@@ -44,16 +45,18 @@ const createLinkButton = (link, redirectSlug, onBeforeLeave) => {
     btn.innerHTML = getLinkIconSvg(kind);
   }
 
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
+  const onActivate = () => {
     if (redirectSlug && link.linkId) {
       recordLinkClick(redirectSlug, link.linkId);
     }
     onBeforeLeave?.();
     // Defer navigation so sessionStorage is committed before the tab switches.
     setTimeout(() => openLinkHref(link.href), 0);
-  });
-  return btn;
+  };
+
+  const unbindTap = bindArTap(btn, onActivate);
+
+  return { btn, unbindTap };
 };
 
 const gsap = () => window.gsap;
@@ -73,8 +76,10 @@ export const buildLinkOverlay = ({ links, redirectSlug, videoEl, onBeforeLeave, 
   inner.id = 'ar-link-dock-inner';
   inner.className = layoutClassForCount(links.length);
 
+  const tapUnbinds = [];
   const buttons = links.map((link) => {
-    const btn = createLinkButton(link, redirectSlug, onBeforeLeave);
+    const { btn, unbindTap } = createLinkButton(link, redirectSlug, onBeforeLeave);
+    tapUnbinds.push(unbindTap);
     inner.appendChild(btn);
     return btn;
   });
@@ -144,6 +149,7 @@ export const buildLinkOverlay = ({ links, redirectSlug, videoEl, onBeforeLeave, 
 
   const destroy = () => {
     resetButtons();
+    tapUnbinds.forEach((unbind) => unbind());
     videoEl.removeEventListener('play', onPlay);
     videoEl.removeEventListener('playing', onPlaying);
     videoEl.removeEventListener('pause', onPause);
