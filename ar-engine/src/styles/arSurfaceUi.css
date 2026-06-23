@@ -125,13 +125,16 @@ body.ar-surface-active {
 #ar-dom-overlay {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 10050;
   pointer-events: none;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 
 #ar-dom-overlay #ar-controls,
 #ar-dom-overlay #ar-hub-toggle,
 #ar-dom-overlay #ar-link-dock,
+#ar-dom-overlay #ar-buffer,
 #ar-dom-overlay .ar-surface-coaching.state-starting {
   pointer-events: auto;
 }
@@ -389,7 +392,7 @@ body.ar-surface-active {
   left: 50%;
   bottom: var(--ar-controls-bottom);
   transform: translate(-50%, 10px);
-  z-index: 52;
+  z-index: 10052;
   display: flex;
   align-items: center;
   gap: 2px;
@@ -438,7 +441,7 @@ body.ar-surface-active {
   left: 50%;
   bottom: var(--ar-dock-bottom);
   transform: translateX(-50%);
-  z-index: 51;
+  z-index: 10051;
   width: min(94vw, 380px);
   padding: 0 var(--ar-safe-left);
   opacity: 0;
@@ -530,7 +533,7 @@ body.ar-surface-active {
   top: var(--ar-safe-top);
   left: var(--ar-safe-left);
   right: auto;
-  z-index: 51;
+  z-index: 10053;
   display: inline-flex;
   align-items: center;
   justify-content: center;

@@ -210,10 +210,15 @@ export class ARExperience {
   }
 
   _getUxRoot() {
-    if (this._trackingMode === 'surface') {
-      return document.getElementById('ar-dom-overlay') || document.body;
+    return document.getElementById('ar-dom-overlay') || document.body;
+  }
+
+  /** Keep UX layer above MindAR canvases (iOS WebKit stacks GPU layers over body siblings). */
+  _ensureUxOverlayOnTop() {
+    const overlay = document.getElementById('ar-dom-overlay');
+    if (overlay?.parentNode) {
+      overlay.parentNode.appendChild(overlay);
     }
-    return document.body;
   }
 
   _getActiveCamera() {
@@ -552,6 +557,7 @@ export class ARExperience {
 
     this._buildScene(THREE, renderer);
     this._buildUx();
+    this._ensureUxOverlayOnTop();
 
     this._anchor.group.add(this._plane);
     if (this._effect) this._anchor.group.add(this._effect.group);
@@ -666,6 +672,7 @@ export class ARExperience {
     scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 2.5));
     this._buildScene(THREE, renderer);
     this._buildUx();
+    this._ensureUxOverlayOnTop();
 
     this._anchor = { group: new THREE.Group() };
     scene.add(this._anchor.group);
@@ -746,6 +753,7 @@ export class ARExperience {
         this._surfaceReticle = reticle;
 
         this._buildUx();
+        this._ensureUxOverlayOnTop();
         this._configureEighthWallVideoPlane();
         const domRoot = document.getElementById('ar-dom-overlay') || document.body;
         this._domHologram = createEighthWallDomHologram({
@@ -1245,9 +1253,7 @@ export class ARExperience {
       markReturnReload(this._campaign._id, this._sessionId);
     };
 
-    const uxOverlay = this._trackingMode === 'surface'
-      ? document.getElementById('ar-dom-overlay')
-      : null;
+    const uxOverlay = document.getElementById('ar-dom-overlay') || uxRoot;
 
     this._ui.hubToggle = buildHubToggle(
       this._campaign.hubPageUrl,
@@ -1428,10 +1434,14 @@ export class ARExperience {
     }
 
     // Reveal the controls overlay (after the entrance has started)
+    this._ensureUxOverlayOnTop();
     this._ui.controls?.classList.add('visible');
     this._syncSurfaceSessionUi(true);
     if (this._trackingMode !== 'surface') {
       this._ui.hubToggle?.el?.classList.add('visible');
+    }
+    if (this._videoEl && !this._videoEl.paused && !this._videoEl.ended) {
+      this._ui.linkOverlay?.show?.();
     }
   }
 
