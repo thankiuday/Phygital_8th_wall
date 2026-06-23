@@ -635,6 +635,10 @@
         opacity: 1;
         pointer-events: auto;
       }
+      #ar-link-dock.visible .ar-link-btn {
+        opacity: 1;
+        transform: none;
+      }
       #ar-link-dock-inner {
         display: flex;
         align-items: center;
@@ -685,8 +689,7 @@
         touch-action: manipulation;
         -webkit-tap-highlight-color: transparent;
         padding: 0;
-        opacity: 0;
-        transition: box-shadow 0.15s ease;
+        transition: box-shadow 0.15s ease, transform 0.12s ease;
       }
       .ar-link-btn:active {
         transform: scale(0.92);

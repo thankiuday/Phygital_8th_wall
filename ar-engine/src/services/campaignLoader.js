@@ -47,6 +47,12 @@ export const loadCampaign = async (campaignId) => {
       ? resolvePlaybackMediaUrl(campaign.videoUrlIos)
       : null,
     thumbnailUrl: resolvePlaybackMediaUrl(campaign.thumbnailUrl),
+    links: Array.isArray(campaign.links)
+      ? campaign.links.map((link) => ({
+          ...link,
+          logoUrl: link.logoUrl ? resolvePlaybackMediaUrl(link.logoUrl) : link.logoUrl,
+        }))
+      : [],
   };
 };
 

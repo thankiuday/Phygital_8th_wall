@@ -469,6 +469,11 @@ body.ar-surface-active {
   pointer-events: auto;
 }
 
+#ar-link-dock.visible .ar-link-btn {
+  opacity: 1;
+  transform: none;
+}
+
 #ar-link-dock-inner {
   display: flex;
   align-items: center;

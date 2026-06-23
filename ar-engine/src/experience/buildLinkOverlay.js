@@ -1,10 +1,11 @@
 /**
- * buildLinkOverlay — bottom icon dock during video playback.
+ * buildLinkOverlay — bottom icon dock shown while the AR target is active.
  */
 
 import { getLinkIconSvg, getLinkAccent } from '../utils/hubLinkIcons.js';
 import { recordLinkClick } from '../services/campaignLoader.js';
 import { bindArTap } from '../utils/bindArTap.js';
+import { resolvePlaybackMediaUrl } from '../utils/resolvePlaybackMediaUrl.js';
 
 const STAGGER_SEC = 0.3;
 
@@ -33,13 +34,14 @@ const createLinkButton = (link, redirectSlug, onBeforeLeave) => {
   btn.style.background = accent.bg;
   btn.style.color = accent.color;
 
-  if (kind === 'custom' && link.logoUrl) {
+  if (link.logoUrl) {
     btn.style.background = 'transparent';
     const img = document.createElement('img');
-    img.src = link.logoUrl;
+    img.src = resolvePlaybackMediaUrl(link.logoUrl);
     img.alt = '';
     img.className = 'ar-link-logo';
     img.setAttribute('aria-hidden', 'true');
+    img.referrerPolicy = 'no-referrer';
     btn.appendChild(img);
   } else {
     btn.innerHTML = getLinkIconSvg(kind);
@@ -62,10 +64,10 @@ const createLinkButton = (link, redirectSlug, onBeforeLeave) => {
 const gsap = () => window.gsap;
 
 /**
- * @param {{ links: Array, redirectSlug: string, videoEl: HTMLVideoElement, onBeforeLeave?: () => void, parent?: HTMLElement }} opts
+ * @param {{ links: Array, redirectSlug: string, onBeforeLeave?: () => void, parent?: HTMLElement }} opts
  */
-export const buildLinkOverlay = ({ links, redirectSlug, videoEl, onBeforeLeave, parent }) => {
-  if (!Array.isArray(links) || links.length === 0 || !videoEl) {
+export const buildLinkOverlay = ({ links, redirectSlug, onBeforeLeave, parent }) => {
+  if (!Array.isArray(links) || links.length === 0) {
     return null;
   }
 
@@ -133,27 +135,9 @@ export const buildLinkOverlay = ({ links, redirectSlug, videoEl, onBeforeLeave, 
     dock.classList.remove('visible');
   };
 
-  const onPlay = () => show();
-  const onPlaying = () => show();
-  const onPause = () => hide();
-  const onEnded = () => hide();
-
-  videoEl.addEventListener('play', onPlay);
-  videoEl.addEventListener('playing', onPlaying);
-  videoEl.addEventListener('pause', onPause);
-  videoEl.addEventListener('ended', onEnded);
-
-  if (!videoEl.paused && !videoEl.ended) {
-    show();
-  }
-
   const destroy = () => {
     resetButtons();
     tapUnbinds.forEach((unbind) => unbind());
-    videoEl.removeEventListener('play', onPlay);
-    videoEl.removeEventListener('playing', onPlaying);
-    videoEl.removeEventListener('pause', onPause);
-    videoEl.removeEventListener('ended', onEnded);
     dock.remove();
   };
 

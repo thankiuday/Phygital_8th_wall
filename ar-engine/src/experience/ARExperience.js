@@ -1268,7 +1268,6 @@ export class ARExperience {
     this._ui.linkOverlay = buildLinkOverlay({
       links: this._campaign.links,
       redirectSlug: this._campaign.redirectSlug,
-      videoEl: this._videoEl,
       onBeforeLeave: markForReturnReload,
       parent: uxOverlay,
     });
@@ -1445,9 +1444,7 @@ export class ARExperience {
     if (this._trackingMode !== 'surface') {
       this._ui.hubToggle?.el?.classList.add('visible');
     }
-    if (this._videoEl && !this._videoEl.paused && !this._videoEl.ended) {
-      this._ui.linkOverlay?.show?.();
-    }
+    this._ui.linkOverlay?.show?.();
   }
 
   _onTargetLost() {
